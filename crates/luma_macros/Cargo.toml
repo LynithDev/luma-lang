@@ -1,0 +1,16 @@
+[package]
+name = "luma_macros"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[lib]
+proc-macro = true
+
+[features]
+diagnostic = []
+
+[dependencies]
+syn = { workspace = true, features = ["full"] }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }

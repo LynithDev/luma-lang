@@ -1,0 +1,11 @@
+[package]
+name = "luma_core"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[features]
+engine = []
+
+[dependencies]
+luma_macros = { workspace = true }

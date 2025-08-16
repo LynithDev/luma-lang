@@ -1,0 +1,12 @@
+import * as ffi from "@std/ffi";
+import { abs, test, ceil as c } from "@std/math";
+import "./myScript";
+
+// this is a private scoped variable, couldve also just not used a visibility modifier
+pub(this) let mut test = 5 + (abs(-10) + ffi.math.ceil(3.14));
+
+pub(module) fn add(a: i32, b: i32): i32 {
+    a + b
+}
+
+fn sub(a: i32, b: i32) = a - b;

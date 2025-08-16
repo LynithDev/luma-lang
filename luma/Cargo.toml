@@ -1,0 +1,13 @@
+[package]
+name = "luma"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+luma_core = { workspace = true }
+luma_diagnostic = { workspace = true }
+luma_lexer = { workspace = true }
+luma_parser = { workspace = true }
+luma_semantics = { workspace = true }
+

@@ -1,0 +1,10 @@
+[package]
+name = "luma_parser"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+luma_core = { workspace = true }
+luma_lexer = { workspace = true }
+luma_diagnostic = { workspace = true }
