@@ -1,12 +1,12 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use luma_core::ast::Type;
+use luma_core::ast::TypeKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Symbol {
     pub name: String,
     pub depth: u16,
-    pub ty: Type,
+    pub ty: TypeKind,
     pub id: u32,
     pub shadow_index: Option<usize>, // index of the shadowed symbol if exists
 }
@@ -66,7 +66,7 @@ impl SymbolTable {
         self.depth -= 1;
     }
 
-    pub fn declare(&mut self, name: String, ty: Type) -> usize {
+    pub fn declare(&mut self, name: String, ty: TypeKind) -> usize {
         let index = self.symbols.len();
         let prev = self.map.insert(name.clone(), index);
 

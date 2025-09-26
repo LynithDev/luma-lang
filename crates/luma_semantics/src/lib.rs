@@ -26,7 +26,7 @@ impl<'a> LumaAnalyzer<'a> {
         }
     }
 
-    pub fn full_reset(&mut self) {
+    pub fn clean_state(&mut self) {
         self.files.clear();
     }
 
@@ -47,6 +47,8 @@ impl<'a> LumaAnalyzer<'a> {
         for ctx in &mut self.files {
             SymbolTableBuildingPass::run(ctx)?;
             dbg!(&ctx.symbol_table);
+
+            dbg!(ctx.symbol_table.lookup("test"));
         }
 
         Ok(())

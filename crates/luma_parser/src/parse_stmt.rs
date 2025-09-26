@@ -177,23 +177,19 @@ impl LumaParser<'_> {
         };
 
         // consume body
-        let body = if decl_only.unwrap_or(false) {
+        let body: Option<Box<Expression>> = if decl_only.unwrap_or(false) {
             self.consume(TokenKind::Punctuation(PunctuationKind::Semicolon))?;
             None
         } else {
             let kind = self.current().kind;
             match kind {
                 TokenKind::Punctuation(PunctuationKind::LeftBrace) => {
-                    let scope = self.consume_scope()?;
-                    Some(Box::new(Statement {
-                        span: scope.span,
-                        cursor: scope.cursor,
-                        kind: StatementKind::Scope(scope),
-                    }))
+                    let scope = self.parse_expression()?;
+                    Some(Box::new(scope))
                 },
                 TokenKind::Operator(OperatorKind::Equals) => {
                     self.advance();
-                    Some(Box::new(self.parse_statement(None)?))
+                    Some(Box::new(self.parse_expression()?))
                 }
                 TokenKind::Punctuation(PunctuationKind::Semicolon) => {
                     self.advance();

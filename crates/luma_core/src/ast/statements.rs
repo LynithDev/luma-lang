@@ -45,7 +45,7 @@ pub struct FuncDecl {
     pub name: String,
     pub parameters: Vec<Parameter>,
     pub return_type: Option<Box<Type>>,
-    pub body: Option<Box<Statement>>,
+    pub body: Option<Box<Expression>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -56,11 +56,7 @@ impl<'a> LumaParser<'a> {
                 Ok(statement) => {
                     let kind = statement.kind.clone();
                     
-                    if had_return {
-                        self.reporter.report(self.diagnostic_at(ParserDiagnostic::UnusedStatementDueToEarlyReturn, statement.span, statement.cursor));
-                    } else {
-                        statements.push(statement);
-                    }
+                    statements.push(statement);
                     
                     if self.previous().kind != TokenKind::Punctuation(PunctuationKind::Semicolon) || matches!(kind, StatementKind::Break(_) | StatementKind::Continue(_) | StatementKind::Return(_)) {
                         had_return = true

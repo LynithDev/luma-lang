@@ -7,8 +7,6 @@ pub struct Type {
     pub cursor: Cursor,
 }
 
-pub type TypeRef = std::rc::Rc<std::cell::RefCell<Type>>;
-
 #[derive(crate::Display, Debug, Clone, PartialEq, Eq)]
 #[display(case = "lowercase")]
 pub enum TypeKind {
@@ -26,7 +24,7 @@ pub enum TypeKind {
     Boolean,
     Void,
     Function {
-        params: Vec<TypeKind>,
+        params: Vec<Box<TypeKind>>,
         return_type: Box<TypeKind>,
     },
     Array(Box<TypeKind>),
@@ -70,6 +68,127 @@ impl From<&str> for TypeKind {
                 TypeKind::Array(Box::new(inner_type))
             }
             _ => TypeKind::Object(value.to_string()),
+        }
+    }
+}
+
+impl TypeKind {
+    pub fn precedence(&self) -> u8 {
+        // lower value means higher precedence
+        // e.g. during type coercion, the type with the lower value will be chosen
+        match self {
+            TypeKind::Void => 0,
+            TypeKind::String => 1,
+            TypeKind::Array(_) => 2,
+
+            TypeKind::Float32 => 3,
+            TypeKind::Float64 => 4,
+
+            TypeKind::Int8 => 5,
+            TypeKind::Int16 => 6,
+            TypeKind::Int32 => 7,
+            TypeKind::Int64 => 8,
+
+            TypeKind::UInt8 => 9,
+            TypeKind::UInt16 => 10,
+            TypeKind::UInt32 => 11,
+            TypeKind::UInt64 => 12,
+
+            TypeKind::Boolean => 13,
+
+            TypeKind::Object(_) => 14,
+            TypeKind::Function { .. } => 15,
+        }
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        matches!(
+            self,
+            TypeKind::UInt8
+                | TypeKind::UInt16
+                | TypeKind::UInt32
+                | TypeKind::UInt64
+                | TypeKind::Int8
+                | TypeKind::Int16
+                | TypeKind::Int32
+                | TypeKind::Int64
+                | TypeKind::Float32
+                | TypeKind::Float64
+        )
+    }
+
+    pub fn is_integer(&self) -> bool {
+        matches!(
+            self,
+            TypeKind::UInt8
+                | TypeKind::UInt16
+                | TypeKind::UInt32
+                | TypeKind::UInt64
+                | TypeKind::Int8
+                | TypeKind::Int16
+                | TypeKind::Int32
+                | TypeKind::Int64
+        )
+    }
+
+    pub fn is_floating_point(&self) -> bool {
+        matches!(self, TypeKind::Float32 | TypeKind::Float64)
+    }
+
+    pub fn is_signed(&self) -> bool {
+        matches!(
+            self,
+            TypeKind::Int8
+                | TypeKind::Int16
+                | TypeKind::Int32
+                | TypeKind::Int64
+                | TypeKind::Float32
+                | TypeKind::Float64
+        )
+    }
+
+    pub fn is_unsigned(&self) -> bool {
+        matches!(
+            self,
+            TypeKind::UInt8 | TypeKind::UInt16 | TypeKind::UInt32 | TypeKind::UInt64
+        )
+    }
+
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, TypeKind::Boolean)
+    }
+
+    pub fn is_array(&self) -> bool {
+        matches!(self, TypeKind::Array(_))
+    }
+
+    pub fn as_signed(&self) -> TypeKind {
+        match self {
+            TypeKind::UInt8 => TypeKind::Int8,
+            TypeKind::UInt16 => TypeKind::Int16,
+            TypeKind::UInt32 => TypeKind::Int32,
+            TypeKind::UInt64 => TypeKind::Int64,
+            _ => self.clone(),
+        }
+    }
+
+    pub fn as_unsigned(&self) -> TypeKind {
+        match self {
+            TypeKind::Int8 => TypeKind::UInt8,
+            TypeKind::Int16 => TypeKind::UInt16,
+            TypeKind::Int32 => TypeKind::UInt32,
+            TypeKind::Int64 => TypeKind::UInt64,
+            _ => self.clone(),
+        }
+    }
+
+    pub fn bit_size(&self) -> Option<usize> {
+        match self {
+            TypeKind::UInt8 | TypeKind::Int8 => Some(8),
+            TypeKind::UInt16 | TypeKind::Int16 => Some(16),
+            TypeKind::UInt32 | TypeKind::Int32 | TypeKind::Float32 => Some(32),
+            TypeKind::UInt64 | TypeKind::Int64 | TypeKind::Float64 => Some(64),
+            _ => None,
         }
     }
 }

@@ -4,8 +4,18 @@ use luma_lexer::LumaLexer;
 use luma_parser::LumaParser;
 use luma_semantics::LumaAnalyzer;
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Verbosity {
+    Quiet = 0, // doesn't show any output
+    #[default]
+    Normal = 1, // shows basic output
+    Verbose = 2, // todo: implement verbose logging
+}
+
 pub struct LumaEngine {
     reporter: Reporter,
+    verbosity: Verbosity,
 }
 
 impl LumaEngine {
@@ -13,6 +23,7 @@ impl LumaEngine {
     pub fn new() -> Self {
         Self {
             reporter: Reporter::new(),
+            verbosity: Verbosity::Normal,
         }
     }
 
@@ -26,6 +37,8 @@ impl LumaEngine {
 
         let mut analyzer = LumaAnalyzer::new(&self.reporter);
         analyzer.add_entries(&parsed);
+
+        analyzer.analyze()?;
         
         Ok(0)
     }
@@ -37,6 +50,10 @@ impl LumaEngine {
         // let input = input.with_ast(ast);
 
         Ok(&self.reporter)
+    }
+
+    pub fn reporter(&self) -> &Reporter {
+        &self.reporter
     }
 
     fn parse_ast(&self, input: &CodeInput) -> LumaResult<Ast> {
