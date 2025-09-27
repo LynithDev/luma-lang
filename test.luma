@@ -1,1 +1,13 @@
-let test = 5 + -5;
+pub fn add(a: u32, b: u8) {
+    a + b
+}
+
+pub fn sub(a: u8, b: u8) = a - b;
+
+pub fn test() {
+    let result = add(10, 20) + sub(30, 15);
+
+    result
+}
+
+

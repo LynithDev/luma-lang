@@ -1,6 +1,6 @@
 use crate::{Cursor, Span};
 
-use crate::{ast::{ConditionalBranch, Expression, Scope, Type, Visibility}};
+use crate::{ast::{ConditionalBranch, Expression, Type, Visibility}};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Statement {
@@ -22,7 +22,7 @@ pub enum StatementKind {
         body: Box<Statement>,
     },
     // For
-    Scope(Scope),
+    Scope(Vec<Statement>),
     Expression(Expression),
     Continue(Option<String>),
     Break(Option<String>),

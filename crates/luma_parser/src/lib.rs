@@ -2,7 +2,7 @@ pub(crate) mod diagnostics;
 mod parse_stmt;
 mod parse_expr;
 
-use luma_core::ast::{Ast, Scope, Statement, StatementKind};
+use luma_core::ast::{Ast, Expression, ExpressionKind, Statement, StatementKind};
 use luma_diagnostic::{LumaResult, Reporter, ReporterExt};
 use luma_lexer::tokens::{PunctuationKind, Token, TokenKind, TokenStream};
 
@@ -45,7 +45,7 @@ impl<'a> LumaParser<'a> {
     }
 
     // MARK: Scope
-    pub fn consume_scope(&mut self) -> LumaResult<Scope> {
+    pub fn consume_scope(&mut self) -> LumaResult<Expression> {
         let (mut span, cursor) = self.consume(TokenKind::Punctuation(PunctuationKind::LeftBrace))?.pos();
         let mut statements = Vec::new();
 
@@ -73,10 +73,10 @@ impl<'a> LumaParser<'a> {
             }
         }
 
-        Ok(Scope {
+        Ok(Expression {
             cursor,
             span,
-            statements,
+            kind: ExpressionKind::Scope(statements),
         })
     }
 

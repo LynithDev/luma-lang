@@ -41,19 +41,44 @@ impl<'a, 'ctx> SymbolTableBuildingPass<'a, 'ctx> {
                 self.ctx.symbol_table.declare(decl.name.clone(), ty);
             },
             StatementKind::FuncDecl(decl) => {
-                let ret_ty = match &decl.return_type {
+                // we enter scope for the function parameters as they are scoped to the func body
+                self.ctx.symbol_table.enter_scope();
+
+                // collect parameter types
+                let mut param_types: Vec<TypeKind> = Vec::with_capacity(decl.parameters.len());
+
+                for param in &decl.parameters {
+                    self.ctx.symbol_table.declare(param.name.clone(), param.ty.kind.clone());
+                    param_types.push(param.ty.kind.clone());
+                }
+
+                // collect or infer return type
+                let return_type: TypeKind = match &decl.return_type {
                     Some(t) => t.kind.clone(),
-                    None => TypeKind::Void,
+                    None => {
+                        if let Some(body) = &decl.body {
+                            if let ExpressionKind::Scope(statements) = &body.kind {
+                                // we don't want to enter a new scope here
+                                self.get_scope_type_info(statements)
+                            } else {
+                                self.get_type_info(body)
+                            }
+                        } else {
+                            TypeKind::Void
+                        }
+                    },
                 };
 
-                self.ctx.symbol_table.declare(decl.name.clone(), ret_ty);
+                self.ctx.symbol_table.leave_scope();
+
+                let fn_type = TypeKind::Function { 
+                    param_types, 
+                    return_type: Box::new(return_type),
+                };
+
+                self.ctx.symbol_table.declare(decl.name.clone(), fn_type);
             },
-            StatementKind::Scope(decl) => {
-                dbg!(&decl.statements);
-            },
-            _ => {
-                dbg!("handle {} kind", &statement.kind);
-            }
+            _ => {},
         }
 
         Ok(())
@@ -61,8 +86,6 @@ impl<'a, 'ctx> SymbolTableBuildingPass<'a, 'ctx> {
 
     #[allow(clippy::only_used_in_recursion)]
     fn get_type_info(&mut self, expression: &luma_core::ast::Expression) -> TypeKind {
-        
-
         match &expression.kind {
             ExpressionKind::Literal { kind, .. } => {
                 match kind {
@@ -135,14 +158,14 @@ impl<'a, 'ctx> SymbolTableBuildingPass<'a, 'ctx> {
             ExpressionKind::Invoke { callee, arguments } => {
                 let callee_type = self.get_type_info(callee);
 
-                if let TypeKind::Function { params, return_type } = callee_type {
+                if let TypeKind::Function { param_types: params, return_type } = callee_type {
                     if params.len() != arguments.len() {
                         dbg!("function call argument count mismatch");
                     }
 
                     for (arg, param) in arguments.iter().zip(params) {
                         let arg_type = self.get_type_info(arg);
-                        if arg_type != *param {
+                        if arg_type != param {
                             dbg!("function call argument type mismatch");
                         }
                     }
@@ -165,11 +188,43 @@ impl<'a, 'ctx> SymbolTableBuildingPass<'a, 'ctx> {
                 TypeKind::Void
             },
 
+            ExpressionKind::Scope(statements) => {
+                self.ctx.symbol_table.enter_scope();
+                let ty = self.get_scope_type_info(statements);
+                self.ctx.symbol_table.leave_scope();
+                
+                ty
+            },
+
             _ => {
                 dbg!("handle {} kind", &expression.kind);
                 TypeKind::Void
             }
         }
+    }
+
+    pub fn get_scope_type_info(&mut self, statements: &Vec<Statement>) -> TypeKind {
+        let mut found_type = TypeKind::Void;
+
+        for stmt in statements {
+            match self.analyze_statement(stmt) {
+                Ok(_) => {},
+                Err(err) => {
+                    self.ctx.reporter.report(err);
+                }
+            };
+            
+            let expr = match &stmt.kind {
+                StatementKind::Return(Some(expr)) => expr,
+                StatementKind::Expression(expr) => expr,
+                _ => continue,
+            };
+
+            found_type = self.get_type_info(expr);
+            break;
+        }
+
+        found_type
     }
 
 }

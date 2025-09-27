@@ -13,13 +13,7 @@ impl LumaParser<'_> {
     // MARK: Scope
     fn expr_scope(&mut self) -> LumaResult<Expression> {
         if self.check(TokenKind::Punctuation(PunctuationKind::LeftBrace)) {
-            let scope = self.consume_scope()?;
-
-            return Ok(Expression {
-                cursor: scope.cursor,
-                span: scope.span,
-                kind: ExpressionKind::Scope(scope.statements),
-            });
+            return self.consume_scope();
         }
 
         self.expr_assignment()

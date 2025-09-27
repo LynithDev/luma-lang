@@ -13,10 +13,10 @@ pub struct Symbol {
 
 #[derive(Default)]
 pub struct SymbolTable {
-    symbols: Vec<Symbol>,
+    pub symbols: Vec<Symbol>,
     map: HashMap<String, usize>, // identifier to index map for fast lookup
     scope_stack: Vec<usize>, // used to track how much to pop from the symbol table on scope exit
-    depth: u16,
+    pub depth: u16,
 }
 
 impl Debug for SymbolTable {

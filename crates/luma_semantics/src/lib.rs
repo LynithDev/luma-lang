@@ -46,9 +46,8 @@ impl<'a> LumaAnalyzer<'a> {
         // Symbol table building
         for ctx in &mut self.files {
             SymbolTableBuildingPass::run(ctx)?;
-            dbg!(&ctx.symbol_table);
 
-            dbg!(ctx.symbol_table.lookup("test"));
+            dbg!(&ctx.symbol_table.symbols);
         }
 
         Ok(())

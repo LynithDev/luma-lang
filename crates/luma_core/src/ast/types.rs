@@ -24,7 +24,7 @@ pub enum TypeKind {
     Boolean,
     Void,
     Function {
-        params: Vec<Box<TypeKind>>,
+        param_types: Vec<TypeKind>,
         return_type: Box<TypeKind>,
     },
     Array(Box<TypeKind>),
@@ -81,18 +81,18 @@ impl TypeKind {
             TypeKind::String => 1,
             TypeKind::Array(_) => 2,
 
-            TypeKind::Float32 => 3,
-            TypeKind::Float64 => 4,
+            TypeKind::Float64 => 3,
+            TypeKind::Float32 => 4,
 
-            TypeKind::Int8 => 5,
-            TypeKind::Int16 => 6,
-            TypeKind::Int32 => 7,
-            TypeKind::Int64 => 8,
+            TypeKind::Int64 => 5,
+            TypeKind::Int32 => 6,
+            TypeKind::Int16 => 7,
+            TypeKind::Int8 => 8,
 
-            TypeKind::UInt8 => 9,
-            TypeKind::UInt16 => 10,
-            TypeKind::UInt32 => 11,
-            TypeKind::UInt64 => 12,
+            TypeKind::UInt64 => 9,
+            TypeKind::UInt32 => 10,
+            TypeKind::UInt16 => 11,
+            TypeKind::UInt8 => 12,
 
             TypeKind::Boolean => 13,
 
