@@ -1,21 +1,27 @@
-mod input;
-pub use input::*;
+mod source;
+pub use source::*;
 
 pub mod ast;
 
+pub mod operators;
+pub mod visibility;
+pub mod types;
+
 pub use luma_macros::Display;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Cursor {
     pub line: usize,
     pub column: usize,
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
 }
+
+pub type SymbolId = usize;
 
 impl Span {
     pub fn merge(&self, other: &Span) -> Self {

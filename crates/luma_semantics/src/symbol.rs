@@ -1,87 +1,171 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use luma_core::ast::TypeKind;
+use luma_core::{types::TypeKind, SymbolId};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Symbol {
-    pub name: String,
-    pub depth: u16,
-    pub ty: TypeKind,
-    pub id: u32,
-    pub shadow_index: Option<usize>, // index of the shadowed symbol if exists
+pub trait Symbol {
+    fn name(&self) -> &str;
+    fn shadow_id(&self) -> Option<SymbolId>;
+
+    fn new(id: SymbolId, name: String, shadow_id: Option<SymbolId>) -> Self where Self: Sized;
 }
 
-#[derive(Default)]
-pub struct SymbolTable {
-    pub symbols: Vec<Symbol>,
-    map: HashMap<String, usize>, // identifier to index map for fast lookup
-    scope_stack: Vec<usize>, // used to track how much to pop from the symbol table on scope exit
-    pub depth: u16,
+macro_rules! create_symbol {
+    ($symbol_struct:ident { $($field:ident:$field_type:ty = $field_default:expr),* }) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $symbol_struct {
+            pub id: SymbolId,
+            pub name: String,
+            pub shadow_id: Option<SymbolId>,
+            $(pub $field: $field_type),*
+        }
+
+        impl Symbol for $symbol_struct {
+            fn name(&self) -> &str {
+                &self.name
+            }
+
+            fn shadow_id(&self) -> Option<SymbolId> {
+                self.shadow_id
+            }
+
+            fn new(id: SymbolId, name: String, shadow_id: Option<SymbolId>) -> Self {
+                Self {
+                    id,
+                    name,
+                    shadow_id,
+                    $($field: $field_default),*
+                }
+            }
+        }
+    };
 }
 
-impl Debug for SymbolTable {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SymbolTable")
-            .field("symbols", &self.symbols.len())
-            .field("map", &self.map.len())
-            .field("scope_stack", &self.scope_stack.len())
-            .field("depth", &self.depth)
-            .finish()
+create_symbol! {
+    ValueSymbol {
+        ty: TypeKind = TypeKind::Unknown
     }
 }
 
-impl SymbolTable {
+create_symbol!(TypeSymbol {});
+create_symbol!(ControlFlowSymbol {});
+
+#[derive(Debug)]
+pub struct SymbolsTable {
+    pub value_table: SymbolTable<ValueSymbol>,
+    pub type_table: SymbolTable<TypeSymbol>,
+    pub control_flow_table: SymbolTable<ControlFlowSymbol>,
+
+    pub depth: u16,
+}
+
+#[derive(Debug)]
+pub struct SymbolTable<T: Symbol> {
+    symbols: Vec<T>,
+    lookup_map: HashMap<String, SymbolId>,
+    scope_stack: Vec<usize>,
+}
+
+impl SymbolsTable {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            symbols: Vec::new(),
-            map: HashMap::new(),
-            scope_stack: Vec::new(),
+            control_flow_table: SymbolTable::with_capacity(0),
+            type_table: SymbolTable::with_capacity(0),
+            value_table: SymbolTable::new(),
             depth: 0,
         }
     }
-
+    
     pub fn enter_scope(&mut self) {
         self.depth += 1;
-        self.scope_stack.push(self.symbols.len());
+        self.control_flow_table.enter_scope();
+        self.type_table.enter_scope();
+        self.value_table.enter_scope();
     }
 
     pub fn leave_scope(&mut self) {
-        let Some(start) = self.scope_stack.pop() else {
-            panic!("Cannot leave scope when no scope is active"); // TODO: Tracing
+        self.depth -= 1;
+        self.control_flow_table.leave_scope();
+        self.type_table.leave_scope();
+        self.value_table.leave_scope();
+    }
+
+
+    pub fn declare_value(&mut self, name: String, ty: TypeKind) -> SymbolId {
+        let symbol_id = self.value_table.declare(name);
+        self.value_table.symbols[symbol_id].ty = ty;
+        symbol_id
+    }
+
+
+    pub fn declare_type(&mut self, name: String) -> SymbolId {
+        self.type_table.declare(name)
+    }
+
+
+    pub fn declare_control_flow(&mut self, name: String) -> SymbolId {
+        self.control_flow_table.declare(name)
+    }
+}
+
+impl<T: Symbol> SymbolTable<T> {
+    pub(super) fn new() -> Self {
+        Self {
+            symbols: Vec::new(),
+            lookup_map: HashMap::new(),
+            scope_stack: Vec::new(),
+        }
+    }
+
+    pub(super) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            symbols: Vec::with_capacity(capacity),
+            lookup_map: HashMap::with_capacity(capacity),
+            scope_stack: Vec::new(),
+        }
+    }
+
+    pub fn declare(&mut self, name: String) -> SymbolId {
+        let symbol_id = self.symbols.len();
+
+        let shadow_id = self.lookup_map.insert(name.clone(), symbol_id);
+        let symbol = T::new(symbol_id, name.clone(), shadow_id);
+        self.symbols.push(symbol);
+
+        symbol_id
+    }
+
+    pub fn lookup_name(&self, name: &str) -> Option<&T> {
+        let symbol_id = self.lookup_map.get(name)?;
+        self.lookup_id(*symbol_id)
+    }
+
+    pub fn lookup_id(&self, id: SymbolId) -> Option<&T> {
+        self.symbols.get(id)
+    }
+
+    pub fn lookup_id_mut(&mut self, id: SymbolId) -> Option<&mut T> {
+        self.symbols.get_mut(id)
+    }
+
+    pub(super) fn enter_scope(&mut self) {
+        self.scope_stack.push(self.symbols.len());
+    }
+
+    pub(super) fn leave_scope(&mut self) {
+        let Some(scope_start) = self.scope_stack.pop() else {
+            panic!("tried to leave scope when there is no scope");
         };
+        
+        let indexes = (scope_start..self.symbols.len()).rev();
+        for index in indexes {
+            let symbol = &self.symbols[index];
 
-        let indexes = (start..self.symbols.len()).rev();
-        for i in indexes {
-            let sym = &self.symbols[i];
-
-            // handle identifier map
-            if let Some(shadow_index) = sym.shadow_index {
-                self.map.insert(sym.name.clone(), shadow_index);
+            if let Some(shadow_id) = symbol.shadow_id() {
+                self.lookup_map.insert(symbol.name().to_owned(), shadow_id);
             } else {
-                self.map.remove(&sym.name);
+                self.lookup_map.remove(symbol.name());
             }
         }
-
-        self.symbols.truncate(start);
-        self.depth -= 1;
-    }
-
-    pub fn declare(&mut self, name: String, ty: TypeKind) -> usize {
-        let index = self.symbols.len();
-        let prev = self.map.insert(name.clone(), index);
-
-        self.symbols.push(Symbol {
-            name,
-            depth: self.depth,
-            ty,
-            id: index as u32,
-            shadow_index: prev,
-        });
-
-        index
-    }
-
-    pub fn lookup(&self, name: &str) -> Option<&Symbol> {
-        self.map.get(name).and_then(|&index| self.symbols.get(index))
     }
 }

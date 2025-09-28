@@ -1,7 +1,7 @@
 use std::{io::Write, path::PathBuf, str::FromStr};
 
 use luma::LumaEngine;
-use luma_core::CodeInput;
+use luma_core::CodeSource;
 
 // const SOURCE: &str = r#"
 // pub class Object {
@@ -58,7 +58,7 @@ fn compile(args: &[String]) {
     let reporter = engine.reporter();
 
     let inputs = files.into_iter()
-        .flat_map(|path| CodeInput::try_from(path).ok())
+        .flat_map(|path| CodeSource::try_from(path).ok())
         .collect::<Vec<_>>();
 
     let _ = engine.eval_sources(inputs);

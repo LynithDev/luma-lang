@@ -1,6 +1,7 @@
+use crate::ast::AstSymbol;
 use crate::{Cursor, Span};
 
-use crate::{ast::{ConditionalBranch, Expression, Type, Visibility}};
+use crate::{ast::{ConditionalBranch, expressions::Expression}, types::Type, visibility::Visibility};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Statement {
@@ -18,15 +19,26 @@ pub enum StatementKind {
         else_stmt: Option<Box<Statement>>,
     },
     While {
+        label: Option<AstSymbol>,
         condition: Box<Expression>,
         body: Box<Statement>,
     },
     // For
-    Scope(Vec<Statement>),
-    Expression(Expression),
-    Continue(Option<String>),
-    Break(Option<String>),
-    Return(Option<Box<Expression>>),
+    Scope {
+        statements: Vec<Statement>
+    },
+    Expression {
+        inner: Expression
+    },
+    Continue {
+        label: Option<AstSymbol>
+    },
+    Break {
+        label: Option<AstSymbol>
+    },
+    Return {
+        value: Option<Box<Expression>>
+    },
     Import {
         kind: ImportPropertyKind,
         path: String,
@@ -42,32 +54,32 @@ pub enum StatementKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FuncDecl {
     pub visibility: Visibility,
-    pub name: String,
+    pub symbol: AstSymbol,
     pub parameters: Vec<Parameter>,
-    pub return_type: Option<Box<Type>>,
+    pub return_type: Option<Type>,
     pub body: Option<Box<Expression>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VarDecl {
     pub visibility: Visibility,
-    pub name: String,
+    pub symbol: AstSymbol,
     pub mutable: bool,
-    pub ty: Option<Type>,
     pub value: Option<Box<Expression>>,
+    pub ty: Option<Type>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassDecl {
     pub visibility: Visibility,
-    pub name: String,
+    pub symbol: AstSymbol,
     pub fields: Vec<Parameter>,
     pub methods: Vec<FuncDecl>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Parameter {
-    pub name: String,
+    pub symbol: AstSymbol,
     pub mutable: bool,
     pub ty: Type,
     pub span: Span,

@@ -2,12 +2,11 @@ pub fn add(a: u32, b: u8) {
     a + b
 }
 
-pub fn sub(a: u8, b: u8) = a - b;
+pub fn sub(a: u8, b: u8): u64 = a - b;
 
 pub fn test() {
-    let result = add(10, 20) + sub(30, 15);
+    let result = 5;
+    let result = add(result, 20) + sub(30, 15);
 
     result
 }
-
-

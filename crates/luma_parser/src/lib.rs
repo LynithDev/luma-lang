@@ -1,9 +1,9 @@
 pub(crate) mod diagnostics;
-mod parse_stmt;
 mod parse_expr;
+mod parse_stmt;
 
-use luma_core::ast::{Ast, Expression, ExpressionKind, Statement, StatementKind};
-use luma_diagnostic::{LumaResult, Reporter, ReporterExt};
+use luma_core::ast::prelude::*;
+use luma_diagnostic::{DiagnosticResult, Reporter, ReporterExt};
 use luma_lexer::tokens::{PunctuationKind, Token, TokenKind, TokenStream};
 
 use crate::diagnostics::ParserDiagnostic;
@@ -15,53 +15,62 @@ pub struct LumaParser<'a> {
 
 impl<'a> LumaParser<'a> {
     pub fn new(stream: &'a mut TokenStream, reporter: &Reporter) -> Self {
-        Self { 
+        Self {
             stream,
             reporter: reporter.with_name("parser"),
         }
     }
 
     pub fn parse(&mut self) -> Ast {
-        let mut statements: Vec<Statement> = vec![];
+        let mut ast = Ast::new();
 
         while !self.is_at_end() {
             match self.parse_statement(None) {
                 Ok(statement) => {
                     let is_end = statement.kind == StatementKind::EndOfFile;
 
-                    statements.push(statement);
+                    ast.statements.push(statement);
 
                     if is_end {
                         break;
                     }
-                },
+                }
                 Err(err) => {
                     self.reporter.report(err);
                 }
             }
         }
 
-        Ast::new(statements)
+        ast
     }
 
     // MARK: Scope
-    pub fn consume_scope(&mut self) -> LumaResult<Expression> {
-        let (mut span, cursor) = self.consume(TokenKind::Punctuation(PunctuationKind::LeftBrace))?.pos();
+    pub fn consume_scope(&mut self) -> DiagnosticResult<Expression> {
+        let (mut span, cursor) = self
+            .consume(TokenKind::Punctuation(PunctuationKind::LeftBrace))?
+            .pos();
         let mut statements = Vec::new();
 
         let mut had_return = false;
-        
+
         while !self.is_at_end() {
             match self.parse_statement(Some(had_return)) {
                 Ok(statement) => {
                     let kind = statement.kind.clone();
-                    
+
                     statements.push(statement);
-                    
-                    if self.previous().kind != TokenKind::Punctuation(PunctuationKind::Semicolon) || matches!(kind, StatementKind::Break(_) | StatementKind::Continue(_) | StatementKind::Return(_)) {
+
+                    if self.previous().kind != TokenKind::Punctuation(PunctuationKind::Semicolon)
+                        || matches!(
+                            kind,
+                            StatementKind::Break { .. }
+                                | StatementKind::Continue { .. }
+                                | StatementKind::Return { .. }
+                        )
+                    {
                         had_return = true
                     }
-                },
+                }
                 Err(err) => {
                     self.reporter.report(err);
                 }
@@ -76,19 +85,21 @@ impl<'a> LumaParser<'a> {
         Ok(Expression {
             cursor,
             span,
-            kind: ExpressionKind::Scope(statements),
+            kind: ExpressionKind::Scope { statements },
         })
     }
 
     // MARK: Expect Identifier
-    fn expect_lexeme(&mut self, identifier: &str) -> LumaResult<&Token> {
+    fn expect_lexeme(&mut self, identifier: &str) -> DiagnosticResult<&Token> {
         let current = self.current();
         if current.kind == TokenKind::Identifier && current.lexeme == identifier {
             let current = self.advance();
             return Ok(current);
         }
 
-        Err(self.diagnostic(ParserDiagnostic::ExpectedSpecialKeyword(identifier.to_string())))
+        Err(self.diagnostic(ParserDiagnostic::ExpectedSpecialKeyword(
+            identifier.to_string(),
+        )))
     }
 
     // MARK: Stream funcs
@@ -121,12 +132,12 @@ impl<'a> LumaParser<'a> {
         self.current().kind == kind
     }
 
-    fn consume(&mut self, kind: TokenKind) -> LumaResult<&Token> {
+    fn consume(&mut self, kind: TokenKind) -> DiagnosticResult<&Token> {
         self.expect(kind)?;
         Ok(self.advance())
     }
 
-    fn expect(&mut self, kind: TokenKind) -> LumaResult<&Token> {
+    fn expect(&mut self, kind: TokenKind) -> DiagnosticResult<&Token> {
         let current = self.current();
         if current.kind == kind {
             Ok(current)

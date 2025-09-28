@@ -1,17 +1,17 @@
-use luma_diagnostic::{DiagnosticKind, LumaResult, ReporterExt};
+use luma_diagnostic::{DiagnosticKind, DiagnosticResult, ReporterExt};
 use luma_lexer::tokens::{KeywordKind, LiteralKind, OperatorKind, PunctuationKind, TokenKind};
-use luma_core::ast::{Expression, FuncDecl, ImportPropertyKind, Parameter, Renameable, Statement, StatementKind, Type, TypeKind, VarDecl, Visibility};
+use luma_core::ast::{prelude::*, AstSymbol};
 
 use crate::{diagnostics::ParserDiagnostic, LumaParser};
 
 impl LumaParser<'_> {
 
-    pub fn parse_statement(&mut self, semicolon: Option<bool>) -> LumaResult<Statement> {
+    pub fn parse_statement(&mut self, semicolon: Option<bool>) -> DiagnosticResult<Statement> {
         self.declaration(semicolon)
     }
 
     // MARK: Declaration
-    fn declaration(&mut self, semicolon: Option<bool>) -> LumaResult<Statement> {
+    fn declaration(&mut self, semicolon: Option<bool>) -> DiagnosticResult<Statement> {
         let current = self.current();
 
         match current.kind {
@@ -35,7 +35,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Statement
-    fn statement(&mut self, semicolon: Option<bool>) -> LumaResult<Statement> {
+    fn statement(&mut self, semicolon: Option<bool>) -> DiagnosticResult<Statement> {
         let old_error_count = self.reporter.diagnostic_count(DiagnosticKind::Error);
 
         let current= self.current();
@@ -66,7 +66,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Visibility
-    fn stmt_public(&mut self) -> LumaResult<Statement> {
+    fn stmt_public(&mut self) -> DiagnosticResult<Statement> {
         // Consume the pub token
         let (span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Public))?.pos();
 
@@ -119,12 +119,12 @@ impl LumaParser<'_> {
     }
 
     // MARK: Function
-    fn stmt_function(&mut self, decl_only: Option<bool>) -> LumaResult<Statement> {
+    fn stmt_function(&mut self, decl_only: Option<bool>) -> DiagnosticResult<Statement> {
         // Consume the function token
         let (mut span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Function))?.pos();
 
         // consume the identifier
-        let identifier = self.consume(TokenKind::Identifier)?.lexeme.clone();
+        let identifier = self.consume(TokenKind::Identifier)?.clone();
 
         // consume the parameters
         let _ = self.consume(TokenKind::Punctuation(PunctuationKind::LeftParen))?;
@@ -146,17 +146,17 @@ impl LumaParser<'_> {
             let is_mut = self.consume(TokenKind::Keyword(KeywordKind::Mut)).is_ok();
 
             // consume identifier
-            let identifier = self.consume(TokenKind::Identifier)?.lexeme.clone();
+            let identifier = self.consume(TokenKind::Identifier)?.clone();
 
             // consume type
             self.expect(TokenKind::Punctuation(PunctuationKind::Colon))?;
             let Some(ty) = self.parse_type()? else {
-                return Err(self.diagnostic(ParserDiagnostic::MissingTypeAnnotation(identifier)));
+                return Err(self.diagnostic(ParserDiagnostic::MissingTypeAnnotation(identifier.lexeme)));
             };
 
             params.push(Parameter {
                 mutable: is_mut,
-                name: identifier,
+                symbol: AstSymbol::new(identifier.lexeme, identifier.span, identifier.cursor),
                 span: span.merge(&ty.span),
                 cursor,
                 ty,
@@ -164,14 +164,14 @@ impl LumaParser<'_> {
         }
 
         // Consume the function return type if there is one
-        let return_type: Option<Box<Type>> = if self.check(TokenKind::Punctuation(PunctuationKind::Colon)) {
+        let return_type: Option<Type> = if self.check(TokenKind::Punctuation(PunctuationKind::Colon)) {
             let Some(ty) = self.parse_type()? else {
-                return Err(self.diagnostic(ParserDiagnostic::MissingTypeAnnotation(identifier)));
+                return Err(self.diagnostic(ParserDiagnostic::MissingTypeAnnotation(identifier.lexeme)));
             };
 
             span = span.merge(&ty.span);
 
-            Some(Box::new(ty))
+            Some(ty)
         } else {
             None
         };
@@ -189,7 +189,9 @@ impl LumaParser<'_> {
                 },
                 TokenKind::Operator(OperatorKind::Equals) => {
                     self.advance();
-                    Some(Box::new(self.parse_expression()?))
+                    let expr: Box<Expression> = Box::new(self.parse_expression()?);
+                    self.consume(TokenKind::Punctuation(PunctuationKind::Semicolon))?;
+                    Some(expr)
                 }
                 TokenKind::Punctuation(PunctuationKind::Semicolon) => {
                     self.advance();
@@ -206,7 +208,7 @@ impl LumaParser<'_> {
             span,
             kind: StatementKind::FuncDecl(FuncDecl {
                 visibility: Visibility::default(),
-                name: identifier,
+                symbol: AstSymbol::new(identifier.lexeme.clone(), identifier.span, identifier.cursor),
                 parameters: params,
                 return_type,
                 body,
@@ -215,19 +217,21 @@ impl LumaParser<'_> {
     }
 
     // MARK: Expression
-    fn stmt_expression(&mut self) -> LumaResult<Statement> {
+    fn stmt_expression(&mut self) -> DiagnosticResult<Statement> {
         self.parse_expression().map(|expr| {
             let current = self.current();
             Statement {
                 span: expr.span.merge(&current.span),
                 cursor: current.cursor,
-                kind: StatementKind::Expression(expr),
+                kind: StatementKind::Expression {
+                    inner: expr
+                },
             }
         })
     }
 
     // MARK: Var
-    fn stmt_var(&mut self) -> LumaResult<Statement> {
+    fn stmt_var(&mut self) -> DiagnosticResult<Statement> {
         // Consume the var token
         let (span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Var))?.pos();
 
@@ -235,11 +239,7 @@ impl LumaParser<'_> {
         let is_mut = self.consume(TokenKind::Keyword(KeywordKind::Mut)).is_ok();
 
         // Get the identifier token and its name
-        let (identifier_span, identifier) = self.consume(TokenKind::Identifier)
-            .map(|t| (
-                t.span, 
-                t.lexeme.clone()
-            ))?;
+        let identifier = self.consume(TokenKind::Identifier)?.clone();
 
         // Optionally get the type 
         let ty: Option<Type> = self.parse_type()?;
@@ -255,14 +255,14 @@ impl LumaParser<'_> {
         Ok(Statement {
             cursor,
             span: span.merge_all(&[
-                Some(identifier_span),
+                Some(identifier.span),
                 ty.as_ref().map(|ty| ty.span),
                 value.as_ref().map(|expr| expr.span),
             ]),
             kind: StatementKind::VarDecl(VarDecl { 
                 visibility: Visibility::default(), 
                 mutable: is_mut, 
-                name: identifier, 
+                symbol: AstSymbol::new(identifier.lexeme.clone(), identifier.span, identifier.cursor), 
                 ty, 
                 value,
             }),
@@ -270,7 +270,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Return
-    fn stmt_return(&mut self) -> LumaResult<Statement> {
+    fn stmt_return(&mut self) -> DiagnosticResult<Statement> {
         // Consume the return token
         let (mut span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Return))?.pos();
 
@@ -286,19 +286,21 @@ impl LumaParser<'_> {
         Ok(Statement {
             cursor,
             span,
-            kind: StatementKind::Return(value),
+            kind: StatementKind::Return {
+                value
+            },
         })
     }
 
     // MARK: Break / Continue
-    fn stmt_loop_control(&mut self, kind: KeywordKind) -> LumaResult<Statement> {
+    fn stmt_loop_control(&mut self, kind: KeywordKind) -> DiagnosticResult<Statement> {
         let (mut span, cursor) = self.consume(TokenKind::Keyword(kind))?.pos();
 
         let label = if self.consume(TokenKind::Punctuation(PunctuationKind::Colon)).is_ok() {
-            let (label_span, label) = self.consume(TokenKind::Identifier)
-                .map(|t| (t.span, t.lexeme.clone()))?;
-            span = span.merge(&label_span);
-            Some(label)
+            let identifier = self.consume(TokenKind::Identifier)?;
+            span = span.merge(&identifier.span);
+            
+            Some(AstSymbol::new(identifier.lexeme.clone(), identifier.span, identifier.cursor))
         } else {
             None
         };
@@ -307,15 +309,15 @@ impl LumaParser<'_> {
             cursor,
             span,
             kind: match kind {
-                KeywordKind::Continue => StatementKind::Continue(label),
-                KeywordKind::Break => StatementKind::Break(label),
+                KeywordKind::Continue => StatementKind::Continue { label },
+                KeywordKind::Break => StatementKind::Break { label },
                 _ => unreachable!("{kind} is not a valid loop control"),
             },
         })
     }
 
     // MARK: Import
-    fn stmt_import(&mut self) -> LumaResult<Statement> {
+    fn stmt_import(&mut self) -> DiagnosticResult<Statement> {
         // Consume the import token
         let (span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Import))?.pos();
 
@@ -383,7 +385,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Parse Type
-    fn parse_type(&mut self) -> LumaResult<Option<Type>> {
+    fn parse_type(&mut self) -> DiagnosticResult<Option<Type>> {
         Ok(if self.consume(TokenKind::Punctuation(PunctuationKind::Colon)).is_ok() {
             let identifier = self.consume(TokenKind::Identifier)?;
             Some(Type {

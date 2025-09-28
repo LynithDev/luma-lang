@@ -4,7 +4,7 @@ pub mod tokens;
 
 use tokens::*;
 use luma_core::{Cursor, NumberRadix, Span};
-use luma_diagnostic::{ReporterExt, LumaResult, Reporter};
+use luma_diagnostic::{ReporterExt, DiagnosticResult, Reporter};
 
 pub(crate) mod diagnostics;
 use crate::diagnostics::LexerDiagnostic;
@@ -55,7 +55,7 @@ impl<'a> LumaLexer<'a> {
         TokenStream::new(self.tokens.clone())
     }
 
-    fn scan_token(&mut self) -> LumaResult<Option<Token>> {
+    fn scan_token(&mut self) -> DiagnosticResult<Option<Token>> {
         self.start += self.length;
         self.length = 0;
 
@@ -210,7 +210,7 @@ impl<'a> LumaLexer<'a> {
         Ok(Some(self.token(token_kind)))
     }
 
-    fn number(&mut self) -> LumaResult<Token> {
+    fn number(&mut self) -> DiagnosticResult<Token> {
         if self.current_is('0') {
             let next = self.peek();
             if self.is_alpha(next) {
@@ -247,7 +247,7 @@ impl<'a> LumaLexer<'a> {
         Ok(self.token(kind))
     }
 
-    fn identifier(&mut self) -> LumaResult<Token> {
+    fn identifier(&mut self) -> DiagnosticResult<Token> {
         loop {
             let current = self.current().unwrap_or('\0');
             if !self.is_alphanumeric(current) && current != '_' {
@@ -271,7 +271,7 @@ impl<'a> LumaLexer<'a> {
         Ok(self.token_lexeme(kind, lexeme))
     }
 
-    fn string(&mut self, terminator: char) -> LumaResult<Token> {
+    fn string(&mut self, terminator: char) -> DiagnosticResult<Token> {
         let mut escaped = false;
         let mut str = String::new();
         

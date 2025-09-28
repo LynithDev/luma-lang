@@ -1,17 +1,17 @@
-use luma_core::{NumberRadix, ast::{BinaryOperator, ComparisonOperator, Expression, ExpressionKind, LogicalOperator, UnaryOperator}};
-use luma_diagnostic::{LumaResult, ReporterExt};
+use luma_core::{ast::{prelude::*, AstSymbol}, NumberRadix};
+use luma_diagnostic::{DiagnosticResult, ReporterExt};
 use luma_lexer::tokens::{OperatorKind, PunctuationKind, TokenKind};
 
 use crate::{diagnostics::ParserDiagnostic, LumaParser};
 
 impl LumaParser<'_> {
 
-    pub fn parse_expression(&mut self) -> LumaResult<Expression> {
+    pub fn parse_expression(&mut self) -> DiagnosticResult<Expression> {
         self.expr_scope()
     }
 
     // MARK: Scope
-    fn expr_scope(&mut self) -> LumaResult<Expression> {
+    fn expr_scope(&mut self) -> DiagnosticResult<Expression> {
         if self.check(TokenKind::Punctuation(PunctuationKind::LeftBrace)) {
             return self.consume_scope();
         }
@@ -20,7 +20,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Assignment
-    fn expr_assignment(&mut self) -> LumaResult<Expression> {
+    fn expr_assignment(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_or()?;
 
         while let TokenKind::Operator(op_kind) = self.current().kind && op_kind.is_assign_op() {
@@ -28,26 +28,26 @@ impl LumaParser<'_> {
             let right = self.expr_assignment()?;
 
             match left.kind {
-                ExpressionKind::Variable(name) => {
+                ExpressionKind::Variable { symbol } => {
                     left = Expression {
                         cursor,
                         span: left.span.merge(&right.span),
-                        kind: ExpressionKind::Assign(
-                            name,
-                            op_kind.as_assign_operator().unwrap(),
-                            Box::new(right)
-                        ),
+                        kind: ExpressionKind::Assign {
+                            symbol,
+                            operator: op_kind.as_assign_operator().unwrap(),
+                            value: Box::new(right)
+                        },
                     }
                 },
-                ExpressionKind::ArrayGet(array_expr, index_expr ) => {
+                ExpressionKind::ArrayGet { array, index } => {
                     left = Expression {
                         cursor,
                         span: left.span.merge(&right.span),
-                        kind: ExpressionKind::ArraySet(
-                            array_expr,
-                            index_expr,
-                            Box::new(right)
-                        ),
+                        kind: ExpressionKind::ArraySet {
+                            array,
+                            index,
+                            value: Box::new(right)
+                        },
                     }
                 }
                 _ => return Err(self.diagnostic_at(ParserDiagnostic::InvalidLeftHandSide(Box::new(left.kind)), span, cursor))
@@ -58,7 +58,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Or
-    fn expr_or(&mut self) -> LumaResult<Expression> {
+    fn expr_or(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_and()?;
 
         while self.check(TokenKind::Operator(OperatorKind::Or)) {
@@ -68,11 +68,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Logical(
-                    Box::new(left),
-                    LogicalOperator::Or,
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Logical {
+                    left: Box::new(left),
+                    operator: LogicalOperator::Or,
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -80,7 +80,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: And
-    fn expr_and(&mut self) -> LumaResult<Expression> {
+    fn expr_and(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_bitwise_or()?;
 
         while self.check(TokenKind::Operator(OperatorKind::And)) {
@@ -90,11 +90,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Logical(
-                    Box::new(left),
-                    LogicalOperator::And,
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Logical {
+                    left: Box::new(left),
+                    operator: LogicalOperator::And,
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -102,7 +102,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Bitwise OR
-    fn expr_bitwise_or(&mut self) -> LumaResult<Expression> {
+    fn expr_bitwise_or(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_bitwise_xor()?;
 
         while self.check(TokenKind::Operator(OperatorKind::BitwiseOr)) {
@@ -112,11 +112,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Binary(
-                    Box::new(left),
-                    BinaryOperator::BitwiseOr,
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Binary {
+                    left: Box::new(left),
+                    operator: BinaryOperator::BitwiseOr,
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -124,7 +124,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Bitwise XOR
-    fn expr_bitwise_xor(&mut self) -> LumaResult<Expression> {
+    fn expr_bitwise_xor(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_bitwise_and()?;
 
         while self.check(TokenKind::Operator(OperatorKind::BitwiseXor)) {
@@ -134,11 +134,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Binary(
-                    Box::new(left),
-                    BinaryOperator::BitwiseXor,
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Binary {
+                    left: Box::new(left),
+                    operator: BinaryOperator::BitwiseXor,
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -146,7 +146,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Bitwise AND
-    fn expr_bitwise_and(&mut self) -> LumaResult<Expression> {
+    fn expr_bitwise_and(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_cmp()?;
 
         while self.check(TokenKind::Operator(OperatorKind::BitwiseAnd)) {
@@ -156,11 +156,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Binary(
-                    Box::new(left),
-                    BinaryOperator::BitwiseAnd,
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Binary {
+                    left: Box::new(left),
+                    operator: BinaryOperator::BitwiseAnd,
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -168,7 +168,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Comparison
-    fn expr_cmp(&mut self) -> LumaResult<Expression> {
+    fn expr_cmp(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_bitwise_shift()?;
 
         while matches!(
@@ -186,11 +186,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Comparison(
-                    Box::new(left),
-                    ComparisonOperator::try_from(*op_token.kind.as_operator().unwrap()).unwrap(),
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Comparison {
+                    left: Box::new(left),
+                    operator: ComparisonOperator::try_from(*op_token.kind.as_operator().unwrap()).unwrap(),
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -198,7 +198,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Bitwise shift
-    fn expr_bitwise_shift(&mut self) -> LumaResult<Expression> {
+    fn expr_bitwise_shift(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_additive()?;
 
         while matches!(self.current().kind, TokenKind::Operator(OperatorKind::ShiftLeft) | TokenKind::Operator(OperatorKind::ShiftRight)) {
@@ -208,11 +208,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Binary(
-                    Box::new(left),
-                    BinaryOperator::try_from(*op_token.kind.as_operator().unwrap()).unwrap(),
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Binary {
+                    left: Box::new(left),
+                    operator: BinaryOperator::try_from(*op_token.kind.as_operator().unwrap()).unwrap(),
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -220,7 +220,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Binary + -
-    fn expr_additive(&mut self) -> LumaResult<Expression> {
+    fn expr_additive(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_multiplicative()?;
 
         while matches!(self.current().kind, TokenKind::Operator(OperatorKind::Plus) | TokenKind::Operator(OperatorKind::Minus)) {
@@ -232,11 +232,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Binary(
-                    Box::new(left),
-                    bin_op,
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Binary {
+                    left: Box::new(left),
+                    operator: bin_op,
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -244,7 +244,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Binary * / %
-    fn expr_multiplicative(&mut self) -> LumaResult<Expression> {
+    fn expr_multiplicative(&mut self) -> DiagnosticResult<Expression> {
         let mut left = self.expr_unary()?;
 
         while matches!(
@@ -261,11 +261,11 @@ impl LumaParser<'_> {
             left = Expression {
                 cursor: op_token.cursor,
                 span: left.span.merge(&right.span),
-                kind: ExpressionKind::Binary(
-                    Box::new(left),
-                    bin_op,
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Binary {
+                    left: Box::new(left),
+                    operator: bin_op,
+                    right: Box::new(right)
+                },
             };
         }
 
@@ -273,7 +273,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Unary
-    fn expr_unary(&mut self) -> LumaResult<Expression> {
+    fn expr_unary(&mut self) -> DiagnosticResult<Expression> {
         if matches!(
             self.current().kind, 
             TokenKind::Operator(OperatorKind::Plus) 
@@ -287,10 +287,10 @@ impl LumaParser<'_> {
             return Ok(Expression {
                 cursor: op_token.cursor,
                 span: op_token.span.merge(&right.span),
-                kind: ExpressionKind::Unary(
-                    UnaryOperator::try_from(*op_token.kind.as_operator().unwrap()).unwrap(),
-                    Box::new(right)
-                ),
+                kind: ExpressionKind::Unary {
+                    operator: UnaryOperator::try_from(*op_token.kind.as_operator().unwrap()).unwrap(),
+                    value: Box::new(right)
+                },
             });
         }
 
@@ -298,7 +298,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Call
-    fn expr_call(&mut self) -> LumaResult<Expression> {
+    fn expr_call(&mut self) -> DiagnosticResult<Expression> {
         let mut expr = self.expr_primary()?;
 
         loop {
@@ -317,7 +317,7 @@ impl LumaParser<'_> {
     }
 
     // MARK: Primary
-    fn expr_primary(&mut self) -> LumaResult<Expression> {
+    fn expr_primary(&mut self) -> DiagnosticResult<Expression> {
         let current = self.current();
 
         let expr = match current.kind {
@@ -332,14 +332,22 @@ impl LumaParser<'_> {
                 Expression {
                     cursor,
                     span: span.merge(&expr.span),
-                    kind: ExpressionKind::Group(Box::new(expr)),
+                    kind: ExpressionKind::Group {
+                        inner: Box::new(expr),
+                    },
                 }
             },
 
             // Identifier parsing
             TokenKind::Identifier => {
                 Expression {
-                    kind: ExpressionKind::Variable(current.lexeme.clone()),
+                    kind: ExpressionKind::Variable {
+                        symbol: AstSymbol::new(
+                            current.lexeme.clone(),
+                            current.span,
+                            current.cursor,
+                        )
+                    },
                     cursor: current.cursor,
                     span: current.span,
                 }
@@ -387,24 +395,23 @@ impl LumaParser<'_> {
     }
 
     // MARK: Get
-    fn parse_get(&mut self, target: Expression) -> LumaResult<Expression> {
+    fn parse_get(&mut self, target: Expression) -> DiagnosticResult<Expression> {
         let dot_token = self.consume(TokenKind::Punctuation(PunctuationKind::Dot))?;
         let (span, cursor) = dot_token.pos();
         let identifier = self.consume(TokenKind::Identifier)?;
-        let name = identifier.lexeme.clone();
 
         Ok(Expression {
             cursor,
             span: span.merge(&identifier.span),
             kind: ExpressionKind::Get {
                 object: Box::new(target),
-                property: name,
+                property_symbol: AstSymbol::new(identifier.lexeme.clone(), identifier.span, identifier.cursor),
             },
         })
     }
 
     // MARK: Invoke
-    fn parse_invoke(&mut self, callee: Expression) -> LumaResult<Expression> {
+    fn parse_invoke(&mut self, callee: Expression) -> DiagnosticResult<Expression> {
         let (span, cursor) = self.consume(TokenKind::Punctuation(PunctuationKind::LeftParen))?.pos();
         
         let mut arguments = Vec::new();

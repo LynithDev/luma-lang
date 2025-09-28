@@ -1,4 +1,4 @@
-#[derive(crate::Display, Default, Debug, Clone, PartialEq, Eq)]
+#[derive(crate::Display, Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[display(case = "snake_case")]
 pub enum Visibility {
     Public, // pub

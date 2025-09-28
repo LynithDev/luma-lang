@@ -1,20 +1,19 @@
-use luma_core::ParsedCodeInput;
 use luma_diagnostic::Reporter;
 
-use crate::symbol::SymbolTable;
+use crate::{symbol::SymbolsTable, ParsedCodeSource};
 
 #[derive(Debug)]
 pub struct AnalyzerContext<'a> {
     pub reporter: Reporter,
-    pub symbol_table: SymbolTable,
-    pub input: &'a ParsedCodeInput,
+    pub symbol_table: SymbolsTable,
+    pub input: &'a ParsedCodeSource<'a>,
 }
 
 impl<'a> AnalyzerContext<'a> {
-    pub fn new(parent_reporter: &Reporter, input: &'a ParsedCodeInput) -> Self {
+    pub fn new(parent_reporter: &Reporter, input: &'a ParsedCodeSource<'a>) -> Self {
         Self {
-            reporter: parent_reporter.with_name(&input.path()),
-            symbol_table: SymbolTable::new(),
+            reporter: parent_reporter.clone(),
+            symbol_table: SymbolsTable::new(),
             input,
         }
     }

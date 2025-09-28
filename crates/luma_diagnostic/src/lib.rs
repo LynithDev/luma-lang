@@ -4,7 +4,7 @@ mod reporter;
 use luma_core::{Cursor, Span};
 pub use reporter::Reporter;
 
-pub type LumaResult<T> = Result<T, DiagnosticReport>;
+pub type DiagnosticResult<T> = Result<T, DiagnosticReport>;
 
 #[derive(Debug)]
 pub struct DiagnosticReport {

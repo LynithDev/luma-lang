@@ -1,4 +1,4 @@
-use luma_core::ast::{BinaryOperator, ComparisonOperator, LogicalOperator, Operator, UnaryOperator};
+use luma_core::operators::*;
 use crate::tokens::OperatorKind;
 
 impl OperatorKind {
@@ -41,11 +41,11 @@ impl OperatorKind {
     }
 }
 
-impl From<crate::tokens::LiteralKind> for luma_core::ast::LiteralKind {
+impl From<crate::tokens::LiteralKind> for luma_core::ast::expressions::LiteralKind {
     fn from(kind: crate::tokens::LiteralKind) -> Self {
         match kind {
             crate::tokens::LiteralKind::Integer => Self::Integer,
-            crate::tokens::LiteralKind::Decimal => Self::Decimal,
+            crate::tokens::LiteralKind::Decimal => Self::Float,
             crate::tokens::LiteralKind::String => Self::String,
             crate::tokens::LiteralKind::Boolean => Self::Boolean,
         }

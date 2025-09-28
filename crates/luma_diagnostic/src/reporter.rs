@@ -1,13 +1,16 @@
-use std::{collections::HashMap, fmt::Debug, sync::{Arc, Mutex}};
+use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::{Arc, Mutex}};
 
-use luma_core::CodeInput;
+use luma_core::{CodeSource, CodeSourceKind};
 use owo_colors::OwoColorize;
 
 use crate::{DiagnosticReport, DiagnosticKind};
 
+type ReporterName = Rc<String>;
+
 #[derive(Debug, Clone)]
 pub struct Reporter {
-    pub source_name: String,
+    source: CodeSourceKind,
+    reporter_name: ReporterName,
     inner: Arc<Mutex<ReporterInner>>,
 }
 
@@ -15,26 +18,43 @@ impl Reporter {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Reporter {
-            source_name: format!("T{}", std::thread::current().name().unwrap_or("main")),
+            source: CodeSourceKind::Virtual,
+            reporter_name: Rc::new(format!("T{}", std::thread::current().name().unwrap_or("main"))),
             inner: Arc::new(Mutex::new(ReporterInner::new())),
         }
     }
 
-    pub fn with_name(&self, source_name: &str) -> Self {
+    pub fn source(&self) -> &CodeSourceKind {
+        &self.source
+    }
+
+    pub fn name(&self) -> Rc<String> {
+        Rc::clone(&self.reporter_name)
+    }
+
+    pub fn with_name(&self, name: &str) -> Self {
         Reporter {
-            source_name: format!("{}:{}", self.source_name, source_name),
+            source: self.source.clone(),
+            reporter_name: Rc::new(format!("{}:{}", self.reporter_name, name)),
             inner: Arc::clone(&self.inner),
         }
     }
 
     pub fn report(&self, diagnostic: DiagnosticReport) {
         let mut guard = self.lock();
-        guard.report(&self.source_name, diagnostic);
+        guard.report(&self.source, self.name(), diagnostic);
+    }
+
+    pub fn report_all(&self, diagnostics: Vec<DiagnosticReport>) {
+        let mut guard = self.lock();
+        for diagnostic in diagnostics {
+            guard.report(&self.source, self.name(), diagnostic);
+        }
     }
 
     pub fn is_clean(&self) -> bool {
         let guard = self.lock();
-        guard.is_clean(&self.source_name)
+        guard.is_clean(&self.name())
     }
 
     pub fn diagnostic_count(&self, kind: DiagnosticKind) -> usize {
@@ -42,14 +62,16 @@ impl Reporter {
         guard.diagnostic_count(kind)
     }
 
-    pub fn formatted(&self, source: &CodeInput) -> String {
+    pub fn formatted_for(&self, source: &CodeSource) -> String {
         let guard = self.lock();
         let mut f = String::new();
 
         let warning_count = guard.diagnostic_count(DiagnosticKind::Warning);
         let error_count = guard.diagnostic_count(DiagnosticKind::Error);
 
-        for diagnostic in guard.diagnostics.get(&self.source_name).unwrap_or(&Vec::new()) {
+        for entry in guard.diagnostics.get(&self.source().source_name()).unwrap_or(&Vec::new()) {
+            let ReportedEntry { diagnostic, reporter_name } = entry;
+
             let lines: std::iter::Skip<std::str::Lines<'_>> = source.source()
                 .lines()
                 .skip(diagnostic.cursor.line.saturating_sub(1));
@@ -84,8 +106,14 @@ impl Reporter {
             f.push('\n');
 
             // write the <file>:line:column of the diagnostic
-            f.push_str(&(" ".repeat(line_num_size) + "--> ").bright_black().to_string());
-            f.push_str(&format!("{}:{}:{}\n", source.path(), diagnostic.cursor.line, diagnostic.cursor.column).bright_black().to_string());
+            f.push_str(&(" at ").bright_black().to_string());
+            f.push_str(&format!("{}:{}:{}", source.source_name(), diagnostic.cursor.line, diagnostic.cursor.column).white().to_string());
+
+            // write the reporter name
+            f.push_str(&(" (reported by ").black().to_string());
+            f.push_str(&reporter_name.bright_black().bold().to_string());
+            f.push(')');
+            f.push('\n');
             
             write_bordered(&mut f, None, "\n", line_num_size);
 
@@ -139,8 +167,13 @@ fn write_bordered(f: &mut String, pre_border: Option<usize>, line: &str, longest
 }
 
 struct ReporterInner {
-    pub (crate) diagnostics: HashMap<String, Vec<DiagnosticReport>>,
+    pub (crate) diagnostics: HashMap<String, Vec<ReportedEntry>>,
     pub (crate) kind_count: HashMap<DiagnosticKind, usize>,
+}
+
+struct ReportedEntry {
+    pub (crate) reporter_name: ReporterName,
+    pub (crate) diagnostic: DiagnosticReport,
 }
 
 impl Debug for ReporterInner {
@@ -163,9 +196,12 @@ impl ReporterInner {
         }
     }
 
-    pub fn report(&mut self, source_file: &str, diagnostic: DiagnosticReport) {
+    pub fn report(&mut self, source: &CodeSourceKind, reporter_name: ReporterName, diagnostic: DiagnosticReport) {
         *self.kind_count.entry(diagnostic.message.kind()).or_default() += 1;
-        self.diagnostics.entry(source_file.to_string()).or_default().push(diagnostic);
+        self.diagnostics.entry(source.source_name()).or_default().push(ReportedEntry {
+            reporter_name,
+            diagnostic,
+        });
     }
 
     pub fn is_clean(&self, source_file: &str) -> bool {

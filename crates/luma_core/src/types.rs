@@ -29,6 +29,7 @@ pub enum TypeKind {
     },
     Array(Box<TypeKind>),
     Object(String),
+    Unknown, // used in type inference when the type cannot be determined, this should not exist after analysis and should be a compile error
 }
 
 impl From<&str> for TypeKind {
@@ -45,21 +46,32 @@ impl From<&str> for TypeKind {
             "i16" => TypeKind::Int16,
             "i32" => TypeKind::Int32,
             "i64" => TypeKind::Int64,
-            #[cfg(target_pointer_width = "32")]
-            "int" => TypeKind::Int32,
-            #[cfg(target_pointer_width = "64")]
-            "int" => TypeKind::Int64,
             
             "f32" => TypeKind::Float32,
             "f64" => TypeKind::Float64,
-            #[cfg(target_pointer_width = "32")]
-            "float" => TypeKind::Float32,
-            #[cfg(target_pointer_width = "64")]
-            "float" => TypeKind::Float64,
             
             "bool" => TypeKind::Boolean,
             "void" => TypeKind::Void,
             
+            // CPU target dependant
+            #[cfg(target_pointer_width = "32")]
+            "uint" => TypeKind::UInt32,
+            #[cfg(target_pointer_width = "64")]
+            "uint" => TypeKind::UInt64,
+
+            #[cfg(target_pointer_width = "32")]
+            "int" => TypeKind::Int32,
+            #[cfg(target_pointer_width = "64")]
+            "int" => TypeKind::Int64,
+
+            #[cfg(target_pointer_width = "32")]
+            "float" => TypeKind::Float32,
+            #[cfg(target_pointer_width = "64")]
+            "float" => TypeKind::Float64,
+
+
+            // other
+
             _ if value.starts_with("fn") => {
                 todo!("function type parsing is not yet implemented");
             }
@@ -98,6 +110,8 @@ impl TypeKind {
 
             TypeKind::Object(_) => 14,
             TypeKind::Function { .. } => 15,
+            
+            TypeKind::Unknown => u8::MAX,
         }
     }
 

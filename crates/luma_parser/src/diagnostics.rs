@@ -1,4 +1,4 @@
-use luma_core::ast::ExpressionKind;
+use luma_core::ast::expressions::ExpressionKind;
 use luma_diagnostic::{Diagnostic, DiagnosticReport, ReporterExt};
 use luma_lexer::tokens::TokenKind;
 

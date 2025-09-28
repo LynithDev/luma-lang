@@ -1,28 +1,53 @@
-mod expressions;
-mod operators;
-mod statements;
-mod types;
-mod visibility;
+use crate::{Cursor, Span, SymbolId};
 
-pub use expressions::*;
-pub use operators::*;
-pub use statements::*;
-pub use types::*;
-pub use visibility::*;
+pub mod expressions;
+pub mod statements;
+
+pub mod prelude {
+    pub use super::expressions::*;
+    pub use super::statements::*;
+
+    pub use crate::operators::*;
+    pub use crate::types::*;
+    pub use crate::visibility::*;
+
+    pub use super::{Ast, ConditionalBranch};
+}
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Ast {
-    pub statements: Vec<Statement>,
+    pub statements: Vec<prelude::Statement>,
 }
 
 impl Ast {
-    pub fn new(statements: Vec<Statement>) -> Self {
-        Self { statements }
+    pub fn new() -> Self {
+        Self {
+            statements: Vec::new(),
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConditionalBranch {
-    pub condition: Expression,
-    pub body: Statement,
+    pub condition: prelude::Expression,
+    pub body: prelude::Statement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AstSymbol {
+    pub name: String,
+    pub id: Option<SymbolId>,
+    pub span: Span,
+    pub cursor: Cursor,
+}
+
+impl AstSymbol {
+    pub fn new(name: String, span: Span, cursor: Cursor) -> Self {
+        Self {
+            id: None,
+            name,
+            span,
+            cursor,
+        }
+    }
 }

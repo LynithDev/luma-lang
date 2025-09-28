@@ -51,8 +51,6 @@ pub enum ComparisonOperator {
     LessThanOrEqual,
 }
 
-
-
 #[derive(crate::Display, Debug, Clone, Copy, PartialEq, Eq)]
 #[display(case = "snake_case")]
 pub enum UnaryOperator {

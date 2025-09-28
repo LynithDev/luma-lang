@@ -1,8 +1,12 @@
-use luma_core::ParsedCodeInput;
-use luma_diagnostic::{LumaResult, Reporter};
+use luma_diagnostic::Reporter;
+
+pub mod hir;
+
+mod source;
+pub use source::{ParsedCodeSource, ParsedCodeKind};
 
 pub mod symbol;
-mod passes;
+mod stages;
 
 mod ctx;
 pub use ctx::*;
@@ -10,12 +14,26 @@ pub use ctx::*;
 pub (crate) mod diagnostics;
 pub use diagnostics::AnalyzerDiagnostic;
 
-use crate::passes::SymbolTableBuildingPass;
-
-#[derive(Debug)]
 pub struct LumaAnalyzer<'a> {
     pub(crate) reporter: Reporter,
     pub(crate) files: Vec<AnalyzerContext<'a>>,
+    pub(crate) stages: Vec<Box<dyn AnalyzerStage>>,
+}
+
+impl std::fmt::Debug for LumaAnalyzer<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LumaAnalyzer")
+            .field("reporter", &self.reporter)
+            .field("files", &self.files.len())
+            .field("stages", &self.stages.len())
+            .finish()
+    }
+}
+
+pub trait AnalyzerStage {
+    fn name(&self) -> &str;
+
+    fn run(&mut self, ctx: &mut AnalyzerContext) -> bool;
 }
 
 impl<'a> LumaAnalyzer<'a> {
@@ -23,6 +41,7 @@ impl<'a> LumaAnalyzer<'a> {
         Self {
             reporter: parent_reporter.with_name("analyzer"),
             files: Vec::new(),
+            stages: stages::get_default_stages(),
         }
     }
 
@@ -30,26 +49,34 @@ impl<'a> LumaAnalyzer<'a> {
         self.files.clear();
     }
 
-    pub fn add_entry(&mut self, input: &'a ParsedCodeInput) {
-        let ctx = AnalyzerContext::new(&self.reporter, input);
+    pub fn add_entry(&mut self, source: &'a ParsedCodeSource<'a>) {
+        let ctx = AnalyzerContext::new(&self.reporter, source);
         self.files.push(ctx);
     }
 
-    pub fn add_entries(&mut self, input: &'a Vec<ParsedCodeInput>) {
-        for entry in input {
-            let ctx = AnalyzerContext::new(&self.reporter, entry);
+    pub fn add_entries(&mut self, sources: &'a Vec<ParsedCodeSource<'a>>) {
+        for source in sources {
+            let ctx = AnalyzerContext::new(&self.reporter, source);
             self.files.push(ctx);
         }
     }
 
-    pub fn analyze(&'a mut self) -> LumaResult<()> {
-        // Symbol table building
-        for ctx in &mut self.files {
-            SymbolTableBuildingPass::run(ctx)?;
+    pub fn analyze(&'a mut self) -> bool {
+        // analyze every file with every stage 
+        // todo: consider parallelizing this somehow
+        // todo: some stages may depend on other stages being run for all files first e.g. after import resolution
+        for ctx in self.files.iter_mut() {
+            for stage in self.stages.iter_mut() {
+                ctx.reporter = self.reporter.with_name(stage.name());
 
-            dbg!(&ctx.symbol_table.symbols);
+                if !stage.run(ctx) {
+                    return false;
+                }
+            }
+
+            dbg!(&ctx.symbol_table);
         }
 
-        Ok(())
+        true
     }
 }
