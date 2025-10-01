@@ -1,10 +1,12 @@
 mod name_resolution;
 mod ast_lowering;
 mod type_inference;
+mod type_checking;
 
 pub use name_resolution::NameResolutionStage;
 pub use ast_lowering::AstLoweringStage;
 pub use type_inference::TypeInferenceStage;
+pub use type_checking::TypeCheckingStage;
 
 #[inline]
 pub fn get_default_stages() -> Vec<Box<dyn crate::AnalyzerStage>> {
@@ -12,5 +14,6 @@ pub fn get_default_stages() -> Vec<Box<dyn crate::AnalyzerStage>> {
         Box::new(NameResolutionStage),
         Box::new(AstLoweringStage),
         Box::new(TypeInferenceStage),
+        Box::new(TypeCheckingStage),
     ]
 }

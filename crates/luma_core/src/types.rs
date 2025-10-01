@@ -7,8 +7,7 @@ pub struct Type {
     pub cursor: Cursor,
 }
 
-#[derive(crate::Display, Debug, Clone, PartialEq, Eq)]
-#[display(case = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeKind {
     String,
     UInt8,
@@ -32,10 +31,35 @@ pub enum TypeKind {
     Unknown, // used in type inference when the type cannot be determined, this should not exist after analysis and should be a compile error
 }
 
+impl std::fmt::Display for TypeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TypeKind::String => write!(f, "str"),
+            TypeKind::UInt8 => write!(f, "u8"),
+            TypeKind::UInt16 => write!(f, "u16"),
+            TypeKind::UInt32 => write!(f, "u32"),
+            TypeKind::UInt64 => write!(f, "u64"),
+            TypeKind::Int8 => write!(f, "i8"),
+            TypeKind::Int16 => write!(f, "i16"),
+            TypeKind::Int32 => write!(f, "i32"),
+            TypeKind::Int64 => write!(f, "i64"),
+            TypeKind::Float32 => write!(f, "f32"),
+            TypeKind::Float64 => write!(f, "f64"),
+            TypeKind::Boolean => write!(f, "bool"),
+            TypeKind::Void => write!(f, "void"),
+            TypeKind::Function { .. } => write!(f, "fn"),
+            TypeKind::Array(inner) => write!(f, "{}[]", inner),
+            TypeKind::Object(name) => write!(f, "{}", name),
+            TypeKind::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
+
 impl From<&str> for TypeKind {
     fn from(value: &str) -> Self {
         match value {
-            "string" => TypeKind::String,
+            "str" => TypeKind::String,
             
             "u8" => TypeKind::UInt8,
             "u16" => TypeKind::UInt16,
@@ -112,6 +136,14 @@ impl TypeKind {
             TypeKind::Function { .. } => 15,
             
             TypeKind::Unknown => u8::MAX,
+        }
+    }
+
+    pub fn from_tuple(lhs: TypeKind, rhs: TypeKind) -> TypeKind {
+        if lhs.precedence() < rhs.precedence() {
+            lhs
+        } else {
+            rhs
         }
     }
 

@@ -1,4 +1,5 @@
 use luma_core::SymbolId;
+use luma_core::types::TypeKind;
 use luma_core::{Cursor, Display, Span};
 
 use luma_core::{operators::*};
@@ -9,6 +10,7 @@ use crate::hir::HirConditionalBranch;
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirExpression {
     pub kind: HirExpressionKind,
+    pub ty: TypeKind,
     pub span: Span,
     pub cursor: Cursor,
 }
@@ -103,4 +105,23 @@ pub enum HirLiteralIntegerKind {
 pub enum HirLiteralFloatKind {
     Float32(f32),
     Float64(f64),
+}
+
+impl From<&HirLiteralKind> for TypeKind {
+    fn from(value: &HirLiteralKind) -> Self {
+        match value {
+            HirLiteralKind::String(_) => TypeKind::String,
+            HirLiteralKind::Boolean(_) => TypeKind::Boolean,
+            HirLiteralKind::Integer(HirLiteralIntegerKind::Int8(_)) => TypeKind::Int8,
+            HirLiteralKind::Integer(HirLiteralIntegerKind::Int16(_)) => TypeKind::Int16,
+            HirLiteralKind::Integer(HirLiteralIntegerKind::Int32(_)) => TypeKind::Int32,
+            HirLiteralKind::Integer(HirLiteralIntegerKind::Int64(_)) => TypeKind::Int64,
+            HirLiteralKind::Integer(HirLiteralIntegerKind::UInt8(_)) => TypeKind::UInt8,
+            HirLiteralKind::Integer(HirLiteralIntegerKind::UInt16(_)) => TypeKind::UInt16,
+            HirLiteralKind::Integer(HirLiteralIntegerKind::UInt32(_)) => TypeKind::UInt32,
+            HirLiteralKind::Integer(HirLiteralIntegerKind::UInt64(_)) => TypeKind::UInt64,
+            HirLiteralKind::Float(HirLiteralFloatKind::Float32(_)) => TypeKind::Float32,
+            HirLiteralKind::Float(HirLiteralFloatKind::Float64(_)) => TypeKind::Float64,
+        }
+    }
 }

@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use luma_diagnostic::DiagnosticResult;
 
 use crate::{hir::prelude::*, AnalyzerContext, AnalyzerStage};
@@ -10,7 +12,7 @@ impl AnalyzerStage for TypeInferenceStage {
     }
 
     fn run(&mut self, ctx: &mut AnalyzerContext) -> bool {
-        for statement in ctx.input.code.borrow_mut().as_hir_mut_unchecked().statements.iter() {
+        for statement in ctx.input.code.borrow_mut().as_hir_mut_unchecked().statements.iter_mut() {
             analyze_stmt(ctx, statement);
         }
 
@@ -18,25 +20,25 @@ impl AnalyzerStage for TypeInferenceStage {
     }
 }
 
-fn analyze_stmt(ctx: &mut AnalyzerContext, stmt: &HirStatement) {
+fn analyze_stmt(ctx: &mut AnalyzerContext, stmt: &mut HirStatement) {
     if let Err(err) = try_analyze_stmt(ctx, stmt) {
         ctx.reporter.report(err);
     }
 }
 
-fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &HirStatement) -> DiagnosticResult<()> {
-    match &stmt.kind {
+fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &mut HirStatement) -> DiagnosticResult<()> {
+    match &mut stmt.kind {
         HirStatementKind::VarDecl(decl) => {
             // early check to prevent having to look up the symbol again
             if decl
                 .ty
                 .kind != TypeKind::Unknown
             {
-                type_check_scope(ctx, &decl.value);
+                type_check_scope(ctx, decl.value.as_mut().map(|v| v.as_mut()));
                 return Ok(());
             }
             
-            let inferred_type = if let Some(value) = &decl.value {
+            let inferred_type = if let Some(value) = &mut decl.value {
                 infer_expr_type(ctx, value)
             } else {
                 TypeKind::Unknown
@@ -54,17 +56,31 @@ fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &HirStatement) -> Diagnosti
                 .return_type
                 .kind != TypeKind::Unknown
             {
-                type_check_scope(ctx, &decl.body);
+                type_check_scope(ctx, decl.body.as_mut().map(|b| b.as_mut()));
                 return Ok(());
             }
 
             // we enter scope for the function parameters as they are scoped to the func body
             ctx.symbol_table.enter_scope();
 
-            let inferred_type = if let Some(body) = &decl.body {
-                if let HirExpressionKind::Scope { statements } = &body.kind {
+            let param_types = decl
+                .parameters
+                .iter()
+                .map(|param| {
+                    let Some(symbol) = ctx.symbol_table.value_table.lookup_id(param.symbol_id) else {
+                        unreachable!("parameter symbol id should always be valid here");
+                    };
+
+                    symbol.ty.clone()
+                })
+                .collect::<Vec<_>>();
+
+            let return_type = if let Some(body) = &mut decl.body {
+                if let HirExpressionKind::Scope { statements } = &mut body.kind {
                     // we don't want to enter a new scope here
-                    infer_scope_type(ctx, statements)
+                    let ty = infer_scope_type(ctx, statements);
+                    body.ty = ty.clone();
+                    ty
                 } else {
                     infer_expr_type(ctx, body)
                 }
@@ -78,7 +94,12 @@ fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &HirStatement) -> Diagnosti
                 unreachable!("function symbol id should always be valid here");
             };
 
-            symbol.ty = inferred_type;
+            symbol.ty = TypeKind::Function { 
+                param_types, 
+                return_type: Box::new(return_type.clone()) 
+            };
+
+            decl.return_type.kind = return_type;
         }
         HirStatementKind::ClassDecl(_) => {
             todo!("Class declaration")
@@ -89,31 +110,10 @@ fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &HirStatement) -> Diagnosti
     Ok(())
 }
 
-fn type_check_scope(ctx: &mut AnalyzerContext, expr: &Option<Box<HirExpression>>) {
-    if let Some(value) = &expr
-        && let HirExpressionKind::Scope { statements } = &value.kind
-    {
-        ctx.symbol_table.enter_scope();
-        infer_scope_type(ctx, statements);
-        ctx.symbol_table.leave_scope();
-    }
-}
-
-fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &HirExpression) -> TypeKind {
-    match &expression.kind {
-        HirExpressionKind::Literal { kind } => match kind {
-            HirLiteralKind::String(_) => TypeKind::String,
-            HirLiteralKind::Boolean(_) => TypeKind::Boolean,
-            HirLiteralKind::Integer(HirLiteralIntegerKind::Int8(_)) => TypeKind::Int8,
-            HirLiteralKind::Integer(HirLiteralIntegerKind::Int16(_)) => TypeKind::Int16,
-            HirLiteralKind::Integer(HirLiteralIntegerKind::Int32(_)) => TypeKind::Int32,
-            HirLiteralKind::Integer(HirLiteralIntegerKind::Int64(_)) => TypeKind::Int64,
-            HirLiteralKind::Integer(HirLiteralIntegerKind::UInt8(_)) => TypeKind::UInt8,
-            HirLiteralKind::Integer(HirLiteralIntegerKind::UInt16(_)) => TypeKind::UInt16,
-            HirLiteralKind::Integer(HirLiteralIntegerKind::UInt32(_)) => TypeKind::UInt32,
-            HirLiteralKind::Integer(HirLiteralIntegerKind::UInt64(_)) => TypeKind::UInt64,
-            HirLiteralKind::Float(HirLiteralFloatKind::Float32(_)) => TypeKind::Float32,
-            HirLiteralKind::Float(HirLiteralFloatKind::Float64(_)) => TypeKind::Float64,
+fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &mut HirExpression) -> TypeKind {
+    let ty = match &mut expression.kind {
+        HirExpressionKind::Literal { kind } => {
+            TypeKind::from(kind.deref())
         },
 
         HirExpressionKind::Unary { operator, value } => {
@@ -134,19 +134,8 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &HirExpression) -> Typ
             let left_type = infer_expr_type(ctx, left);
             let right_type = infer_expr_type(ctx, right);
 
-            let lhs_prec = left_type.precedence();
-            let rhs_prec = right_type.precedence();
-
-            // if the left is of lower precedence (higher priority), choose that one
-            // else always choose right
-            if lhs_prec < rhs_prec {
-                left_type
-            } else {
-                right_type
-            }
+            TypeKind::from_tuple(left_type, right_type)
         }
-
-        HirExpressionKind::Comparison { .. } => TypeKind::Boolean,
 
         HirExpressionKind::ArrayGet { array, .. } => {
             let array_type = infer_expr_type(ctx, array);
@@ -183,10 +172,13 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &HirExpression) -> Typ
             callee,
             arguments: _,
         } => {
-            infer_expr_type(ctx, callee)
+            let ty = infer_expr_type(ctx, callee);
+            if let TypeKind::Function { return_type, .. } = ty {
+                *return_type
+            } else {
+                TypeKind::Unknown
+            }
         }
-
-        HirExpressionKind::Logical { .. } => TypeKind::Boolean,
 
         HirExpressionKind::Variable { symbol_id } => {
             if let Some(symbol) = ctx.symbol_table.value_table.lookup_id(*symbol_id) {
@@ -196,33 +188,42 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &HirExpression) -> Typ
             }
         }
 
-        HirExpressionKind::Scope { statements } => {
-            ctx.symbol_table.enter_scope();
-            let ty = infer_scope_type(ctx, statements);
-            ctx.symbol_table.leave_scope();
+        HirExpressionKind::Scope { .. } => {
+            type_check_scope(ctx, Some(expression));
 
-            ty
+            return expression.ty.clone();
         }
 
-        _ => {
-            dbg!("handle {} kind", &expression.kind);
-            TypeKind::Unknown
-        }
+        _ => return expression.ty.clone()
+    };
+
+    expression.ty = ty.clone();
+    ty
+}
+
+fn type_check_scope(ctx: &mut AnalyzerContext, expr: Option<&mut HirExpression>) {
+    if let Some(expr) = expr
+        && let HirExpressionKind::Scope { statements } = &mut expr.kind
+    {
+        ctx.symbol_table.enter_scope();
+        expr.ty = infer_scope_type(ctx, statements);
+        ctx.symbol_table.leave_scope();
     }
 }
 
-fn infer_scope_type(ctx: &mut AnalyzerContext, statements: &[HirStatement]) -> TypeKind {
+fn infer_scope_type(ctx: &mut AnalyzerContext,  statements: &mut [HirStatement]) -> TypeKind {
     let mut found_type = TypeKind::Void;
 
     for stmt in statements {
         analyze_stmt(ctx, stmt);
 
-        let expr = match &stmt.kind {
+        let expr = match &mut stmt.kind {
             HirStatementKind::Return { value: Some(value) } => value,
             HirStatementKind::Expression { inner } => inner,
             _ => continue,
         };
 
+        
         found_type = infer_expr_type(ctx, expr);
         break;
     }

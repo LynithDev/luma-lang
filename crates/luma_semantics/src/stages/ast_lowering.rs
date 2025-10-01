@@ -1,5 +1,8 @@
-use crate::{hir::prelude::*, AnalyzerDiagnostic};
-use luma_core::{ast::{prelude::*, AstSymbol}, Cursor, Span, SymbolId};
+use crate::{AnalyzerDiagnostic, hir::prelude::*};
+use luma_core::{
+    Cursor, Span, SymbolId,
+    ast::{AstSymbol, prelude::*},
+};
 
 use luma_diagnostic::{DiagnosticReport, DiagnosticResult};
 
@@ -38,7 +41,11 @@ impl AnalyzerStage for AstLoweringStage {
 
 fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticResult<HirStatement> {
     let kind = match &stmt.kind {
-        StatementKind::If { main_stmt, branches, else_stmt } => {
+        StatementKind::If {
+            main_stmt,
+            branches,
+            else_stmt,
+        } => {
             let hir_main = Box::new(HirConditionalBranch {
                 condition: ast_to_hir_expr(ctx, &main_stmt.condition)?,
                 body: ast_to_hir_stmt(ctx, &main_stmt.body)?,
@@ -68,17 +75,19 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
                 branches: hir_branches,
                 else_stmt: hir_else,
             }
-        },
+        }
         StatementKind::While { .. } => todo!("while statement lowering not implemented"),
         StatementKind::Scope { statements } => {
             let mut hir_statements = Vec::with_capacity(statements.len());
             for statement in statements {
                 hir_statements.push(ast_to_hir_stmt(ctx, statement)?);
             }
-            HirStatementKind::Scope { statements: hir_statements }
-        },
-        StatementKind::Expression { inner } => {
-            HirStatementKind::Expression { inner: ast_to_hir_expr(ctx, inner)? }
+            HirStatementKind::Scope {
+                statements: hir_statements,
+            }
+        }
+        StatementKind::Expression { inner } => HirStatementKind::Expression {
+            inner: ast_to_hir_expr(ctx, inner)?,
         },
         StatementKind::Continue { label } => {
             let symbol_id = if let Some(label) = label {
@@ -88,7 +97,7 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
             };
 
             HirStatementKind::Continue { label: symbol_id }
-        },
+        }
         StatementKind::Break { label } => {
             let symbol_id = if let Some(label) = label {
                 Some(unwrap_ast_symbol(ctx, label)?)
@@ -97,7 +106,7 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
             };
 
             HirStatementKind::Break { label: symbol_id }
-        },
+        }
         StatementKind::Return { value } => {
             let hir_value = if let Some(value) = value {
                 Some(Box::new(ast_to_hir_expr(ctx, value)?))
@@ -106,10 +115,10 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
             };
 
             HirStatementKind::Return { value: hir_value }
-        },
+        }
         StatementKind::Import { .. } => {
             todo!("import statement lowering not implemnted")
-        },
+        }
         StatementKind::FuncDecl(func_decl) => {
             let mut parameters: Vec<HirParameter> = Vec::with_capacity(func_decl.parameters.len());
             for param in &func_decl.parameters {
@@ -122,7 +131,7 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
                             span: param.span,
                             cursor: param.cursor,
                         });
-                    },
+                    }
                     Err(err) => {
                         ctx.reporter.report(err);
                     }
@@ -148,7 +157,7 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
                 return_type,
                 body,
             })
-        },
+        }
         StatementKind::VarDecl(var_decl) => {
             let value = if let Some(value) = &var_decl.value {
                 Some(Box::new(ast_to_hir_expr(ctx, value)?))
@@ -167,7 +176,7 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
                 }),
                 value,
             })
-        },
+        }
         StatementKind::ClassDecl(_) => todo!("class lowering not implementat"),
         StatementKind::EndOfFile => HirStatementKind::EndOfFile,
     };
@@ -179,54 +188,87 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
     })
 }
 
-fn ast_to_hir_expr(ctx: &mut AnalyzerContext, expr: &Expression) -> DiagnosticResult<HirExpression> {
-    let kind = match &expr.kind {
-        ExpressionKind::ArrayGet { array, index } => {
+fn ast_to_hir_expr(
+    ctx: &mut AnalyzerContext,
+    expr: &Expression,
+) -> DiagnosticResult<HirExpression> {
+    let (kind, ty) = match &expr.kind {
+        ExpressionKind::ArrayGet { array, index } => (
             HirExpressionKind::ArrayGet {
                 array: Box::new(ast_to_hir_expr(ctx, array)?),
                 index: Box::new(ast_to_hir_expr(ctx, index)?),
-            }
-        },
-        ExpressionKind::ArraySet { array, index, value } => {
+            },
+            TypeKind::Unknown,
+        ),
+        ExpressionKind::ArraySet {
+            array,
+            index,
+            value,
+        } => (
             HirExpressionKind::ArraySet {
                 array: Box::new(ast_to_hir_expr(ctx, array)?),
                 index: Box::new(ast_to_hir_expr(ctx, index)?),
                 value: Box::new(ast_to_hir_expr(ctx, value)?),
-            }
-        },
-        ExpressionKind::Assign { symbol, operator, value } => {
+            },
+            TypeKind::Void,
+        ),
+        ExpressionKind::Assign {
+            symbol,
+            operator,
+            value,
+        } => (
             HirExpressionKind::Assign {
                 symbol_id: unwrap_ast_symbol(ctx, symbol)?,
                 operator: *operator,
                 value: Box::new(ast_to_hir_expr(ctx, value)?),
-            }
-        },
-        ExpressionKind::Binary { left, operator, right } => {
+            },
+            TypeKind::Unknown,
+        ),
+        ExpressionKind::Binary {
+            left,
+            operator,
+            right,
+        } => (
             HirExpressionKind::Binary {
                 left: Box::new(ast_to_hir_expr(ctx, left)?),
                 operator: *operator,
                 right: Box::new(ast_to_hir_expr(ctx, right)?),
-            }
-        },
-        ExpressionKind::Comparison { left, operator, right } => {
+            },
+            TypeKind::Unknown,
+        ),
+        ExpressionKind::Comparison {
+            left,
+            operator,
+            right,
+        } => (
             HirExpressionKind::Comparison {
                 left: Box::new(ast_to_hir_expr(ctx, left)?),
                 operator: *operator,
                 right: Box::new(ast_to_hir_expr(ctx, right)?),
-            }
-        },
-        ExpressionKind::Get { object, property_symbol } => {
+            },
+            TypeKind::Boolean,
+        ),
+        ExpressionKind::Get {
+            object,
+            property_symbol,
+        } => (
             HirExpressionKind::Get {
                 object: Box::new(ast_to_hir_expr(ctx, object)?),
                 property_symbol_id: unwrap_ast_symbol(ctx, property_symbol)?,
-            }
-        },
-        ExpressionKind::Group { inner } => {
+            },
+            TypeKind::Unknown,
+        ),
+        ExpressionKind::Group { inner } => (
             HirExpressionKind::Group {
                 inner: Box::new(ast_to_hir_expr(ctx, inner)?),
-            }
-        },
-        ExpressionKind::If { main_expr, branches, else_expr } => {
+            },
+            TypeKind::Unknown,
+        ),
+        ExpressionKind::If {
+            main_expr,
+            branches,
+            else_expr,
+        } => {
             let hir_main = Box::new(HirConditionalBranch {
                 condition: ast_to_hir_expr(ctx, &main_expr.condition)?,
                 body: ast_to_hir_stmt(ctx, &main_expr.body)?,
@@ -247,56 +289,76 @@ fn ast_to_hir_expr(ctx: &mut AnalyzerContext, expr: &Expression) -> DiagnosticRe
 
             let hir_else = Box::new(ast_to_hir_expr(ctx, else_expr)?);
 
-            HirExpressionKind::If {
-                main_expr: hir_main,
-                branches: hir_branches,
-                else_expr: hir_else,
-            }
-        },
+            (
+                HirExpressionKind::If {
+                    main_expr: hir_main,
+                    branches: hir_branches,
+                    else_expr: hir_else,
+                },
+                TypeKind::Unknown,
+            )
+        }
         ExpressionKind::Invoke { callee, arguments } => {
             let mut hir_arguments = Vec::with_capacity(arguments.capacity());
             for arg in arguments {
                 hir_arguments.push(ast_to_hir_expr(ctx, arg)?);
             }
-            HirExpressionKind::Invoke {
-                callee: Box::new(ast_to_hir_expr(ctx, callee)?),
-                arguments: hir_arguments,
-            }
-        },
+            (
+                HirExpressionKind::Invoke {
+                    callee: Box::new(ast_to_hir_expr(ctx, callee)?),
+                    arguments: hir_arguments,
+                },
+                TypeKind::Unknown,
+            )
+        }
         ExpressionKind::Literal { kind, value } => {
-            HirExpressionKind::Literal {
-                kind: ast_to_hir_literal(kind, value)?,
-            }
-        },
-        ExpressionKind::Logical { left, operator, right } => {
+            let kind = ast_to_hir_literal(kind, value)?;
+            let ty = TypeKind::from(&kind);
+
+            (HirExpressionKind::Literal { kind }, ty)
+        }
+        ExpressionKind::Logical {
+            left,
+            operator,
+            right,
+        } => (
             HirExpressionKind::Logical {
                 left: Box::new(ast_to_hir_expr(ctx, left)?),
                 operator: *operator,
                 right: Box::new(ast_to_hir_expr(ctx, right)?),
-            }
-        },
+            },
+            TypeKind::Boolean,
+        ),
         ExpressionKind::Scope { statements } => {
             let mut hir_statements = Vec::with_capacity(statements.len());
             for statement in statements {
                 hir_statements.push(ast_to_hir_stmt(ctx, statement)?);
             }
-            HirExpressionKind::Scope { statements: hir_statements }
-        },
-        ExpressionKind::Unary { operator, value } => {
+            (
+                HirExpressionKind::Scope {
+                    statements: hir_statements,
+                },
+                TypeKind::Unknown,
+            )
+        }
+        ExpressionKind::Unary { operator, value } => (
             HirExpressionKind::Unary {
                 operator: *operator,
                 value: Box::new(ast_to_hir_expr(ctx, value)?),
-            }
-        },
-        ExpressionKind::Variable { symbol } => {
+            },
+            TypeKind::Unknown,
+        ),
+        ExpressionKind::Variable { symbol } => (
             HirExpressionKind::Variable {
                 symbol_id: unwrap_ast_symbol(ctx, symbol)?,
-            }
-        },
+            },
+            TypeKind::Unknown,
+        ),
     };
 
     Ok(HirExpression {
         kind,
+        ty,
         span: expr.span,
         cursor: expr.cursor,
     })
@@ -305,12 +367,14 @@ fn ast_to_hir_expr(ctx: &mut AnalyzerContext, expr: &Expression) -> DiagnosticRe
 fn ast_to_hir_literal(kind: &LiteralKind, value: &str) -> DiagnosticResult<HirLiteralKind> {
     match kind {
         LiteralKind::Integer => Ok(HirLiteralKind::Integer({
-            let parsed = value.parse::<u64>()
-                .map_err(|_| DiagnosticReport {
-                    span: Span::default(),
-                    cursor: Cursor::default(),
-                    message: Box::new(AnalyzerDiagnostic::InvalidLiteralValue(TypeKind::UInt64, value.to_string())),
-                })?;
+            let parsed = value.parse::<u64>().map_err(|_| DiagnosticReport {
+                span: Span::default(),
+                cursor: Cursor::default(),
+                message: Box::new(AnalyzerDiagnostic::InvalidLiteralValue(
+                    TypeKind::UInt64,
+                    value.to_string(),
+                )),
+            })?;
 
             if parsed <= u32::MAX as u64 {
                 HirLiteralIntegerKind::UInt32(parsed as u32)
@@ -319,29 +383,30 @@ fn ast_to_hir_literal(kind: &LiteralKind, value: &str) -> DiagnosticResult<HirLi
             }
         })),
         LiteralKind::Float => Ok({
-            let parsed = value.parse::<f64>()
-                .map_err(|_| DiagnosticReport {
-                    span: Span::default(),
-                    cursor: Cursor::default(),
-                    message: Box::new(AnalyzerDiagnostic::InvalidLiteralValue(TypeKind::Float64, value.to_string())),
-                })?;
+            let parsed = value.parse::<f64>().map_err(|_| DiagnosticReport {
+                span: Span::default(),
+                cursor: Cursor::default(),
+                message: Box::new(AnalyzerDiagnostic::InvalidLiteralValue(
+                    TypeKind::Float64,
+                    value.to_string(),
+                )),
+            })?;
 
             HirLiteralKind::Float(HirLiteralFloatKind::Float64(parsed))
         }),
-        LiteralKind::String => {
-            Ok(HirLiteralKind::String(value.to_string()))
+        LiteralKind::String => Ok(HirLiteralKind::String(value.to_string())),
+        LiteralKind::Boolean => match value {
+            "true" => Ok(HirLiteralKind::Boolean(true)),
+            "false" => Ok(HirLiteralKind::Boolean(false)),
+            _ => Err(DiagnosticReport {
+                span: Span::default(),
+                cursor: Cursor::default(),
+                message: Box::new(AnalyzerDiagnostic::InvalidLiteralValue(
+                    TypeKind::Boolean,
+                    value.to_string(),
+                )),
+            }),
         },
-        LiteralKind::Boolean => {
-            match value {
-                "true" => Ok(HirLiteralKind::Boolean(true)),
-                "false" => Ok(HirLiteralKind::Boolean(false)),
-                _ => Err(DiagnosticReport {
-                    span: Span::default(),
-                    cursor: Cursor::default(),
-                    message: Box::new(AnalyzerDiagnostic::InvalidLiteralValue(TypeKind::Boolean, value.to_string())),
-                }),
-            }
-        }
     }
 }
 
