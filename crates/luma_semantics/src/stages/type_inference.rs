@@ -34,7 +34,7 @@ fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &mut HirStatement) -> Diagn
                 .ty
                 .kind != TypeKind::Unknown
             {
-                type_check_scope(ctx, decl.value.as_mut().map(|v| v.as_mut()));
+                infer_scope(ctx, decl.value.as_mut().map(|v| v.as_mut()));
                 return Ok(());
             }
             
@@ -56,7 +56,7 @@ fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &mut HirStatement) -> Diagn
                 .return_type
                 .kind != TypeKind::Unknown
             {
-                type_check_scope(ctx, decl.body.as_mut().map(|b| b.as_mut()));
+                infer_scope(ctx, decl.body.as_mut().map(|b| b.as_mut()));
                 return Ok(());
             }
 
@@ -78,7 +78,7 @@ fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &mut HirStatement) -> Diagn
             let return_type = if let Some(body) = &mut decl.body {
                 if let HirExpressionKind::Scope { statements } = &mut body.kind {
                     // we don't want to enter a new scope here
-                    let ty = infer_scope_type(ctx, statements);
+                    let ty = infer_statements(ctx, statements);
                     body.ty = ty.clone();
                     ty
                 } else {
@@ -164,8 +164,27 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &mut HirExpression) ->
 
         HirExpressionKind::Group { inner } => infer_expr_type(ctx, inner),
 
-        HirExpressionKind::If { .. } => {
-            todo!("If expression type inference not implemented yet");
+        HirExpressionKind::If { main_expr, branches, else_expr } => {
+            // first infer condition
+            infer_expr_type(ctx, &mut main_expr.condition);
+
+            // then infer body
+            let ty = infer_expr_type(ctx, &mut main_expr.body);
+
+            // infer branches
+            if let Some(branches) = branches {
+                for branch in branches {
+                    infer_expr_type(ctx, &mut branch.condition);
+                    infer_expr_type(ctx, &mut branch.body);
+                }
+            }
+
+            // infer else branch
+            if let Some(else_expr) = else_expr {
+                infer_expr_type(ctx, else_expr);
+            }
+
+            ty
         }
 
         HirExpressionKind::Invoke {
@@ -189,7 +208,7 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &mut HirExpression) ->
         }
 
         HirExpressionKind::Scope { .. } => {
-            type_check_scope(ctx, Some(expression));
+            infer_scope(ctx, Some(expression));
 
             return expression.ty.clone();
         }
@@ -201,31 +220,27 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &mut HirExpression) ->
     ty
 }
 
-fn type_check_scope(ctx: &mut AnalyzerContext, expr: Option<&mut HirExpression>) {
+fn infer_scope(ctx: &mut AnalyzerContext, expr: Option<&mut HirExpression>) {
     if let Some(expr) = expr
         && let HirExpressionKind::Scope { statements } = &mut expr.kind
     {
         ctx.symbol_table.enter_scope();
-        expr.ty = infer_scope_type(ctx, statements);
+        expr.ty = infer_statements(ctx, statements);
         ctx.symbol_table.leave_scope();
     }
 }
 
-fn infer_scope_type(ctx: &mut AnalyzerContext,  statements: &mut [HirStatement]) -> TypeKind {
+fn infer_statements(ctx: &mut AnalyzerContext,  statements: &mut [HirStatement]) -> TypeKind {
     let mut found_type = TypeKind::Void;
 
     for stmt in statements {
         analyze_stmt(ctx, stmt);
 
-        let expr = match &mut stmt.kind {
-            HirStatementKind::Return { value: Some(value) } => value,
-            HirStatementKind::Expression { inner } => inner,
-            _ => continue,
-        };
+        if let HirStatementKind::Return { value: Some(expr) } = &mut stmt.kind {
+            found_type = infer_expr_type(ctx, expr);
+            break;
+        }
 
-        
-        found_type = infer_expr_type(ctx, expr);
-        break;
     }
 
     found_type

@@ -30,5 +30,5 @@ impl Hir {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirConditionalBranch {
     pub condition: prelude::HirExpression,
-    pub body: prelude::HirStatement,
+    pub body: prelude::HirExpression,
 }

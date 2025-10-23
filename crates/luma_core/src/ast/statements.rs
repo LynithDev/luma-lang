@@ -1,7 +1,7 @@
 use crate::ast::AstSymbol;
 use crate::{Cursor, Span};
 
-use crate::{ast::{ConditionalBranch, expressions::Expression}, types::Type, visibility::Visibility};
+use crate::{ast::expressions::Expression, types::Type, visibility::Visibility};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Statement {
@@ -13,20 +13,12 @@ pub struct Statement {
 #[derive(crate::Display, Debug, Clone, PartialEq, Eq)]
 #[display(case = "snake_case")]
 pub enum StatementKind {
-    If {
-        main_stmt: Box<ConditionalBranch>,
-        branches: Option<Vec<ConditionalBranch>>,
-        else_stmt: Option<Box<Statement>>,
-    },
     While {
         label: Option<AstSymbol>,
-        condition: Box<Expression>,
-        body: Box<Statement>,
+        condition: Expression,
+        body: Expression,
     },
     // For
-    Scope {
-        statements: Vec<Statement>
-    },
     Expression {
         inner: Expression
     },
@@ -37,7 +29,7 @@ pub enum StatementKind {
         label: Option<AstSymbol>
     },
     Return {
-        value: Option<Box<Expression>>
+        value: Option<Expression>
     },
     Import {
         kind: ImportPropertyKind,

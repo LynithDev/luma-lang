@@ -21,7 +21,7 @@ pub enum HirExpressionKind {
     If {
         main_expr: Box<HirConditionalBranch>,
         branches: Option<Vec<HirConditionalBranch>>,
-        else_expr: Box<HirExpression>
+        else_expr: Option<Box<HirExpression>>
     },
     Invoke {
         callee: Box<HirExpression>,

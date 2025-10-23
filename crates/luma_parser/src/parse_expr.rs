@@ -1,13 +1,53 @@
 use luma_core::{ast::{prelude::*, AstSymbol}, NumberRadix};
 use luma_diagnostic::{DiagnosticResult, ReporterExt};
-use luma_lexer::tokens::{OperatorKind, PunctuationKind, TokenKind};
+use luma_lexer::tokens::{KeywordKind, OperatorKind, PunctuationKind, TokenKind};
 
 use crate::{diagnostics::ParserDiagnostic, LumaParser};
 
 impl LumaParser<'_> {
 
     pub fn parse_expression(&mut self) -> DiagnosticResult<Expression> {
-        self.expr_scope()
+        self.expr_if()
+    }
+
+    // MARK: If
+    fn expr_if(&mut self) -> DiagnosticResult<Expression> {
+        if !self.check(TokenKind::Keyword(KeywordKind::If)) {
+            return self.expr_scope();
+        }
+
+        let (mut span, cursor) = self.advance().pos();
+
+        let main_branch = self.parse_conditional_branch()?;
+        span = span.merge(&main_branch.body.span);
+
+        // check for `else if`
+        let mut branches: Option<Vec<ConditionalBranch>> = None;
+        let mut else_branch: Option<Box<Expression>> = None;
+
+        while self.consume(TokenKind::Keyword(KeywordKind::Else)).is_ok() {
+            if self.consume(TokenKind::Keyword(KeywordKind::If)).is_ok() {
+                let branch = self.parse_conditional_branch()?;
+                span = span.merge(&branch.body.span);
+
+                branches.get_or_insert_with(|| Vec::with_capacity(1)).push(branch);
+            } else {
+                let body = self.parse_expression()?;
+
+                else_branch = Some(Box::new(body));
+                break;
+            }
+        }
+
+        Ok(Expression {
+            kind: ExpressionKind::If {
+                main_branch: Box::new(main_branch),
+                branches,
+                else_branch,
+            },
+            span,
+            cursor,
+        })
     }
 
     // MARK: Scope
@@ -188,7 +228,7 @@ impl LumaParser<'_> {
                 span: left.span.merge(&right.span),
                 kind: ExpressionKind::Comparison {
                     left: Box::new(left),
-                    operator: ComparisonOperator::try_from(*op_token.kind.as_operator().unwrap()).unwrap(),
+                    operator: ComparisonOperator::try_from(*op_token.kind.as_operator().unwrap()).unwrap_or_else(|_| panic!("invalid comparison operator {:?}", op_token.kind)),
                     right: Box::new(right)
                 },
             };

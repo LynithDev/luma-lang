@@ -73,8 +73,6 @@ impl<'a> LumaAnalyzer<'a> {
                     return false;
                 }
             }
-
-            dbg!(&ctx.symbol_table);
         }
 
         true

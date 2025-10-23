@@ -23,7 +23,8 @@ impl AnalyzerStage for AstLoweringStage {
 
         for statement in statements {
             match ast_to_hir_stmt(ctx, statement) {
-                Ok(stmt) => hir.statements.push(stmt),
+                Ok(Some(stmt)) => hir.statements.push(stmt),
+                Ok(None) => {}
                 Err(err) => {
                     ctx.reporter.report(err);
                 }
@@ -39,53 +40,9 @@ impl AnalyzerStage for AstLoweringStage {
     }
 }
 
-fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticResult<HirStatement> {
+fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticResult<Option<HirStatement>> {
     let kind = match &stmt.kind {
-        StatementKind::If {
-            main_stmt,
-            branches,
-            else_stmt,
-        } => {
-            let hir_main = Box::new(HirConditionalBranch {
-                condition: ast_to_hir_expr(ctx, &main_stmt.condition)?,
-                body: ast_to_hir_stmt(ctx, &main_stmt.body)?,
-            });
-
-            let hir_branches = if let Some(branches) = branches {
-                let mut hir_branches = Vec::with_capacity(branches.len());
-                for branch in branches {
-                    hir_branches.push(HirConditionalBranch {
-                        condition: ast_to_hir_expr(ctx, &branch.condition)?,
-                        body: ast_to_hir_stmt(ctx, &branch.body)?,
-                    });
-                }
-                Some(hir_branches)
-            } else {
-                None
-            };
-
-            let hir_else = if let Some(else_stmt) = else_stmt {
-                Some(Box::new(ast_to_hir_stmt(ctx, else_stmt)?))
-            } else {
-                None
-            };
-
-            HirStatementKind::If {
-                main_stmt: hir_main,
-                branches: hir_branches,
-                else_stmt: hir_else,
-            }
-        }
         StatementKind::While { .. } => todo!("while statement lowering not implemented"),
-        StatementKind::Scope { statements } => {
-            let mut hir_statements = Vec::with_capacity(statements.len());
-            for statement in statements {
-                hir_statements.push(ast_to_hir_stmt(ctx, statement)?);
-            }
-            HirStatementKind::Scope {
-                statements: hir_statements,
-            }
-        }
         StatementKind::Expression { inner } => HirStatementKind::Expression {
             inner: ast_to_hir_expr(ctx, inner)?,
         },
@@ -178,14 +135,16 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
             })
         }
         StatementKind::ClassDecl(_) => todo!("class lowering not implementat"),
-        StatementKind::EndOfFile => HirStatementKind::EndOfFile,
+        StatementKind::EndOfFile => {
+            return Ok(None);
+        },
     };
 
-    Ok(HirStatement {
+    Ok(Some(HirStatement {
         kind,
         span: stmt.span,
         cursor: stmt.cursor,
-    })
+    }))
 }
 
 fn ast_to_hir_expr(
@@ -265,13 +224,13 @@ fn ast_to_hir_expr(
             TypeKind::Unknown,
         ),
         ExpressionKind::If {
-            main_expr,
+            main_branch: main_expr,
             branches,
-            else_expr,
+            else_branch: else_expr,
         } => {
             let hir_main = Box::new(HirConditionalBranch {
                 condition: ast_to_hir_expr(ctx, &main_expr.condition)?,
-                body: ast_to_hir_stmt(ctx, &main_expr.body)?,
+                body: ast_to_hir_expr(ctx, &main_expr.body)?,
             });
 
             let hir_branches = if let Some(branches) = branches {
@@ -279,7 +238,7 @@ fn ast_to_hir_expr(
                 for branch in branches {
                     hir_branches.push(HirConditionalBranch {
                         condition: ast_to_hir_expr(ctx, &branch.condition)?,
-                        body: ast_to_hir_stmt(ctx, &branch.body)?,
+                        body: ast_to_hir_expr(ctx, &branch.body)?,
                     });
                 }
                 Some(hir_branches)
@@ -287,7 +246,11 @@ fn ast_to_hir_expr(
                 None
             };
 
-            let hir_else = Box::new(ast_to_hir_expr(ctx, else_expr)?);
+            let hir_else = if let Some(else_expr) = else_expr {
+                Some(Box::new(ast_to_hir_expr(ctx, else_expr)?))
+            } else {
+                None
+            };
 
             (
                 HirExpressionKind::If {
@@ -332,7 +295,9 @@ fn ast_to_hir_expr(
         ExpressionKind::Scope { statements } => {
             let mut hir_statements = Vec::with_capacity(statements.len());
             for statement in statements {
-                hir_statements.push(ast_to_hir_stmt(ctx, statement)?);
+                if let Some(hir_stmt) = ast_to_hir_stmt(ctx, statement)? {
+                    hir_statements.push(hir_stmt);
+                }
             }
             (
                 HirExpressionKind::Scope {
@@ -348,12 +313,17 @@ fn ast_to_hir_expr(
             },
             TypeKind::Unknown,
         ),
-        ExpressionKind::Variable { symbol } => (
+        ExpressionKind::Variable { symbol } => {
+            // dbg!(&ctx.symbol_table);
+            // dbg!(symbol);
+            
+            (
             HirExpressionKind::Variable {
                 symbol_id: unwrap_ast_symbol(ctx, symbol)?,
             },
             TypeKind::Unknown,
-        ),
+        )
+        },
     };
 
     Ok(HirExpression {

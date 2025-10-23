@@ -23,12 +23,9 @@ impl LumaParser<'_> {
                 })
             },
 
-            TokenKind::Keyword(kind) => match kind {
-                KeywordKind::Public => self.stmt_public(),
-                KeywordKind::Function => self.stmt_function(None),
-
-                _ => self.statement(semicolon),
-            }
+            TokenKind::Keyword(KeywordKind::Public) => self.stmt_public(),
+            TokenKind::Keyword(KeywordKind::Function) => self.stmt_function(None),
+            TokenKind::Keyword(KeywordKind::Var) => self.stmt_var(),
 
             _ => self.statement(semicolon),
         }
@@ -40,15 +37,10 @@ impl LumaParser<'_> {
 
         let current= self.current();
         let result = match current.kind {
-            TokenKind::Keyword(kind) => match kind {
-                KeywordKind::Var => self.stmt_var(),
-                KeywordKind::Return => self.stmt_return(),
-                KeywordKind::Continue => self.stmt_loop_control(KeywordKind::Continue),
-                KeywordKind::Break => self.stmt_loop_control(KeywordKind::Break),
-                KeywordKind::Import => self.stmt_import(),
-
-                _ => todo!("handle other keywords: {kind}"),
-            },
+            TokenKind::Keyword(KeywordKind::Return) => self.stmt_return(),
+            TokenKind::Keyword(KeywordKind::Continue) => self.stmt_loop_control(KeywordKind::Continue),
+            TokenKind::Keyword(KeywordKind::Break) => self.stmt_loop_control(KeywordKind::Break),
+            TokenKind::Keyword(KeywordKind::Import) => self.stmt_import(),
 
             _ => self.stmt_expression(),
         };
@@ -275,12 +267,12 @@ impl LumaParser<'_> {
         let (mut span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Return))?.pos();
 
         // Optionally get the value
-        let value: Option<Box<Expression>> = if self.is_at_end() || self.check(TokenKind::Punctuation(PunctuationKind::Semicolon)) {
+        let value: Option<Expression> = if self.is_at_end() || self.check(TokenKind::Punctuation(PunctuationKind::Semicolon)) {
             None
         } else {
             let expr = self.parse_expression()?;
             span = span.merge(&expr.span);
-            Some(Box::new(expr))
+            Some(expr)
         };
 
         Ok(Statement {

@@ -15,4 +15,6 @@ pub enum AnalyzerDiagnostic {
     CalleeNotFunction(TypeKind),
     #[error("expected type '{0}', found '{1}'")]
     ExpectedTypeFoundType(TypeKind, TypeKind),
+    #[error("missing else branch for expression returning type '{0}'")]
+    MissingElseBranch(TypeKind),
 }

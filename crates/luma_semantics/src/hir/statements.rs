@@ -4,7 +4,6 @@ use luma_core::{Cursor, Display, Span};
 use luma_core::{types::Type, visibility::Visibility};
 
 use crate::hir::expressions::HirExpression;
-use crate::hir::HirConditionalBranch;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirStatement {
@@ -16,17 +15,9 @@ pub struct HirStatement {
 #[derive(Display, Debug, Clone, PartialEq)]
 #[display(case = "snake_case")]
 pub enum HirStatementKind {
-    If {
-        main_stmt: Box<HirConditionalBranch>,
-        branches: Option<Vec<HirConditionalBranch>>,
-        else_stmt: Option<Box<HirStatement>>,
-    },
     Loop {
         symbol_id: SymbolId,
         body: Box<HirStatement>,
-    },
-    Scope {
-        statements: Vec<HirStatement>
     },
     Expression {
         inner: HirExpression
@@ -48,8 +39,6 @@ pub enum HirStatementKind {
     FuncDecl(HirFuncDecl),
     VarDecl(HirVarDecl),
     ClassDecl(HirClassDecl),
-
-    EndOfFile,
 }
 
 #[derive(Debug, Clone, PartialEq)]

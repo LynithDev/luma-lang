@@ -53,7 +53,7 @@ fn analyze_stmt(ctx: &mut AnalyzerContext, statement: &mut Statement) {
 
             let symbol_id = ctx.symbol_table.declare_value(decl.symbol.name.clone(), ty);
             decl.symbol.id = Some(symbol_id);
-        },
+        }
         StatementKind::FuncDecl(decl) => {
             // we enter scope for the function parameters as they are scoped to the func body
             ctx.symbol_table.enter_scope();
@@ -85,29 +85,30 @@ fn analyze_stmt(ctx: &mut AnalyzerContext, statement: &mut Statement) {
 
             let symbol_id = ctx.symbol_table.declare_value(decl.symbol.name.clone(), ty);
             decl.symbol.id = Some(symbol_id);
-        },
+        }
         StatementKind::ClassDecl(_) => {
             todo!("class decl name resolution")
-        },
-        StatementKind::Scope { statements } => {
-            ctx.symbol_table.enter_scope();
-
-            for stmt in statements {
-                analyze_stmt(ctx, stmt);
-            }
-
-            ctx.symbol_table.leave_scope();
-        },
+        }
         StatementKind::Expression { inner } => {
             analyze_expr(ctx, inner);
-        },
-        _ => {}
+        }
+        StatementKind::Return { value } => {
+            if let Some(expr) = value.as_mut() {
+                analyze_expr(ctx, expr);
+            }
+        }
+        StatementKind::EndOfFile => {}
+        _ => {
+            dbg!("unhandled statement in name resolution: {:?}", statement);
+        }
     }
 }
 
 fn analyze_expr(ctx: &mut AnalyzerContext, expr: &mut Expression) {
     match &mut expr.kind {
-        ExpressionKind::Binary { left, right, .. } => {
+        ExpressionKind::Comparison { left, right, .. }
+        | ExpressionKind::Binary { left, right, .. }
+        | ExpressionKind::Logical { left, right, .. } => {
             analyze_expr(ctx, left);
             analyze_expr(ctx, right);
         }
@@ -132,7 +133,25 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &mut Expression) {
                 });
             }
         }
-        ExpressionKind::Literal { .. } => {}
+        ExpressionKind::If {
+            main_branch,
+            branches,
+            else_branch,
+        } => {
+            analyze_expr(ctx, &mut main_branch.condition);
+            analyze_expr(ctx, &mut main_branch.body);
+
+            if let Some(branches) = branches {
+                for branch in branches {
+                    analyze_expr(ctx, &mut branch.condition);
+                    analyze_expr(ctx, &mut branch.body);
+                }
+            }
+
+            if let Some(else_expr) = else_branch {
+                analyze_expr(ctx, else_expr);
+            }
+        }
         ExpressionKind::Scope { statements } => {
             ctx.symbol_table.enter_scope();
 
@@ -142,6 +161,27 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &mut Expression) {
 
             ctx.symbol_table.leave_scope();
         }
-        _ => {}
+        ExpressionKind::Assign {
+            symbol,
+            value,
+            ..
+        } => {
+            analyze_expr(ctx, value);
+            
+            if let Some(lookup) = ctx.symbol_table.value_table.lookup_name(&symbol.name) {
+                symbol.id = Some(lookup.id);
+            } else {
+                ctx.reporter.report(DiagnosticReport {
+                    message: Box::new(AnalyzerDiagnostic::UnresolvedSymbol(symbol.name.clone())),
+                    span: symbol.span,
+                    cursor: symbol.cursor,
+                });
+            }
+        },
+        ExpressionKind::Group { inner } => analyze_expr(ctx, inner),
+        ExpressionKind::Literal { .. } => {},
+        ExpressionKind::Get { .. } => todo!("property access name resolution"),
+        ExpressionKind::ArrayGet { .. } => todo!("array get name resolution"),
+        ExpressionKind::ArraySet { .. } => todo!("array set name resolution"),
     }
 }

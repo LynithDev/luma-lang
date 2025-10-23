@@ -17,9 +17,9 @@ pub struct Expression {
 #[display(case = "snake_case")]
 pub enum ExpressionKind {
     If {
-        main_expr: Box<ConditionalBranch>,
+        main_branch: Box<ConditionalBranch>,
         branches: Option<Vec<ConditionalBranch>>,
-        else_expr: Box<Expression>,
+        else_branch: Option<Box<Expression>>,
     },
     Invoke {
         callee: Box<Expression>,

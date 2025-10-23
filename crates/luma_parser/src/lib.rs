@@ -49,6 +49,7 @@ impl<'a> LumaParser<'a> {
         let (mut span, cursor) = self
             .consume(TokenKind::Punctuation(PunctuationKind::LeftBrace))?
             .pos();
+
         let mut statements = Vec::new();
 
         let mut had_return = false;
@@ -58,8 +59,6 @@ impl<'a> LumaParser<'a> {
                 Ok(statement) => {
                     let kind = statement.kind.clone();
 
-                    statements.push(statement);
-
                     if self.previous().kind != TokenKind::Punctuation(PunctuationKind::Semicolon)
                         || matches!(
                             kind,
@@ -68,7 +67,17 @@ impl<'a> LumaParser<'a> {
                                 | StatementKind::Return { .. }
                         )
                     {
-                        had_return = true
+                        had_return = true;
+                    }
+
+                    if had_return && let StatementKind::Expression { inner } = kind {
+                        statements.push(Statement {
+                            cursor: statement.cursor,
+                            span: statement.span,
+                            kind: StatementKind::Return { value: Some(inner) }
+                        });
+                    } else {
+                        statements.push(statement);
                     }
                 }
                 Err(err) => {
@@ -87,6 +96,19 @@ impl<'a> LumaParser<'a> {
             span,
             kind: ExpressionKind::Scope { statements },
         })
+    }
+
+    // MARK: Condition branch
+    fn parse_conditional_branch(&mut self) -> DiagnosticResult<ConditionalBranch> {
+        // parse condition
+        let condition = self.parse_expression()?;
+
+        // parse body
+        self.expect(TokenKind::Punctuation(PunctuationKind::LeftBrace))?;
+
+        let body = self.parse_expression()?;
+
+        Ok(ConditionalBranch { condition, body })
     }
 
     // MARK: Expect Identifier

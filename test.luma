@@ -12,7 +12,9 @@
 // }
 
 pub fn check(arg: str): bool {
-    arg
+    if arg == "5" {
+        "true"
+    };
 }
 
-check(check(5));
+check("5");

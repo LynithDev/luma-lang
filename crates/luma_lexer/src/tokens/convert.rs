@@ -91,7 +91,7 @@ impl TryFrom<OperatorKind> for ComparisonOperator {
     
     fn try_from(kind: OperatorKind) -> Result<Self, Self::Error> {
         Ok(match kind {
-            OperatorKind::Equals => ComparisonOperator::Equals,
+            OperatorKind::EqualsEquals => ComparisonOperator::Equals,
             OperatorKind::NotEquals => ComparisonOperator::NotEquals,
             OperatorKind::GreaterThan => ComparisonOperator::GreaterThan,
             OperatorKind::GreaterThanOrEqual => ComparisonOperator::GreaterThanOrEqual,

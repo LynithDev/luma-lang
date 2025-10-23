@@ -30,7 +30,7 @@ impl Ast {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConditionalBranch {
     pub condition: prelude::Expression,
-    pub body: prelude::Statement,
+    pub body: prelude::Expression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
