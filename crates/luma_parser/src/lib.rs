@@ -50,8 +50,9 @@ impl<'a> LumaParser<'a> {
             .consume(TokenKind::Punctuation(PunctuationKind::LeftBrace))?
             .pos();
 
-        let mut statements = Vec::new();
+        let mut statements: Vec<Statement> = Vec::new();
 
+        let mut value: Option<Box<Expression>> = None;
         let mut had_return = false;
 
         while !self.is_at_end() {
@@ -59,23 +60,24 @@ impl<'a> LumaParser<'a> {
                 Ok(statement) => {
                     let kind = statement.kind.clone();
 
-                    if self.previous().kind != TokenKind::Punctuation(PunctuationKind::Semicolon)
-                        || matches!(
-                            kind,
-                            StatementKind::Break { .. }
-                                | StatementKind::Continue { .. }
-                                | StatementKind::Return { .. }
-                        )
-                    {
+                    let is_implicit_return = self.is_semi_required(&statement)
+                        && self.previous().kind != TokenKind::Punctuation(PunctuationKind::Semicolon);
+
+                    let is_return = matches!(
+                        kind,
+                        StatementKind::Break { .. }
+                            | StatementKind::Continue { .. }
+                            | StatementKind::Return { .. }
+                    ) || is_implicit_return;
+
+                    if is_return {
                         had_return = true;
                     }
 
-                    if had_return && let StatementKind::Expression { inner } = kind {
-                        statements.push(Statement {
-                            cursor: statement.cursor,
-                            span: statement.span,
-                            kind: StatementKind::Return { value: Some(inner) }
-                        });
+                    if is_implicit_return {
+                        if let StatementKind::Expression { inner } = kind {
+                            value = Some(Box::new(inner));
+                        }
                     } else {
                         statements.push(statement);
                     }
@@ -94,7 +96,10 @@ impl<'a> LumaParser<'a> {
         Ok(Expression {
             cursor,
             span,
-            kind: ExpressionKind::Scope { statements },
+            kind: ExpressionKind::Scope { 
+                statements,
+                block_value: value
+            },
         })
     }
 

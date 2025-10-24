@@ -152,11 +152,15 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &mut Expression) {
                 analyze_expr(ctx, else_expr);
             }
         }
-        ExpressionKind::Scope { statements } => {
+        ExpressionKind::Scope { statements, block_value: value } => {
             ctx.symbol_table.enter_scope();
 
             for stmt in statements {
                 analyze_stmt(ctx, stmt);
+            }
+
+            if let Some(value) = value {
+                analyze_expr(ctx, value);
             }
 
             ctx.symbol_table.leave_scope();

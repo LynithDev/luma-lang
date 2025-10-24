@@ -292,16 +292,24 @@ fn ast_to_hir_expr(
             },
             TypeKind::Boolean,
         ),
-        ExpressionKind::Scope { statements } => {
+        ExpressionKind::Scope { statements, block_value: value } => {
             let mut hir_statements = Vec::with_capacity(statements.len());
             for statement in statements {
                 if let Some(hir_stmt) = ast_to_hir_stmt(ctx, statement)? {
                     hir_statements.push(hir_stmt);
                 }
             }
+
+            let value = if let Some(value) = value {
+                Some(Box::new(ast_to_hir_expr(ctx, value)?))
+            } else {
+                None
+            };
+
             (
                 HirExpressionKind::Scope {
                     statements: hir_statements,
+                    value
                 },
                 TypeKind::Unknown,
             )

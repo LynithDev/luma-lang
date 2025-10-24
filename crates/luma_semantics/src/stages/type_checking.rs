@@ -76,23 +76,29 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &HirExpression) -> TypeKind {
                 ty
             }
         },
-        HirExpressionKind::Scope { statements } => {
+        HirExpressionKind::Scope { statements, value } => {
             for stmt in statements {
                 analyze_stmt(ctx, stmt);
             }
 
-            expr.ty.clone()
+            if let Some(value) = value {
+                analyze_expr(ctx, value)
+            } else {
+                TypeKind::Void
+            }
         },
         HirExpressionKind::If { main_expr, branches, else_expr } => {
             // analyze main branch
             let ret_ty = check_conditional_branch(ctx, main_expr);
+
+            let returns_type = !matches!(ret_ty, TypeKind::Void | TypeKind::Unknown);
 
             // analyze branches
             if let Some(branches) = branches {
                 for branch in branches {
                     let ty = check_conditional_branch(ctx, branch);
 
-                    if ty != ret_ty {
+                    if returns_type && ty != ret_ty {
                         ctx.reporter.report(DiagnosticReport {
                             message: Box::new(AnalyzerDiagnostic::ExpectedTypeFoundType(ret_ty.clone(), ty.clone())),
                             span: branch.body.span,
@@ -106,7 +112,7 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &HirExpression) -> TypeKind {
             if let Some(else_expr) = else_expr {
                 let ty = analyze_expr(ctx, else_expr);
 
-                if ty != ret_ty {
+                if returns_type && ret_ty != ty {
                     ctx.reporter.report(DiagnosticReport {
                         message: Box::new(AnalyzerDiagnostic::ExpectedTypeFoundType(ret_ty.clone(), ty.clone())),
                         span: else_expr.span,
@@ -116,7 +122,6 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &HirExpression) -> TypeKind {
             }
 
             // if it returns void, it means only 1 branch is required. otherwise, there needs to be at least an else branch
-            let returns_type = ret_ty != TypeKind::Void;
             let has_else_branch = else_expr.is_some() || branches.as_ref().is_some_and(|b| !b.is_empty());
 
             if returns_type && !has_else_branch {
@@ -172,6 +177,7 @@ fn check_arguments(ctx: &mut AnalyzerContext, expr: &HirExpression, symbol: &Val
 
 fn check_conditional_branch(ctx: &mut AnalyzerContext, branch: &HirConditionalBranch) -> TypeKind {
     let cond_ty = analyze_expr(ctx, &branch.condition);
+    
     if cond_ty != TypeKind::Boolean {
         ctx.reporter.report(DiagnosticReport {
             message: Box::new(AnalyzerDiagnostic::ExpectedTypeFoundType(TypeKind::Boolean, cond_ty.clone())),

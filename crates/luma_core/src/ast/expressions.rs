@@ -57,6 +57,8 @@ pub enum ExpressionKind {
     },
     Scope {
         statements: Vec<Statement>,
+        /// The implicit value of the scope (last expression with no semicolon)
+        block_value: Option<Box<Expression>>,
     },
     Literal {
         kind: LiteralKind,

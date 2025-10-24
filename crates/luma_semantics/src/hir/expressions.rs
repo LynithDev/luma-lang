@@ -58,7 +58,8 @@ pub enum HirExpressionKind {
         symbol_id: SymbolId,
     },
     Scope {
-        statements: Vec<HirStatement>
+        statements: Vec<HirStatement>,
+        value: Option<Box<HirExpression>>,
     },
     Literal {
         kind: HirLiteralKind,

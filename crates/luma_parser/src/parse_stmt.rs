@@ -1,60 +1,86 @@
-use luma_diagnostic::{DiagnosticKind, DiagnosticResult, ReporterExt};
+use luma_core::ast::{AstSymbol, prelude::*};
+use luma_diagnostic::{DiagnosticResult, ReporterExt};
 use luma_lexer::tokens::{KeywordKind, LiteralKind, OperatorKind, PunctuationKind, TokenKind};
-use luma_core::ast::{prelude::*, AstSymbol};
 
-use crate::{diagnostics::ParserDiagnostic, LumaParser};
+use crate::{LumaParser, diagnostics::ParserDiagnostic};
 
 impl LumaParser<'_> {
-
     pub fn parse_statement(&mut self, semicolon: Option<bool>) -> DiagnosticResult<Statement> {
-        self.declaration(semicolon)
+        let result = self.declaration();
+
+        let check_semi = if let Some(semicolon) = semicolon {
+            semicolon
+        } else if let Ok(statement) = &result {
+            self.is_semi_required(statement)
+        } else {
+            true
+        };
+
+        if let Some(err) = self
+                .consume(TokenKind::Punctuation(PunctuationKind::Semicolon))
+                .err() && check_semi
+        {
+            self.reporter.report(err);
+        }
+
+        result
+    }
+
+    pub fn is_semi_required(&mut self, statement: &Statement) -> bool {
+        match &statement.kind {
+            StatementKind::Expression { inner } => !matches!(
+                &inner.kind, 
+                    // we don't need a semicolon if the if expression is a "statement expression"
+                    ExpressionKind::If { .. }
+                    | ExpressionKind::Scope { block_value: None, .. }
+            ),
+
+            StatementKind::FuncDecl(decl) => {
+                if decl.body.is_none() {
+                    true
+                } else {
+                    // we only don't need a semicolon if the body is a scope
+                    !matches!(&decl.body.as_ref().map(|b| &b.kind), Some(ExpressionKind::Scope { .. }))
+                }
+            },
+
+            StatementKind::EndOfFile => false,
+            _ => true,
+        }
     }
 
     // MARK: Declaration
-    fn declaration(&mut self, semicolon: Option<bool>) -> DiagnosticResult<Statement> {
+    fn declaration(&mut self) -> DiagnosticResult<Statement> {
         let current = self.current();
 
         match current.kind {
-            TokenKind::EndOfFile => {
-                Ok(Statement {
-                    kind: StatementKind::EndOfFile,
-                    span: current.span,
-                    cursor: current.cursor,
-                })
-            },
+            TokenKind::EndOfFile => Ok(Statement {
+                kind: StatementKind::EndOfFile,
+                span: current.span,
+                cursor: current.cursor,
+            }),
 
             TokenKind::Keyword(KeywordKind::Public) => self.stmt_public(),
             TokenKind::Keyword(KeywordKind::Function) => self.stmt_function(None),
             TokenKind::Keyword(KeywordKind::Var) => self.stmt_var(),
 
-            _ => self.statement(semicolon),
+            _ => self.statement(),
         }
     }
 
     // MARK: Statement
-    fn statement(&mut self, semicolon: Option<bool>) -> DiagnosticResult<Statement> {
-        let old_error_count = self.reporter.diagnostic_count(DiagnosticKind::Error);
-
-        let current= self.current();
-        let result = match current.kind {
+    fn statement(&mut self) -> DiagnosticResult<Statement> {
+        let current = self.current();
+        match current.kind {
             TokenKind::Keyword(KeywordKind::Return) => self.stmt_return(),
-            TokenKind::Keyword(KeywordKind::Continue) => self.stmt_loop_control(KeywordKind::Continue),
+            TokenKind::Keyword(KeywordKind::Continue) => {
+                self.stmt_loop_control(KeywordKind::Continue)
+            }
             TokenKind::Keyword(KeywordKind::Break) => self.stmt_loop_control(KeywordKind::Break),
             TokenKind::Keyword(KeywordKind::Import) => self.stmt_import(),
 
             _ => self.stmt_expression(),
-        };
-
-        // Check for semicolon
-        if let Some(err) = self.consume(TokenKind::Punctuation(PunctuationKind::Semicolon)).err() {
-            let new_error_count = self.reporter.diagnostic_count(DiagnosticKind::Error);
-
-            if new_error_count <= old_error_count && semicolon.unwrap_or(true) {
-                self.reporter.report(err);
-            }
         }
-
-        result
     }
 
     // MARK: Visibility
@@ -65,24 +91,27 @@ impl LumaParser<'_> {
         // Get the visibility scope
         let mut visibility = Visibility::Public;
 
-        if self.consume(TokenKind::Punctuation(PunctuationKind::LeftParen)).is_ok() {
+        if self
+            .consume(TokenKind::Punctuation(PunctuationKind::LeftParen))
+            .is_ok()
+        {
             let next = self.advance().to_owned();
 
             match next.kind {
                 TokenKind::Keyword(KeywordKind::This) => {
                     visibility = Visibility::Private;
-                },
-                TokenKind::Identifier => {
-                    match Visibility::scoped(&next.lexeme) {
-                        Some(scope) => {
-                            visibility = scope;
-                        },
-                        None => {
-                            self.reporter.report(self.diagnostic(ParserDiagnostic::InvalidVisibilityScope(next.lexeme.clone())));
-                        },
+                }
+                TokenKind::Identifier => match Visibility::scoped(&next.lexeme) {
+                    Some(scope) => {
+                        visibility = scope;
+                    }
+                    None => {
+                        self.reporter.report(self.diagnostic(
+                            ParserDiagnostic::InvalidVisibilityScope(next.lexeme.clone()),
+                        ));
                     }
                 },
-                _ => return Err(self.diagnostic(ParserDiagnostic::UnexpectedToken(next.kind)))
+                _ => return Err(self.diagnostic(ParserDiagnostic::UnexpectedToken(next.kind))),
             };
 
             // Close visibility scope
@@ -94,14 +123,20 @@ impl LumaParser<'_> {
         match &mut statement.kind {
             StatementKind::VarDecl(decl) => {
                 decl.visibility = visibility;
-            },
+            }
             StatementKind::FuncDecl(decl) => {
                 decl.visibility = visibility;
-            },
+            }
             StatementKind::ClassDecl(decl) => {
                 decl.visibility = visibility;
-            },
-            _ => return Err(self.diagnostic(ParserDiagnostic::UnsupportedVisibilityStatement(Box::new(statement.kind)))),
+            }
+            _ => {
+                return Err(
+                    self.diagnostic(ParserDiagnostic::UnsupportedVisibilityStatement(Box::new(
+                        statement.kind,
+                    ))),
+                );
+            }
         }
 
         statement.cursor = cursor;
@@ -113,7 +148,9 @@ impl LumaParser<'_> {
     // MARK: Function
     fn stmt_function(&mut self, decl_only: Option<bool>) -> DiagnosticResult<Statement> {
         // Consume the function token
-        let (mut span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Function))?.pos();
+        let (mut span, cursor) = self
+            .consume(TokenKind::Keyword(KeywordKind::Function))?
+            .pos();
 
         // consume the identifier
         let identifier = self.consume(TokenKind::Identifier)?.clone();
@@ -143,7 +180,9 @@ impl LumaParser<'_> {
             // consume type
             self.expect(TokenKind::Punctuation(PunctuationKind::Colon))?;
             let Some(ty) = self.parse_type()? else {
-                return Err(self.diagnostic(ParserDiagnostic::MissingTypeAnnotation(identifier.lexeme)));
+                return Err(
+                    self.diagnostic(ParserDiagnostic::MissingTypeAnnotation(identifier.lexeme))
+                );
             };
 
             params.push(Parameter {
@@ -156,17 +195,20 @@ impl LumaParser<'_> {
         }
 
         // Consume the function return type if there is one
-        let return_type: Option<Type> = if self.check(TokenKind::Punctuation(PunctuationKind::Colon)) {
-            let Some(ty) = self.parse_type()? else {
-                return Err(self.diagnostic(ParserDiagnostic::MissingTypeAnnotation(identifier.lexeme)));
+        let return_type: Option<Type> =
+            if self.check(TokenKind::Punctuation(PunctuationKind::Colon)) {
+                let Some(ty) = self.parse_type()? else {
+                    return Err(
+                        self.diagnostic(ParserDiagnostic::MissingTypeAnnotation(identifier.lexeme))
+                    );
+                };
+
+                span = span.merge(&ty.span);
+
+                Some(ty)
+            } else {
+                None
             };
-
-            span = span.merge(&ty.span);
-
-            Some(ty)
-        } else {
-            None
-        };
 
         // consume body
         let body: Option<Box<Expression>> = if decl_only.unwrap_or(false) {
@@ -178,7 +220,7 @@ impl LumaParser<'_> {
                 TokenKind::Punctuation(PunctuationKind::LeftBrace) => {
                     let scope = self.parse_expression()?;
                     Some(Box::new(scope))
-                },
+                }
                 TokenKind::Operator(OperatorKind::Equals) => {
                     self.advance();
                     let expr: Box<Expression> = Box::new(self.parse_expression()?);
@@ -188,7 +230,7 @@ impl LumaParser<'_> {
                 TokenKind::Punctuation(PunctuationKind::Semicolon) => {
                     self.advance();
                     return Err(self.diagnostic(ParserDiagnostic::MissingFunctionBody));
-                },
+                }
                 _ => {
                     return Err(self.diagnostic(ParserDiagnostic::UnexpectedToken(kind)));
                 }
@@ -200,7 +242,11 @@ impl LumaParser<'_> {
             span,
             kind: StatementKind::FuncDecl(FuncDecl {
                 visibility: Visibility::default(),
-                symbol: AstSymbol::new(identifier.lexeme.clone(), identifier.span, identifier.cursor),
+                symbol: AstSymbol::new(
+                    identifier.lexeme.clone(),
+                    identifier.span,
+                    identifier.cursor,
+                ),
                 parameters: params,
                 return_type,
                 body,
@@ -210,15 +256,13 @@ impl LumaParser<'_> {
 
     // MARK: Expression
     fn stmt_expression(&mut self) -> DiagnosticResult<Statement> {
-        self.parse_expression().map(|expr| {
-            let current = self.current();
-            Statement {
-                span: expr.span.merge(&current.span),
-                cursor: current.cursor,
-                kind: StatementKind::Expression {
-                    inner: expr
-                },
-            }
+        let expr = self.parse_expression()?;
+        let current = self.current();
+
+        Ok(Statement {
+            span: expr.span.merge(&current.span),
+            cursor: current.cursor,
+            kind: StatementKind::Expression { inner: expr },
         })
     }
 
@@ -233,11 +277,14 @@ impl LumaParser<'_> {
         // Get the identifier token and its name
         let identifier = self.consume(TokenKind::Identifier)?.clone();
 
-        // Optionally get the type 
+        // Optionally get the type
         let ty: Option<Type> = self.parse_type()?;
 
         // Optionally get the value
-        let value: Option<Box<Expression>> = if self.consume(TokenKind::Operator(OperatorKind::Equals)).is_ok() {
+        let value: Option<Box<Expression>> = if self
+            .consume(TokenKind::Operator(OperatorKind::Equals))
+            .is_ok()
+        {
             let expr = self.parse_expression()?;
             Some(Box::new(expr))
         } else {
@@ -251,11 +298,15 @@ impl LumaParser<'_> {
                 ty.as_ref().map(|ty| ty.span),
                 value.as_ref().map(|expr| expr.span),
             ]),
-            kind: StatementKind::VarDecl(VarDecl { 
-                visibility: Visibility::default(), 
-                mutable: is_mut, 
-                symbol: AstSymbol::new(identifier.lexeme.clone(), identifier.span, identifier.cursor), 
-                ty, 
+            kind: StatementKind::VarDecl(VarDecl {
+                visibility: Visibility::default(),
+                mutable: is_mut,
+                symbol: AstSymbol::new(
+                    identifier.lexeme.clone(),
+                    identifier.span,
+                    identifier.cursor,
+                ),
+                ty,
                 value,
             }),
         })
@@ -267,20 +318,19 @@ impl LumaParser<'_> {
         let (mut span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Return))?.pos();
 
         // Optionally get the value
-        let value: Option<Expression> = if self.is_at_end() || self.check(TokenKind::Punctuation(PunctuationKind::Semicolon)) {
-            None
-        } else {
-            let expr = self.parse_expression()?;
-            span = span.merge(&expr.span);
-            Some(expr)
-        };
+        let value: Option<Expression> =
+            if self.is_at_end() || self.check(TokenKind::Punctuation(PunctuationKind::Semicolon)) {
+                None
+            } else {
+                let expr = self.parse_expression()?;
+                span = span.merge(&expr.span);
+                Some(expr)
+            };
 
         Ok(Statement {
             cursor,
             span,
-            kind: StatementKind::Return {
-                value
-            },
+            kind: StatementKind::Return { value },
         })
     }
 
@@ -288,11 +338,18 @@ impl LumaParser<'_> {
     fn stmt_loop_control(&mut self, kind: KeywordKind) -> DiagnosticResult<Statement> {
         let (mut span, cursor) = self.consume(TokenKind::Keyword(kind))?.pos();
 
-        let label = if self.consume(TokenKind::Punctuation(PunctuationKind::Colon)).is_ok() {
+        let label = if self
+            .consume(TokenKind::Punctuation(PunctuationKind::Colon))
+            .is_ok()
+        {
             let identifier = self.consume(TokenKind::Identifier)?;
             span = span.merge(&identifier.span);
-            
-            Some(AstSymbol::new(identifier.lexeme.clone(), identifier.span, identifier.cursor))
+
+            Some(AstSymbol::new(
+                identifier.lexeme.clone(),
+                identifier.span,
+                identifier.cursor,
+            ))
         } else {
             None
         };
@@ -324,9 +381,9 @@ impl LumaParser<'_> {
                 let identifier = self.consume(TokenKind::Identifier)?.lexeme.clone();
 
                 self.expect_lexeme("from")?;
-                
+
                 ImportPropertyKind::All(identifier)
-            },
+            }
             TokenKind::Punctuation(PunctuationKind::LeftBrace) => {
                 self.consume(TokenKind::Punctuation(PunctuationKind::LeftBrace))?;
 
@@ -353,7 +410,7 @@ impl LumaParser<'_> {
                 let _ = self.expect_lexeme("from")?;
 
                 ImportPropertyKind::Individual(imports)
-            },
+            }
             TokenKind::Literal(LiteralKind::String) => {
                 // we handle the lib name later anyways
                 ImportPropertyKind::None
@@ -364,7 +421,10 @@ impl LumaParser<'_> {
         };
 
         // Get the library name
-        let lib_name = self.consume(TokenKind::Literal(LiteralKind::String))?.lexeme.clone();
+        let lib_name = self
+            .consume(TokenKind::Literal(LiteralKind::String))?
+            .lexeme
+            .clone();
 
         Ok(Statement {
             cursor,
@@ -378,16 +438,20 @@ impl LumaParser<'_> {
 
     // MARK: Parse Type
     fn parse_type(&mut self) -> DiagnosticResult<Option<Type>> {
-        Ok(if self.consume(TokenKind::Punctuation(PunctuationKind::Colon)).is_ok() {
-            let identifier = self.consume(TokenKind::Identifier)?;
-            Some(Type {
-                kind: TypeKind::from(identifier.lexeme.as_str()),
-                cursor: identifier.cursor,
-                span: identifier.span,
-            })
-        } else {
-            None
-        })
+        Ok(
+            if self
+                .consume(TokenKind::Punctuation(PunctuationKind::Colon))
+                .is_ok()
+            {
+                let identifier = self.consume(TokenKind::Identifier)?;
+                Some(Type {
+                    kind: TypeKind::from(identifier.lexeme.as_str()),
+                    cursor: identifier.cursor,
+                    span: identifier.span,
+                })
+            } else {
+                None
+            },
+        )
     }
-
 }
