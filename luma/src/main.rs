@@ -55,7 +55,6 @@ fn compile(args: &[String]) {
     let files = args.iter().skip(1).flat_map(|f| PathBuf::from_str(f)).collect::<Vec<_>>();
 
     let engine = LumaEngine::new();
-    let reporter = engine.reporter();
 
     let inputs = files.into_iter()
         .flat_map(|path| CodeSource::try_from(path).ok())

@@ -56,6 +56,11 @@ impl<'a> LumaParser<'a> {
         let mut had_return = false;
 
         while !self.is_at_end() {
+            if let Ok(rbrace) = self.consume(TokenKind::Punctuation(PunctuationKind::RightBrace)) {
+                span = span.merge(&rbrace.span);
+                break;
+            }
+
             match self.parse_statement(Some(had_return)) {
                 Ok(statement) => {
                     let kind = statement.kind.clone();
@@ -86,11 +91,6 @@ impl<'a> LumaParser<'a> {
                     self.reporter.report(err);
                 }
             }
-
-            if let Ok(rbrace) = self.consume(TokenKind::Punctuation(PunctuationKind::RightBrace)) {
-                span = span.merge(&rbrace.span);
-                break;
-            }
         }
 
         Ok(Expression {
@@ -101,6 +101,30 @@ impl<'a> LumaParser<'a> {
                 block_value: value
             },
         })
+    }
+
+    // MARK: Semi check
+    pub fn is_semi_required(&mut self, statement: &Statement) -> bool {
+        match &statement.kind {
+            StatementKind::Expression { inner } => !matches!(
+                &inner.kind, 
+                    // we don't need a semicolon if the if expression is a "statement expression"
+                    ExpressionKind::If { .. }
+                    | ExpressionKind::Scope { block_value: None, .. }
+            ),
+
+            StatementKind::FuncDecl(decl) => {
+                if decl.body.is_none() {
+                    true
+                } else {
+                    // we only don't need a semicolon if the body is a scope
+                    !matches!(&decl.body.as_ref().map(|b| &b.kind), Some(ExpressionKind::Scope { .. }))
+                }
+            },
+
+            StatementKind::EndOfFile => false,
+            _ => true,
+        }
     }
 
     // MARK: Condition branch
@@ -148,7 +172,7 @@ impl<'a> LumaParser<'a> {
     }
 
     fn is_at_end(&self) -> bool {
-        self.stream.is_at_end()
+        self.stream.is_at_end() || self.current().kind == TokenKind::EndOfFile
     }
 
     fn check(&self, kind: TokenKind) -> bool {

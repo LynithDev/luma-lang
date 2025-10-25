@@ -121,16 +121,16 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &HirExpression) -> TypeKind {
                 }
             }
 
-            // if it returns void, it means only 1 branch is required. otherwise, there needs to be at least an else branch
-            let has_else_branch = else_expr.is_some() || branches.as_ref().is_some_and(|b| !b.is_empty());
+            // // if it returns void, it means only 1 branch is required. otherwise, there needs to be at least an else branch
+            // let has_else_branch = else_expr.is_some() || branches.as_ref().is_some_and(|b| !b.is_empty());
 
-            if returns_type && !has_else_branch {
-                ctx.reporter.report(DiagnosticReport {
-                    message: Box::new(AnalyzerDiagnostic::MissingElseBranch(ret_ty.clone())),
-                    span: expr.span,
-                    cursor: expr.cursor,
-                });
-            }
+            // if returns_type && !has_else_branch {
+            //     ctx.reporter.report(DiagnosticReport {
+            //         message: Box::new(AnalyzerDiagnostic::MissingElseBranch(ret_ty.clone())),
+            //         span: expr.span,
+            //         cursor: expr.cursor,
+            //     });
+            // }
 
             ret_ty
         },

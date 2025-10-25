@@ -1,4 +1,4 @@
-use luma_core::ast::{AstSymbol, prelude::*};
+use luma_core::{ast::{prelude::*, AstSymbol}, Cursor, Span};
 use luma_diagnostic::{DiagnosticResult, ReporterExt};
 use luma_lexer::tokens::{KeywordKind, LiteralKind, OperatorKind, PunctuationKind, TokenKind};
 
@@ -6,7 +6,7 @@ use crate::{LumaParser, diagnostics::ParserDiagnostic};
 
 impl LumaParser<'_> {
     pub fn parse_statement(&mut self, semicolon: Option<bool>) -> DiagnosticResult<Statement> {
-        let result = self.declaration();
+        let result = self.statement();
 
         let check_semi = if let Some(semicolon) = semicolon {
             semicolon
@@ -18,7 +18,7 @@ impl LumaParser<'_> {
 
         if let Some(err) = self
                 .consume(TokenKind::Punctuation(PunctuationKind::Semicolon))
-                .err() && check_semi
+                .err() && result.is_ok() && check_semi
         {
             self.reporter.report(err);
         }
@@ -26,101 +26,49 @@ impl LumaParser<'_> {
         result
     }
 
-    pub fn is_semi_required(&mut self, statement: &Statement) -> bool {
-        match &statement.kind {
-            StatementKind::Expression { inner } => !matches!(
-                &inner.kind, 
-                    // we don't need a semicolon if the if expression is a "statement expression"
-                    ExpressionKind::If { .. }
-                    | ExpressionKind::Scope { block_value: None, .. }
-            ),
-
-            StatementKind::FuncDecl(decl) => {
-                if decl.body.is_none() {
-                    true
-                } else {
-                    // we only don't need a semicolon if the body is a scope
-                    !matches!(&decl.body.as_ref().map(|b| &b.kind), Some(ExpressionKind::Scope { .. }))
-                }
-            },
-
-            StatementKind::EndOfFile => false,
-            _ => true,
-        }
-    }
-
-    // MARK: Declaration
-    fn declaration(&mut self) -> DiagnosticResult<Statement> {
+    // MARK: Statement
+    fn statement(&mut self) -> DiagnosticResult<Statement> {
         let current = self.current();
 
         match current.kind {
+            TokenKind::Keyword(KeywordKind::Function)
+            | TokenKind::Keyword(KeywordKind::Var)
+            | TokenKind::Keyword(KeywordKind::Class)
+            | TokenKind::Keyword(KeywordKind::Public) => self.declaration(),
+
+            TokenKind::Keyword(KeywordKind::Return) => self.stmt_return(),
+            TokenKind::Keyword(KeywordKind::Continue) => self.stmt_loop_control(KeywordKind::Continue),
+            TokenKind::Keyword(KeywordKind::Break) => self.stmt_loop_control(KeywordKind::Break),
+            TokenKind::Keyword(KeywordKind::Import) => self.stmt_import(),
+            
             TokenKind::EndOfFile => Ok(Statement {
                 kind: StatementKind::EndOfFile,
                 span: current.span,
                 cursor: current.cursor,
             }),
 
-            TokenKind::Keyword(KeywordKind::Public) => self.stmt_public(),
-            TokenKind::Keyword(KeywordKind::Function) => self.stmt_function(None),
-            TokenKind::Keyword(KeywordKind::Var) => self.stmt_var(),
-
-            _ => self.statement(),
-        }
-    }
-
-    // MARK: Statement
-    fn statement(&mut self) -> DiagnosticResult<Statement> {
-        let current = self.current();
-        match current.kind {
-            TokenKind::Keyword(KeywordKind::Return) => self.stmt_return(),
-            TokenKind::Keyword(KeywordKind::Continue) => {
-                self.stmt_loop_control(KeywordKind::Continue)
-            }
-            TokenKind::Keyword(KeywordKind::Break) => self.stmt_loop_control(KeywordKind::Break),
-            TokenKind::Keyword(KeywordKind::Import) => self.stmt_import(),
-
             _ => self.stmt_expression(),
         }
     }
 
-    // MARK: Visibility
-    fn stmt_public(&mut self) -> DiagnosticResult<Statement> {
-        // Consume the pub token
-        let (span, cursor) = self.consume(TokenKind::Keyword(KeywordKind::Public))?.pos();
+    // MARK: Declaration
+    fn declaration(&mut self) -> DiagnosticResult<Statement> {
+        let (mut span, mut cursor) = self.current().pos();
+        let visibility = self.get_visibility(&mut span, &mut cursor)?;
+        
+        let kind = self.current().kind;
 
-        // Get the visibility scope
-        let mut visibility = Visibility::Public;
+        let mut stmt = match kind {
+            TokenKind::Keyword(KeywordKind::Function) => self.stmt_function(None),
+            TokenKind::Keyword(KeywordKind::Var) => self.stmt_var(),
+            TokenKind::Keyword(KeywordKind::Class) => todo!("class decl not implemented"),
 
-        if self
-            .consume(TokenKind::Punctuation(PunctuationKind::LeftParen))
-            .is_ok()
-        {
-            let next = self.advance().to_owned();
+            _ => Err(self.diagnostic(
+                ParserDiagnostic::UnexpectedToken(kind),
+            )),
+        }?;
 
-            match next.kind {
-                TokenKind::Keyword(KeywordKind::This) => {
-                    visibility = Visibility::Private;
-                }
-                TokenKind::Identifier => match Visibility::scoped(&next.lexeme) {
-                    Some(scope) => {
-                        visibility = scope;
-                    }
-                    None => {
-                        self.reporter.report(self.diagnostic(
-                            ParserDiagnostic::InvalidVisibilityScope(next.lexeme.clone()),
-                        ));
-                    }
-                },
-                _ => return Err(self.diagnostic(ParserDiagnostic::UnexpectedToken(next.kind))),
-            };
-
-            // Close visibility scope
-            self.consume(TokenKind::Punctuation(PunctuationKind::RightParen))?;
-        }
-
-        let mut statement = self.parse_statement(None)?;
-
-        match &mut statement.kind {
+        match &mut stmt.kind {
             StatementKind::VarDecl(decl) => {
                 decl.visibility = visibility;
             }
@@ -130,19 +78,60 @@ impl LumaParser<'_> {
             StatementKind::ClassDecl(decl) => {
                 decl.visibility = visibility;
             }
-            _ => {
-                return Err(
-                    self.diagnostic(ParserDiagnostic::UnsupportedVisibilityStatement(Box::new(
-                        statement.kind,
-                    ))),
-                );
-            }
+            _ => unreachable!()
         }
 
-        statement.cursor = cursor;
-        statement.span = span.merge(&statement.span);
+        Ok(stmt)
+    }
 
-        Ok(statement)
+    // MARK: Visibility
+    fn get_visibility(&mut self, span: &mut Span, cursor: &mut Cursor) -> DiagnosticResult<Visibility> {
+        let Ok((token_span, token_cursor)) = self.consume(TokenKind::Keyword(KeywordKind::Public)).map(|t| t.pos()) else {
+            return Ok(Visibility::default());
+        };
+
+        *span = span.merge(&token_span);
+        *cursor = token_cursor;
+
+        // Get the visibility scope
+        Ok(if self
+            .consume(TokenKind::Punctuation(PunctuationKind::LeftParen))
+            .is_ok()
+        {
+            let scope_token = self.current().to_owned();
+
+            let visibility = match scope_token.kind {
+                TokenKind::Keyword(KeywordKind::This) => {
+                    Visibility::Private
+                }
+                TokenKind::Identifier => match Visibility::scoped(&scope_token.lexeme) {
+                    Some(scope) => {
+                        scope
+                    }
+                    None => {
+                        self.reporter.report(self.diagnostic(
+                            ParserDiagnostic::InvalidVisibilityScope(scope_token.lexeme.clone()),
+                        ));
+                        Visibility::default()
+                    }
+                },
+                _ => {
+                    self.reporter.report(self.diagnostic(ParserDiagnostic::UnexpectedToken(scope_token.kind)));
+                    Visibility::default()
+                },
+            };
+
+            // skip the scope token
+            self.advance();
+
+            // Close visibility scope
+            self.consume(TokenKind::Punctuation(PunctuationKind::RightParen))?;
+
+            *span = span.merge(&scope_token.span);
+            visibility
+        } else {
+            Visibility::default()
+        })
     }
 
     // MARK: Function
@@ -224,7 +213,6 @@ impl LumaParser<'_> {
                 TokenKind::Operator(OperatorKind::Equals) => {
                     self.advance();
                     let expr: Box<Expression> = Box::new(self.parse_expression()?);
-                    self.consume(TokenKind::Punctuation(PunctuationKind::Semicolon))?;
                     Some(expr)
                 }
                 TokenKind::Punctuation(PunctuationKind::Semicolon) => {
