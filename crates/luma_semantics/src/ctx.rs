@@ -6,11 +6,11 @@ use crate::{symbol::SymbolsTable, ParsedCodeSource};
 pub struct AnalyzerContext<'a> {
     pub reporter: Reporter,
     pub symbol_table: SymbolsTable,
-    pub input: &'a ParsedCodeSource<'a>,
+    pub input: &'a ParsedCodeSource,
 }
 
 impl<'a> AnalyzerContext<'a> {
-    pub fn new(parent_reporter: &Reporter, input: &'a ParsedCodeSource<'a>) -> Self {
+    pub fn new(parent_reporter: &Reporter, input: &'a ParsedCodeSource) -> Self {
         Self {
             reporter: parent_reporter.clone(),
             symbol_table: SymbolsTable::new(),

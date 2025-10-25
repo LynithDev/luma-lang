@@ -31,8 +31,8 @@ impl LumaEngine {
         let mut parsed: Vec<ParsedCodeSource> = Vec::new();
 
         let mut analyzer = LumaAnalyzer::new(&self.reporter);
-        for source in &sources {
-            let ast = self.parse_ast(source)?;
+        for source in sources {
+            let ast = self.parse_ast(&source)?;
             parsed.push(ParsedCodeSource::new(source, ParsedCodeKind::Ast(ast)));
         }
 
@@ -40,7 +40,7 @@ impl LumaEngine {
         analyzer.analyze();
 
         for source in &parsed {
-            print!("{}", self.reporter.formatted_for(source.source))
+            print!("{}", self.reporter.formatted_for(&source.source))
         }
         
         Ok(0)

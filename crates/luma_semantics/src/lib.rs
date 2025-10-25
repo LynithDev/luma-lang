@@ -49,12 +49,12 @@ impl<'a> LumaAnalyzer<'a> {
         self.files.clear();
     }
 
-    pub fn add_entry(&mut self, source: &'a ParsedCodeSource<'a>) {
+    pub fn add_entry(&mut self, source: &'a ParsedCodeSource) {
         let ctx = AnalyzerContext::new(&self.reporter, source);
         self.files.push(ctx);
     }
 
-    pub fn add_entries(&mut self, sources: &'a Vec<ParsedCodeSource<'a>>) {
+    pub fn add_entries(&mut self, sources: &'a Vec<ParsedCodeSource>) {
         for source in sources {
             let ctx = AnalyzerContext::new(&self.reporter, source);
             self.files.push(ctx);

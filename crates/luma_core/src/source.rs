@@ -67,10 +67,16 @@ impl TryFrom<PathBuf> for CodeSource {
 }
 
 impl From<&str> for CodeSource {
-    fn from(source: &str) -> Self {
+    fn from(s: &str) -> Self {
         Self {
             kind: CodeSourceKind::Virtual,
-            source: source.trim().to_string(),
+            source: s.trim().to_string(),
         }
+    }
+}
+
+impl From<String> for CodeSource {
+    fn from(s: String) -> Self {
+        Self::from(s.as_str())
     }
 }

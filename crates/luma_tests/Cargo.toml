@@ -1,0 +1,20 @@
+[package]
+name = "luma_tests"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+autotests = false
+autobenches = false
+publish = false
+
+[dependencies]
+luma_core = { workspace = true }
+luma_lexer = { workspace = true }
+luma_parser = { workspace = true }
+luma_semantics = { workspace = true }
+luma_diagnostic = { workspace = true }
+
+[[test]]
+name = "luma_tests"
+path = "tests/lib.rs"
+harness = true

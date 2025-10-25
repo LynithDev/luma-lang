@@ -5,13 +5,13 @@ use luma_core::{ast::Ast, CodeSource};
 use crate::hir::Hir;
 
 #[derive(Debug, Clone)]
-pub struct ParsedCodeSource<'a> {
-    pub source: &'a CodeSource,
+pub struct ParsedCodeSource {
+    pub source: CodeSource,
     pub code: RefCell<ParsedCodeKind>,
 }
 
-impl<'a> ParsedCodeSource<'a> {
-    pub fn new(source: &'a CodeSource, code: ParsedCodeKind) -> Self {
+impl ParsedCodeSource {
+    pub fn new(source: CodeSource, code: ParsedCodeKind) -> Self {
         Self { source, code: RefCell::new(code) }
     }
 }
