@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use luma_core::{ast::Ast, CodeSource};
+use luma_core::{ast::Ast, bytecode::Bytecode, CodeSource};
 
 use crate::hir::Hir;
 
@@ -20,8 +20,8 @@ impl ParsedCodeSource {
 pub enum ParsedCodeKind {
     Ast(Ast),
     Hir(Hir),
+    Bytecode(Bytecode),
 }
-
 
 impl ParsedCodeKind {
     pub fn as_ast(&self) -> Option<&Ast> {
@@ -77,6 +77,34 @@ impl ParsedCodeKind {
         match self {
             Self::Hir(hir) => hir,
             _ => panic!("ParsedSourceCode is not a Hir"),
+        }
+    }
+
+    pub fn as_bytecode(&self) -> Option<&Bytecode> {
+        match self {
+            Self::Bytecode(bytecode) => Some(bytecode),
+            _ => None,
+        }
+    }
+
+    pub fn as_bytecode_unchecked(&self) -> &Bytecode {
+        match self {
+            Self::Bytecode(bytecode) => bytecode,
+            _ => panic!("ParsedSourceCode is not a Bytecode"),
+        }
+    }
+
+    pub fn as_bytecode_mut(&mut self) -> Option<&mut Bytecode> {
+        match self {
+            Self::Bytecode(bytecode) => Some(bytecode),
+            _ => None,
+        }
+    }
+
+    pub fn as_bytecode_mut_unchecked(&mut self) -> &mut Bytecode {
+        match self {
+            Self::Bytecode(bytecode) => bytecode,
+            _ => panic!("ParsedSourceCode is not a Bytecode"),
         }
     }
 }

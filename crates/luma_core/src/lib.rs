@@ -1,7 +1,10 @@
 mod source;
+use std::fmt::Display;
+
 pub use source::*;
 
 pub mod ast;
+pub mod bytecode;
 
 pub mod operators;
 pub mod visibility;
@@ -13,6 +16,12 @@ pub use luma_macros::Display;
 pub struct Cursor {
     pub line: usize,
     pub column: usize,
+}
+
+impl Display for Cursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.line, self.column)
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]

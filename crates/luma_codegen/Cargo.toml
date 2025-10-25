@@ -1,9 +1,10 @@
 [package]
-name = "luma_compiler"
+name = "luma_codegen"
 version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
 
 [dependencies]
 luma_core = { workspace = true }
+luma_semantics = { workspace = true }
 luma_diagnostic = { workspace = true }

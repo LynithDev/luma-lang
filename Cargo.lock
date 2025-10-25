@@ -6,6 +6,7 @@ version = 4
 name = "luma"
 version = "0.1.0"
 dependencies = [
+ "luma_codegen",
  "luma_core",
  "luma_diagnostic",
  "luma_lexer",
@@ -14,11 +15,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "luma_compiler"
+name = "luma_codegen"
 version = "0.1.0"
 dependencies = [
  "luma_core",
  "luma_diagnostic",
+ "luma_semantics",
 ]
 
 [[package]]

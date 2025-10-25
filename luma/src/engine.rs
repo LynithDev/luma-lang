@@ -1,5 +1,6 @@
+use luma_codegen::LumaCodegen;
 use luma_core::{ast::Ast, CodeSource};
-use luma_diagnostic::{DiagnosticResult, Reporter};
+use luma_diagnostic::{DiagnosticKind, DiagnosticResult, Reporter};
 use luma_lexer::LumaLexer;
 use luma_parser::LumaParser;
 use luma_semantics::{LumaAnalyzer, ParsedCodeKind, ParsedCodeSource};
@@ -29,18 +30,36 @@ impl LumaEngine {
 
     pub fn eval_sources(&self, sources: Vec<CodeSource>) -> DiagnosticResult<i32> {
         let mut parsed: Vec<ParsedCodeSource> = Vec::new();
-
-        let mut analyzer = LumaAnalyzer::new(&self.reporter);
         for source in sources {
-            let ast = self.parse_ast(&source)?;
+            let ast = self.parse_ast(&source);
             parsed.push(ParsedCodeSource::new(source, ParsedCodeKind::Ast(ast)));
         }
-
+        
+        // analysis
+        let mut analyzer = LumaAnalyzer::new(&self.reporter);
         analyzer.add_entries(&parsed);
         analyzer.analyze();
 
+        // reporting analysis diagnostics
         for source in &parsed {
             print!("{}", self.reporter.formatted_for(&source.source))
+        }
+
+        if self.reporter.diagnostic_count(DiagnosticKind::Error) > 0 {
+            return Ok(1);
+        }
+
+        // codegen
+        let mut codegen = LumaCodegen::new(&self.reporter);
+        codegen.add_entries(&parsed);
+        if !codegen.generate() {
+            eprintln!("code generation failed");
+            return Ok(1);
+        }
+
+        for source in &parsed {
+            println!("Generated code for source: {}", source.source.source_name());
+            println!("{:#?}", source.code.borrow().as_bytecode_unchecked());
         }
         
         Ok(0)
@@ -59,7 +78,7 @@ impl LumaEngine {
         &self.reporter
     }
 
-    fn parse_ast(&self, input: &CodeSource) -> DiagnosticResult<Ast> {
+    fn parse_ast(&self, input: &CodeSource) -> Ast {
         let reporter = self.reporter.with_name(&input.source_name());
         let src = input.source().as_bytes();
 
@@ -67,9 +86,7 @@ impl LumaEngine {
         let mut token_stream = lexer.scan();
 
         let mut parser = LumaParser::new(&mut token_stream, &reporter);
-        let ast = parser.parse();
-
-        Ok(ast)
+        parser.parse()
     }
 
 }
