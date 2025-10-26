@@ -1,5 +1,7 @@
-let a = 10;
-let c = {
+let a = 2;
+fn test() {
     let b = a + 5;
-    b
-};
+}
+
+let a = 3;
+test();

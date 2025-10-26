@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::bytecode::{opcode::Instruction, value::BytecodeValue, Arity};
+use crate::{bytecode::{opcode::Instruction, value::BytecodeValue, ArityRef}, SymbolId};
 
 #[derive(Default, Debug, Clone)]
 pub struct Chunk {
@@ -47,6 +47,13 @@ pub enum FunctionKind {
 pub struct FunctionChunk {
     pub name: Option<String>,
     pub chunk: Chunk,
-    pub arity: Arity,
+    pub arity: ArityRef,
     pub kind: FunctionKind,
+    pub upvalues: Vec<Upvalue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Upvalue {
+    pub symbol_id: SymbolId,
+    pub is_local: bool,
 }

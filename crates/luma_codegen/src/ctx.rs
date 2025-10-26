@@ -1,5 +1,5 @@
 use luma_core::bytecode::prelude::*;
-use luma_diagnostic::{DiagnosticResult, Reporter};
+use luma_diagnostic::{DiagnosticReport, DiagnosticResult, Reporter};
 use luma_semantics::{ParsedCodeKind, ParsedCodeSource};
 
 use crate::codegen::ChunkBuilder;
@@ -21,16 +21,17 @@ impl<'a> CodegenContext<'a> {
 
 impl CodegenContext<'_> {
     pub fn generate(&mut self) -> DiagnosticResult<()> {
-        let mut bytecode = Bytecode {
-            functions: Vec::new(),
-            top_level: Chunk::new(),
-        };
-        
-        for statement in self.source.code.borrow().as_hir_unchecked().statements.iter() {
-            let chunk = &mut bytecode.top_level;
-            let mut builder = ChunkBuilder::new(chunk);
+        let mut bytecode = Bytecode::default();
+        let mut builder = ChunkBuilder::new(&mut bytecode.top_level, &mut bytecode.functions);
 
-            builder.gen_statement(statement)?;
+        for statement in self.source.code.borrow().as_hir_unchecked().statements.iter() {
+            if let Err(err) = builder.gen_statement(statement) {
+                self.reporter.report(DiagnosticReport {
+                    message: Box::new(err),
+                    cursor: statement.cursor,
+                    span: statement.span,
+                });
+            }
         }
 
         self.source.code.replace(ParsedCodeKind::Bytecode(bytecode));

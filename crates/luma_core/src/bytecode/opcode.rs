@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use luma_macros::Display;
 
-use crate::{bytecode::{Arity, Index}, Cursor};
+use crate::{bytecode::{ArityRef, IndexRef}, Cursor};
 
 #[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -37,17 +37,19 @@ pub enum OpCode {
     // literals
     True,
     False,
-    Const(Index),
+    Const(IndexRef),
 
     // flow control
     Return,
-    Call(Arity),
-    Jump(Index),
-    JumpIfFalse(Index),
+    Call(ArityRef),
+    Jump(IndexRef),
+    JumpIfFalse(IndexRef),
     
     // stack operations
-    GetLocal(Index),
-    SetLocal(Index),
+    GetLocal(IndexRef),
+    SetLocal(IndexRef),
+    GetUpvalue(IndexRef),
+    SetUpvalue(IndexRef),
     Pop,
     PopLocals(usize),
 }
