@@ -1,2 +1,5 @@
-let test = 10;
-test = test += 5; // test = test = test + 5;
+let a = 10;
+let c = {
+    let b = a + 5;
+    b
+};

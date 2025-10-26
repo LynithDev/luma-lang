@@ -93,9 +93,9 @@ impl TryFrom<OperatorKind> for ComparisonOperator {
             OperatorKind::EqualsEquals => ComparisonOperator::Equals,
             OperatorKind::NotEquals => ComparisonOperator::NotEquals,
             OperatorKind::GreaterThan => ComparisonOperator::GreaterThan,
-            OperatorKind::GreaterThanOrEqual => ComparisonOperator::GreaterThanOrEqual,
-            OperatorKind::LessThan => ComparisonOperator::LessThan,
-            OperatorKind::LessThanOrEqual => ComparisonOperator::LessThanOrEqual,
+            OperatorKind::GreaterThanOrEqual => ComparisonOperator::GreaterThanEqual,
+            OperatorKind::LessThan => ComparisonOperator::LesserThan,
+            OperatorKind::LessThanOrEqual => ComparisonOperator::LesserThanEqual,
             _ => return Err(()),
         })
     }
@@ -107,8 +107,7 @@ impl TryFrom<OperatorKind> for UnaryOperator {
     fn try_from(kind: OperatorKind) -> Result<Self, Self::Error> {
         Ok(match kind {
             OperatorKind::Not => UnaryOperator::Not,
-            OperatorKind::Minus => UnaryOperator::Negative,
-            OperatorKind::Plus => UnaryOperator::Positive,
+            OperatorKind::Minus => UnaryOperator::Negate,
             OperatorKind::BitwiseNot => UnaryOperator::BitwiseNot,
             _ => return Err(()),
         })

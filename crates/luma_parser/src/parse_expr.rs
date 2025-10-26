@@ -346,6 +346,10 @@ impl LumaParser<'_> {
             let op_token = self.advance().to_owned();
             let right = self.expr_unary()?;
 
+            if op_token.kind == TokenKind::Operator(OperatorKind::Plus) {
+                return Ok(right);
+            }
+
             return Ok(Expression {
                 cursor: op_token.cursor,
                 span: op_token.span.merge(&right.span),

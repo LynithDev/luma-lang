@@ -5,30 +5,51 @@ use luma_macros::Display;
 use crate::{bytecode::{Arity, Index}, Cursor};
 
 #[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
+#[repr(u8)]
 pub enum OpCode {
+    // binary operators
     Add,
     Sub,
     Mul,
     Div,
-    Equal,
-    Greater,
-    Less,
+    Mod,
+    BitAnd,
+    BitOr,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
 
+    // comparison operators
+    Equals,
+    GreaterThan,
+    LesserThan,
+    GreaterThanEqual,
+    LesserThanEqual,
+    NotEquals,
+    
+    // logical operators
+    And,
+    Or,
     Negate,
     Not,
+    BitNot,
 
+    // literals
     True,
     False,
     Const(Index),
 
+    // flow control
     Return,
     Call(Arity),
     Jump(Index),
     JumpIfFalse(Index),
-    Pop,
-
+    
+    // stack operations
     GetLocal(Index),
     SetLocal(Index),
+    Pop,
+    PopLocals(usize),
 }
 
 #[derive(Clone, PartialEq)]

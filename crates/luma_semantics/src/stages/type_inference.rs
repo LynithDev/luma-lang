@@ -111,7 +111,7 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &mut HirExpression) ->
             let expr_type = infer_expr_type(ctx, value);
 
             match operator {
-                UnaryOperator::Negative => expr_type.as_signed(),
+                UnaryOperator::Negate => expr_type.as_signed(),
                 UnaryOperator::Not => TypeKind::Boolean,
                 _ => expr_type,
             }

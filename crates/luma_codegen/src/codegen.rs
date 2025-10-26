@@ -97,16 +97,33 @@ impl<'a> ChunkBuilder<'a> {
         self.cursor = expression.cursor;
 
         match &expression.kind {
+            // syntax
             HirExpressionKind::Literal { kind } => self.gen_literal(kind),
             HirExpressionKind::Group { inner } => self.gen_expression(inner),
+            
+            // other
+            HirExpressionKind::Variable { symbol_id } => self.gen_variable(*symbol_id),
+
+            // operators
+            HirExpressionKind::Assign { symbol_id, value } => self.gen_assign(symbol_id, value),
+            HirExpressionKind::Unary { operator, value } => self.gen_unary(value, operator),
             HirExpressionKind::Binary {
                 left,
                 right,
                 operator,
             } => self.gen_binary(left, right, operator),
+            HirExpressionKind::Comparison {
+                left,
+                right,
+                operator,
+            } => self.gen_comparison(left, right, operator),
+            HirExpressionKind::Logical {
+                left,
+                right,
+                operator,
+            } => self.gen_logical(left, right, operator),
 
-            HirExpressionKind::Variable { symbol_id } => self.gen_variable(*symbol_id),
-            HirExpressionKind::Assign { symbol_id, value } => self.gen_assign(symbol_id, value),
+            HirExpressionKind::Scope { statements, value } => self.gen_scope(statements, value),
 
             _ => todo!(
                 "expression kind '{}' not implemented",
@@ -141,7 +158,12 @@ impl<'a> ChunkBuilder<'a> {
             BinaryOperator::Subtract => OpCode::Sub,
             BinaryOperator::Multiply => OpCode::Mul,
             BinaryOperator::Divide => OpCode::Div,
-            _ => unreachable!(),
+            BinaryOperator::Modulo => OpCode::Mod,
+            BinaryOperator::BitwiseAnd => OpCode::BitAnd,
+            BinaryOperator::BitwiseOr => OpCode::BitOr,
+            BinaryOperator::BitwiseXor => OpCode::BitXor,
+            BinaryOperator::ShiftLeft => OpCode::ShiftLeft,
+            BinaryOperator::ShiftRight => OpCode::ShiftRight,
         };
 
         self.emit_opcode(opcode);
@@ -149,6 +171,70 @@ impl<'a> ChunkBuilder<'a> {
         Ok(())
     }
 
+    // MARK: Comparison
+    pub fn gen_comparison(
+        &mut self,
+        left: &HirExpression,
+        right: &HirExpression,
+        operator: &ComparisonOperator,
+    ) -> DiagnosticResult<()> {
+        self.gen_expression(left)?;
+        self.gen_expression(right)?;
+
+        let opcode = match operator {
+            ComparisonOperator::Equals => OpCode::Equals,
+            ComparisonOperator::GreaterThan => OpCode::GreaterThan,
+            ComparisonOperator::LesserThan => OpCode::LesserThan,
+            ComparisonOperator::GreaterThanEqual => OpCode::GreaterThanEqual,
+            ComparisonOperator::LesserThanEqual => OpCode::LesserThanEqual,
+            ComparisonOperator::NotEquals => OpCode::NotEquals,
+        };
+
+        self.emit_opcode(opcode);
+
+        Ok(())
+    }
+
+    // MARK: Logical
+    pub fn gen_logical(
+        &mut self,
+        left: &HirExpression,
+        right: &HirExpression,
+        operator: &LogicalOperator,
+    ) -> DiagnosticResult<()> {
+        self.gen_expression(left)?;
+        self.gen_expression(right)?;
+
+        let opcode = match operator {
+            LogicalOperator::And => OpCode::And,
+            LogicalOperator::Or => OpCode::Or,
+        };
+
+        self.emit_opcode(opcode);
+
+        Ok(())
+    }
+
+    // MARK: Unary
+    pub fn gen_unary(
+        &mut self,
+        value: &HirExpression,
+        operator: &UnaryOperator,
+    ) -> DiagnosticResult<()> {
+        self.gen_expression(value)?;
+
+        let opcode = match operator {
+            UnaryOperator::Negate => OpCode::Negate,
+            UnaryOperator::Not => OpCode::Not,
+            UnaryOperator::BitwiseNot => OpCode::BitNot,
+        };
+
+        self.emit_opcode(opcode);
+
+        Ok(())
+    }
+
+    // MARK: Assign
     pub fn gen_assign(
         &mut self,
         symbol_id: &SymbolId,
@@ -164,6 +250,30 @@ impl<'a> ChunkBuilder<'a> {
     // MARK: Variable
     pub fn gen_variable(&mut self, symbol_id: SymbolId) -> DiagnosticResult<()> {
         self.emit_opcode(OpCode::GetLocal(symbol_id));
+        Ok(())
+    }
+
+    // MARK: Scope
+    pub fn gen_scope(
+        &mut self,
+        statements: &Vec<HirStatement>,
+        value: &Option<Box<HirExpression>>,
+    ) -> DiagnosticResult<()> {
+        let mut locals: usize = 0;
+
+        for statement in statements {
+            self.gen_statement(statement)?;
+            
+            if let HirStatementKind::VarDecl(_) = &statement.kind {
+                locals += 1;
+            }
+        }
+
+        if let Some(value) = value {
+            self.gen_expression(value)?;
+        }
+
+        self.emit_opcode(OpCode::PopLocals(locals));
         Ok(())
     }
 }

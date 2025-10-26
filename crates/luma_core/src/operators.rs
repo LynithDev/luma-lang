@@ -45,16 +45,15 @@ pub enum ComparisonOperator {
     Equals,
     NotEquals,
     GreaterThan,
-    GreaterThanOrEqual,
-    LessThan,
-    LessThanOrEqual,
+    GreaterThanEqual,
+    LesserThan,
+    LesserThanEqual,
 }
 
 #[derive(crate::Display, Debug, Clone, Copy, PartialEq, Eq)]
 #[display(case = "snake_case")]
 pub enum UnaryOperator {
     Not,
-    Negative,
-    Positive,
+    Negate,
     BitwiseNot,
 }
