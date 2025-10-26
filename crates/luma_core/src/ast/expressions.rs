@@ -27,7 +27,6 @@ pub enum ExpressionKind {
     },
     Assign {
         symbol: AstSymbol,
-        operator: Operator,
         value: Box<Expression>,
     },
     Binary {

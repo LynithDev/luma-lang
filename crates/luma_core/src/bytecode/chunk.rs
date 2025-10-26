@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::{DefaultHasher, Hash, Hasher}};
+use std::collections::HashMap;
 
 use crate::bytecode::{opcode::Instruction, value::BytecodeValue, Arity};
 

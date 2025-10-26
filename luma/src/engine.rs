@@ -5,18 +5,8 @@ use luma_lexer::LumaLexer;
 use luma_parser::LumaParser;
 use luma_semantics::{LumaAnalyzer, ParsedCodeKind, ParsedCodeSource};
 
-// #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-// #[repr(u8)]
-// pub enum Verbosity {
-//     Quiet = 0, // doesn't show any output
-//     #[default]
-//     Normal = 1, // shows basic output
-//     Verbose = 2, // todo: implement verbose logging
-// }
-
 pub struct LumaEngine {
     reporter: Reporter,
-    // verbosity: Verbosity,
 }
 
 impl LumaEngine {
@@ -24,11 +14,11 @@ impl LumaEngine {
     pub fn new() -> Self {
         Self {
             reporter: Reporter::new(),
-            // verbosity: Verbosity::Normal,
         }
     }
 
     pub fn eval_sources(&self, sources: Vec<CodeSource>) -> DiagnosticResult<i32> {
+        // parsing
         let mut parsed: Vec<ParsedCodeSource> = Vec::new();
         for source in sources {
             let ast = self.parse_ast(&source);

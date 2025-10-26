@@ -23,7 +23,6 @@ impl OperatorKind {
 
     pub fn as_assign_operator(&self) -> Option<Operator> {
         Some(match self {
-            OperatorKind::Equals => Operator::Binary(BinaryOperator::Assignment),
             OperatorKind::PlusEquals => Operator::Binary(BinaryOperator::Add),
             OperatorKind::MinusEquals => Operator::Binary(BinaryOperator::Subtract),
             OperatorKind::AsteriskEquals => Operator::Binary(BinaryOperator::Multiply),

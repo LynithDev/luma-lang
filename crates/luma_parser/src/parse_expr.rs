@@ -65,7 +65,30 @@ impl LumaParser<'_> {
 
         while let TokenKind::Operator(op_kind) = self.current().kind && op_kind.is_assign_op() {
             let (span, cursor) = self.advance().pos();
-            let right = self.expr_assignment()?;
+            let right = if op_kind == OperatorKind::Equals {
+                self.expr_assignment()?
+            } else {
+                let assign_operator = op_kind.as_assign_operator().unwrap();
+                let value = self.expr_assignment()?;
+
+                Expression {
+                    cursor,
+                    span: left.span.merge(&value.span),
+                    kind: match assign_operator {
+                        Operator::Binary(bin_op) => ExpressionKind::Binary {
+                            left: Box::new(left.clone()),
+                            operator: bin_op,
+                            right: Box::new(value),
+                        },
+                        Operator::Logical(log_op) => ExpressionKind::Logical {
+                            left: Box::new(left.clone()),
+                            operator: log_op,
+                            right: Box::new(value),
+                        },
+                        _ => unreachable!("assign operator must be binary or logical"),
+                    }
+                }
+            };
 
             match left.kind {
                 ExpressionKind::Variable { symbol } => {
@@ -74,7 +97,6 @@ impl LumaParser<'_> {
                         span: left.span.merge(&right.span),
                         kind: ExpressionKind::Assign {
                             symbol,
-                            operator: op_kind.as_assign_operator().unwrap(),
                             value: Box::new(right)
                         },
                     }

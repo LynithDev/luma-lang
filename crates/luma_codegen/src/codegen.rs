@@ -1,4 +1,4 @@
-use luma_core::{bytecode::prelude::*, Cursor, SymbolId};
+use luma_core::{Cursor, SymbolId, bytecode::prelude::*};
 use luma_diagnostic::DiagnosticResult;
 use luma_semantics::hir::prelude::*;
 
@@ -38,6 +38,7 @@ pub fn literal_to_value(kind: &HirLiteralKind) -> BytecodeValue {
     }
 }
 
+// MARK: Chunk Builder
 pub struct ChunkBuilder<'a> {
     chunk: &'a mut Chunk,
     cursor: Cursor,
@@ -63,7 +64,10 @@ impl<'a> ChunkBuilder<'a> {
         match &statement.kind {
             HirStatementKind::VarDecl(decl) => self.gen_var_decl(decl),
             HirStatementKind::Expression { inner } => self.gen_expr_stmt(inner),
-            _ => todo!("statement kind '{}' not implemented", &statement.kind.to_string()),
+            _ => todo!(
+                "statement kind '{}' not implemented",
+                &statement.kind.to_string()
+            ),
         }
     }
 
@@ -100,9 +104,14 @@ impl<'a> ChunkBuilder<'a> {
                 right,
                 operator,
             } => self.gen_binary(left, right, operator),
-            HirExpressionKind::Variable { symbol_id } => self.gen_variable(*symbol_id),
 
-            _ => todo!(),
+            HirExpressionKind::Variable { symbol_id } => self.gen_variable(*symbol_id),
+            HirExpressionKind::Assign { symbol_id, value } => self.gen_assign(symbol_id, value),
+
+            _ => todo!(
+                "expression kind '{}' not implemented",
+                &expression.kind.to_string()
+            ),
         }
     }
 
@@ -132,10 +141,22 @@ impl<'a> ChunkBuilder<'a> {
             BinaryOperator::Subtract => OpCode::Sub,
             BinaryOperator::Multiply => OpCode::Mul,
             BinaryOperator::Divide => OpCode::Div,
-            _ => unimplemented!(),
+            _ => unreachable!(),
         };
 
         self.emit_opcode(opcode);
+
+        Ok(())
+    }
+
+    pub fn gen_assign(
+        &mut self,
+        symbol_id: &SymbolId,
+        value: &HirExpression,
+    ) -> DiagnosticResult<()> {
+        self.gen_expression(value)?;
+
+        self.emit_opcode(OpCode::SetLocal(*symbol_id));
 
         Ok(())
     }

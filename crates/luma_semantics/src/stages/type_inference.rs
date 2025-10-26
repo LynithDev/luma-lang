@@ -119,7 +119,6 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &mut HirExpression) ->
 
         HirExpressionKind::Assign {
             symbol_id,
-            operator: _,
             value,
         } => {
             let value_type = infer_expr_type(ctx, value);

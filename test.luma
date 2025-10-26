@@ -1,2 +1,2 @@
-// let test = 5 + 10;
-let a = 3 + 10 * 2;
+let test = 10;
+test = test += 5; // test = test = test + 5;

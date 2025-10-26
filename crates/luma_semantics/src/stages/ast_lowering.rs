@@ -173,12 +173,10 @@ fn ast_to_hir_expr(
         ),
         ExpressionKind::Assign {
             symbol,
-            operator,
             value,
         } => (
             HirExpressionKind::Assign {
                 symbol_id: unwrap_ast_symbol(ctx, symbol)?,
-                operator: *operator,
                 value: Box::new(ast_to_hir_expr(ctx, value)?),
             },
             TypeKind::Unknown,

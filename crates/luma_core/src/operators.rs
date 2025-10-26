@@ -20,7 +20,6 @@ impl std::fmt::Display for Operator {
 #[derive(crate::Display, Debug, Clone, Copy, PartialEq, Eq)]
 #[display(case = "snake_case")]
 pub enum BinaryOperator {
-    Assignment,
     Add,
     Subtract,
     Multiply,

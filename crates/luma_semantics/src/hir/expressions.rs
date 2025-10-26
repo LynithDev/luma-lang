@@ -29,7 +29,6 @@ pub enum HirExpressionKind {
     },
     Assign {
         symbol_id: SymbolId,
-        operator: Operator, 
         value: Box<HirExpression>
     },
     Binary {
