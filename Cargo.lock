@@ -12,6 +12,7 @@ dependencies = [
  "luma_lexer",
  "luma_parser",
  "luma_semantics",
+ "luma_vm",
 ]
 
 [[package]]
@@ -90,7 +91,6 @@ version = "0.1.0"
 dependencies = [
  "luma_core",
  "luma_diagnostic",
- "luma_parser",
 ]
 
 [[package]]

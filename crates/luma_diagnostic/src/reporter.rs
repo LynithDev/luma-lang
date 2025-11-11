@@ -1,17 +1,15 @@
-use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::{Arc, Mutex}};
+use std::{fmt::Debug, rc::Rc, sync::{Arc, Mutex}};
 
 use luma_core::{CodeSource, CodeSourceKind};
 use owo_colors::OwoColorize;
 
-use crate::{DiagnosticReport, DiagnosticKind};
-
-type ReporterName = Rc<String>;
+use crate::{DiagnosticEntry, DiagnosticKind, DiagnosticReport, DiagnosticStore, ReporterName};
 
 #[derive(Debug, Clone)]
 pub struct Reporter {
     source: CodeSourceKind,
     reporter_name: ReporterName,
-    inner: Arc<Mutex<ReporterInner>>,
+    inner: Arc<Mutex<DiagnosticStore>>,
 }
 
 impl Reporter {
@@ -20,7 +18,7 @@ impl Reporter {
         Reporter {
             source: CodeSourceKind::Virtual,
             reporter_name: Rc::new(format!("T{}", std::thread::current().name().unwrap_or("main"))),
-            inner: Arc::new(Mutex::new(ReporterInner::new())),
+            inner: Arc::new(Mutex::new(DiagnosticStore::new())),
         }
     }
 
@@ -70,7 +68,7 @@ impl Reporter {
         let error_count = guard.diagnostic_count(DiagnosticKind::Error);
 
         for entry in guard.diagnostics.get(&self.source().source_name()).unwrap_or(&Vec::new()) {
-            let ReportedEntry { diagnostic, reporter_name } = entry;
+            let DiagnosticEntry { diagnostic, reporter_name } = entry;
 
             let lines: std::iter::Skip<std::str::Lines<'_>> = source.source()
                 .lines()
@@ -153,7 +151,7 @@ impl Reporter {
         f.trim().to_string()
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, ReporterInner> {
+    fn lock(&self) -> std::sync::MutexGuard<'_, DiagnosticStore> {
         self.inner.lock().expect("couldn't lock reporter mutex")
     }
 
@@ -164,51 +162,4 @@ fn write_bordered(f: &mut String, pre_border: Option<usize>, line: &str, longest
     f.push_str(&" | ".blue().to_string());
 
     f.push_str(line);
-}
-
-struct ReporterInner {
-    pub (crate) diagnostics: HashMap<String, Vec<ReportedEntry>>,
-    pub (crate) kind_count: HashMap<DiagnosticKind, usize>,
-}
-
-struct ReportedEntry {
-    pub (crate) reporter_name: ReporterName,
-    pub (crate) diagnostic: DiagnosticReport,
-}
-
-impl Debug for ReporterInner {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ReporterInner")
-            .field("diagnostics", &self.diagnostics.len())
-            .field("kind_count", &self.kind_count)
-            .finish()
-    }
-}
-
-unsafe impl Send for ReporterInner {}
-unsafe impl Sync for ReporterInner {}
-
-impl ReporterInner {
-    pub fn new() -> Self {
-        ReporterInner {
-            diagnostics: HashMap::new(),
-            kind_count: HashMap::new(),
-        }
-    }
-
-    pub fn report(&mut self, source: &CodeSourceKind, reporter_name: ReporterName, diagnostic: DiagnosticReport) {
-        *self.kind_count.entry(diagnostic.message.kind()).or_default() += 1;
-        self.diagnostics.entry(source.source_name()).or_default().push(ReportedEntry {
-            reporter_name,
-            diagnostic,
-        });
-    }
-
-    pub fn is_clean(&self, source_file: &str) -> bool {
-        self.diagnostics.get(source_file).map(|d| d.is_empty()).unwrap_or(true)
-    }
-
-    pub fn diagnostic_count(&self, kind: DiagnosticKind) -> usize {
-        self.kind_count.get(&kind).cloned().unwrap_or(0)
-    }
 }

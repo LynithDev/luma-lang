@@ -76,6 +76,14 @@ macro_rules! impl_float_type {
                 self.to_bits().hash(state);
             }
         }
+
+        impl std::ops::Deref for $name {
+            type Target = $ty;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
     };
 }
 

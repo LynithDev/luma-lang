@@ -69,20 +69,20 @@ impl ChunkBuilderEnvironment {
         let local_index = self.next_local_index;
         self.locals.insert(symbol_id, local_index);
         self.next_local_index += 1;
-        IndexRef(local_index)
+        IndexRef::new(local_index)
     }
 
     pub fn add_upvalue(&mut self, symbol_id: SymbolId) -> IndexRef {
         let upvalue_index = self.upvalues.len();
         self.upvalues.insert(symbol_id, upvalue_index);
-        IndexRef(upvalue_index)
+        IndexRef::new(upvalue_index)
     }
 
     pub fn resolve_symbol(&mut self, symbol_id: SymbolId, parent_env: Option<&ChunkBuilderEnvironment>) -> CodegenResult<Option<SymbolResolution>> {
         Ok(if let Some(&local_index) = self.locals.get(&symbol_id) {
-            Some(SymbolResolution::Local(IndexRef(local_index)))
+            Some(SymbolResolution::Local(IndexRef::new(local_index)))
         } else if let Some(&upvalue_index) = self.upvalues.get(&symbol_id) {
-            Some(SymbolResolution::Upvalue(IndexRef(upvalue_index)))
+            Some(SymbolResolution::Upvalue(IndexRef::new(upvalue_index)))
         } else if let Some(parent_env) = parent_env {
             let parent_resolution = self.capture_upvalue(symbol_id, parent_env)?;
             Some(SymbolResolution::Upvalue(parent_resolution))
@@ -176,7 +176,7 @@ impl<'a> ChunkBuilder<'a> {
         
         let func_chunk = FunctionChunk {
             name: None,
-            arity: ArityRef(decl.parameters.len() as u8),
+            arity: ArityRef::new(decl.parameters.len() as u8),
             kind: FunctionKind::Function, // todo
             chunk,
             upvalues,
@@ -187,8 +187,8 @@ impl<'a> ChunkBuilder<'a> {
         self.functions_chunk.push(func_chunk);
         
         // push function as constant (for lookup)
-        let const_index = self.chunk.add_const(BytecodeValue::Function(IndexRef(func_index)));
-        self.emit_opcode(OpCode::Const(IndexRef(const_index)));
+        let const_index = self.chunk.add_const(BytecodeValue::Function(IndexRef::new(func_index)));
+        self.emit_opcode(OpCode::Const(IndexRef::new(const_index)));
         
         // store function as local variable
         let local_index = self.env.add_local(decl.symbol_id);
@@ -264,7 +264,7 @@ impl<'a> ChunkBuilder<'a> {
         let value = literal_to_value(literal);
         let const_index = self.chunk.add_const(value);
 
-        let opcode = OpCode::Const(IndexRef(const_index));
+        let opcode = OpCode::Const(IndexRef::new(const_index));
         self.emit_opcode(opcode);
 
         Ok(())
@@ -282,7 +282,7 @@ impl<'a> ChunkBuilder<'a> {
             self.gen_expression(argument)?;
         }
 
-        self.emit_opcode(OpCode::Call(ArityRef(arguments.len() as u8)));
+        self.emit_opcode(OpCode::Call(ArityRef::new(arguments.len() as u8)));
 
         Ok(())
     }

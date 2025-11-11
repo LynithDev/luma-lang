@@ -1,7 +1,6 @@
 let a = 2;
-fn test() {
-    let b = a + 5;
-}
+let b = a + 3;
 
-let a = 3;
-test();
+// fn test() = a + 5;
+
+// test();

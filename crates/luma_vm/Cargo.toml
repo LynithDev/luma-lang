@@ -6,5 +6,4 @@ authors = { workspace = true }
 
 [dependencies]
 luma_core = { workspace = true }
-luma_parser = { workspace = true }
-luma_diagnostic = { workspace = true }
+luma_diagnostic = { path = "../luma_diagnostic", default-features = false }

@@ -27,7 +27,7 @@ fn main() {
     if args.len() <= 1 {
         repl()
     } else {
-        compile(&args)
+        run(&args)
     }
 }
 
@@ -51,7 +51,7 @@ fn repl() {
     }
 }
 
-fn compile(args: &[String]) {
+fn run(args: &[String]) {
     let files = args.iter().skip(1).flat_map(|f| PathBuf::from_str(f)).collect::<Vec<_>>();
 
     let engine = LumaEngine::new();
@@ -60,5 +60,9 @@ fn compile(args: &[String]) {
         .flat_map(|path| CodeSource::try_from(path).ok())
         .collect::<Vec<_>>();
 
-    let _ = engine.eval_sources(inputs);
+    let result = engine.eval_sources(inputs);
+    println!("finished with exit code {}", result.code);
+    if let Some(err) = result.error {
+        eprintln!("error occurred: {}", err);
+    }
 }

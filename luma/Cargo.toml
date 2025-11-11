@@ -11,4 +11,5 @@ luma_lexer = { workspace = true }
 luma_parser = { workspace = true }
 luma_semantics = { workspace = true }
 luma_codegen = { workspace = true }
+luma_vm = { workspace = true }
 

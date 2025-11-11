@@ -1,8 +1,14 @@
-pub use luma_macros::Diagnostic;
-
-mod reporter;
 use luma_core::{Cursor, Span};
-pub use reporter::Reporter;
+
+#[cfg(feature = "reporter")]
+mod reporter;
+
+#[cfg(feature = "reporter")]
+pub use reporter::*;
+
+mod diagnostic_store;
+pub use diagnostic_store::*;
+pub use luma_macros::Diagnostic;
 
 pub type DiagnosticResult<T> = Result<T, DiagnosticReport>;
 

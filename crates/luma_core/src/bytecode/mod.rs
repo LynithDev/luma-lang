@@ -6,8 +6,14 @@ pub mod chunk;
 
 macro_rules! impl_wrapper_struct {
     ($name:ident, $inner:ty) => {
-        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-        pub struct $name(pub $inner);
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub struct $name($inner);
+
+        impl $name {
+            pub fn new(value: $inner) -> Self {
+                Self(value)
+            }
+        }
 
         impl std::ops::Deref for $name {
             type Target = $inner;
@@ -40,7 +46,7 @@ pub mod prelude {
     pub use super::{ArityRef, IndexRef, Bytecode};
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct Bytecode {
     pub functions: Vec<FunctionChunk>,
     pub top_level: Chunk,

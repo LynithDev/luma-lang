@@ -4,6 +4,7 @@ use luma_diagnostic::{DiagnosticKind, DiagnosticResult, Reporter};
 use luma_lexer::LumaLexer;
 use luma_parser::LumaParser;
 use luma_semantics::{LumaAnalyzer, ParsedCodeKind, ParsedCodeSource};
+use luma_vm::{LumaVM, ProgramSource, VmExitResult};
 
 pub struct LumaEngine {
     reporter: Reporter,
@@ -17,7 +18,7 @@ impl LumaEngine {
         }
     }
 
-    pub fn eval_sources(&self, sources: Vec<CodeSource>) -> DiagnosticResult<i32> {
+    pub fn eval_sources(&self, sources: Vec<CodeSource>) -> VmExitResult {
         // parsing
         let mut parsed: Vec<ParsedCodeSource> = Vec::new();
         for source in sources {
@@ -28,31 +29,41 @@ impl LumaEngine {
         // analysis
         let mut analyzer = LumaAnalyzer::new(&self.reporter);
         analyzer.add_entries(&parsed);
-        analyzer.analyze();
-
-        // reporting analysis diagnostics
-        for source in &parsed {
-            print!("{}", self.reporter.formatted_for(&source.source))
-        }
-
-        if self.reporter.diagnostic_count(DiagnosticKind::Error) > 0 {
-            return Ok(1);
-        }
+        let success = analyzer.analyze();
+        if let Err(code) = self.report_diagnostics(&parsed, (success as i32) - 1) {
+            return VmExitResult::from_code(code);
+        };
 
         // codegen
         let mut codegen = LumaCodegen::new(&self.reporter);
         codegen.add_entries(&parsed);
-        if !codegen.generate() {
-            eprintln!("code generation failed");
-            return Ok(1);
+        let success = codegen.generate();
+        if let Err(code) = self.report_diagnostics(&parsed, (success as i32) - 1) {
+            return VmExitResult::from_code(code);
+        };
+
+        // vm
+        let mut program_sources: Vec<ProgramSource> = Vec::new();
+        for p in parsed {
+            let code = p.code.into_inner();
+
+            let ParsedCodeKind::Bytecode(bytecode) = code else {
+                eprintln!("Internal Error: Codegen did not produce bytecode");
+                continue;
+            };
+
+            program_sources.push(ProgramSource::new(p.source.kind().to_owned(), bytecode));
         }
 
-        for source in &parsed {
-            println!("Generated code for source: {}", source.source.source_name());
-            println!("{:#?}", source.code.borrow().as_bytecode_unchecked());
-        }
-        
-        Ok(0)
+        let mut vm = match LumaVM::try_new(program_sources) {
+            Ok(vm) => vm,
+            Err(e) => {
+                eprintln!("VM Initialization Error: {}", e);
+                return VmExitResult::from_code(-1);
+            }
+        };
+
+        vm.run()
     }
 
     pub fn eval_str(&self, _src: &str) -> DiagnosticResult<&Reporter> {
@@ -66,6 +77,19 @@ impl LumaEngine {
 
     pub fn reporter(&self) -> &Reporter {
         &self.reporter
+    }
+
+    fn report_diagnostics(&self, sources: &Vec<ParsedCodeSource>, exit_code: i32) -> Result<i32, i32> {
+        let errored = self.reporter.diagnostic_count(DiagnosticKind::Error) > 0;
+        for source in sources {
+            print!("{}", self.reporter.formatted_for(&source.source))
+        }
+
+        if errored {
+            Err(exit_code)
+        } else {
+            Ok(exit_code)
+        }
     }
 
     fn parse_ast(&self, input: &CodeSource) -> Ast {
