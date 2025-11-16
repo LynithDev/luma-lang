@@ -20,12 +20,12 @@ pub enum OpCode {
     ShiftRight,
 
     // comparison operators
-    Equals,
+    Equal,
     GreaterThan,
     LesserThan,
     GreaterThanEqual,
     LesserThanEqual,
-    NotEquals,
+    NotEqual,
     
     // logical operators
     And,

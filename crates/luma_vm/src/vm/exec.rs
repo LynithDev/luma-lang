@@ -26,7 +26,26 @@ impl LumaVM {
                 OpCode::Const(index) => self.push_const(index)?,
                 OpCode::SetLocal(index) => self.set_local(index)?,
                 OpCode::GetLocal(index) => self.get_local(index)?,
+                
                 OpCode::Add => self.add()?,
+                OpCode::Sub => self.sub()?,
+                OpCode::Mul => self.mul()?,
+                OpCode::Div => self.div()?,
+                OpCode::Mod => self.modulo()?,
+                OpCode::BitAnd => self.bit_and()?,
+                OpCode::BitOr => self.bit_or()?,
+                OpCode::BitXor => self.bit_xor()?,
+                OpCode::ShiftLeft => self.shift_left()?,
+                OpCode::ShiftRight => self.shift_right()?,
+                OpCode::Negate => self.negate()?,
+                OpCode::Not => self.not()?,
+                OpCode::GreaterThanEqual => self.greater_equal()?,
+                OpCode::GreaterThan => self.greater()?,
+                OpCode::LesserThanEqual => self.lesser_equal()?,
+                OpCode::LesserThan => self.lesser()?,
+                OpCode::Equal => self.equal()?,
+                OpCode::NotEqual => self.not_equal()?,
+                
                 _ => {}
             }
         }
@@ -83,25 +102,76 @@ impl LumaVM {
         Ok(())
     }
 
-    fn add(&mut self) -> VmResult<()> {
-        let right = self.ctx.stack.pop()?;
-        let left = self.ctx.stack.pop()?;
+}
 
-        let value = match (left, right) {
-            (StackValue::UInt8(l), StackValue::UInt8(r)) => StackValue::UInt8(l.wrapping_add(r)),
-            (StackValue::UInt16(l), StackValue::UInt16(r)) => StackValue::UInt16(l.wrapping_add(r)),
-            (StackValue::UInt32(l), StackValue::UInt32(r)) => StackValue::UInt32(l.wrapping_add(r)),
-            (StackValue::UInt64(l), StackValue::UInt64(r)) => StackValue::UInt64(l.wrapping_add(r)),
-            (StackValue::Int8(l), StackValue::Int8(r)) => StackValue::Int8(l.wrapping_add(r)),
-            (StackValue::Int16(l), StackValue::Int16(r)) => StackValue::Int16(l.wrapping_add(r)),
-            (StackValue::Int32(l), StackValue::Int32(r)) => StackValue::Int32(l.wrapping_add(r)),
-            (StackValue::Int64(l), StackValue::Int64(r)) => StackValue::Int64(l.wrapping_add(r)),
-            (StackValue::Float32(l), StackValue::Float32(r)) => StackValue::Float32(Float32(*l + *r)),
-            (StackValue::Float64(l), StackValue::Float64(r)) => StackValue::Float64(Float64(*l + *r)),
-            _ => return Err(VmError::TypeMismatch),
-        };
+macro_rules! impl_bin_op {
+    ($name:ident, $fn_name:ident) => {
+        fn $name(&mut self) -> VmResult<()> {
+            let right = self.ctx.stack.pop()?;
+            let left = self.ctx.stack.pop()?;
 
-        self.ctx.stack.push(value)?;
+            use std::ops::*;
+            let value = (left.$fn_name(right))?;
+
+            self.ctx.stack.push(value)?;
+
+            Ok(())
+        }
+    };
+}
+
+macro_rules! impl_cmp_op {
+    ($name:ident, $fn_name:ident) => {
+        fn $name(&mut self) -> VmResult<()> {
+            let right = self.ctx.stack.pop()?;
+            let left = self.ctx.stack.pop()?;
+
+            use core::cmp::*;
+            let value = (left.$fn_name(&right));
+
+            self.ctx.stack.push(StackValue::Boolean(value))?;
+
+            Ok(())
+        }
+    };
+}
+
+#[allow(unused)]
+impl LumaVM {
+    impl_bin_op!(add, add);
+    impl_bin_op!(sub, sub);
+    impl_bin_op!(mul, mul);
+    impl_bin_op!(div, div);
+    impl_bin_op!(modulo, rem);
+    impl_bin_op!(bit_and, bitand);
+    impl_bin_op!(bit_or, bitor);
+    impl_bin_op!(bit_xor, bitxor);
+    impl_bin_op!(shift_left, shl);
+    impl_bin_op!(shift_right, shr);
+
+    impl_cmp_op!(greater_equal, ge);
+    impl_cmp_op!(greater, gt);
+    impl_cmp_op!(lesser_equal, le);
+    impl_cmp_op!(lesser, lt);
+    impl_cmp_op!(equal, eq);
+    impl_cmp_op!(not_equal, ne);
+
+    fn not(&mut self) -> VmResult<()> {
+        let value = self.ctx.stack.pop()?;
+
+        match value {
+            StackValue::Boolean(b) => {
+                self.ctx.stack.push(StackValue::Boolean(!b))?;
+                Ok(())
+            }
+            _ => Err(VmError::TypeMismatch),
+        }
+    }
+
+    fn negate(&mut self) -> VmResult<()> {
+        let value = self.ctx.stack.pop()?;
+
+        self.ctx.stack.push((-value)?)?;
 
         Ok(())
     }

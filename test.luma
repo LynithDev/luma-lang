@@ -1,5 +1,5 @@
 let a = 2;
-let b = a + 3;
+let b = a + 3 * 5;
 
 // fn test() = a + 5;
 

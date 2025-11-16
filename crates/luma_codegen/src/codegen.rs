@@ -326,12 +326,12 @@ impl<'a> ChunkBuilder<'a> {
         self.gen_expression(right)?;
 
         let opcode = match operator {
-            ComparisonOperator::Equals => OpCode::Equals,
+            ComparisonOperator::Equals => OpCode::Equal,
             ComparisonOperator::GreaterThan => OpCode::GreaterThan,
             ComparisonOperator::LesserThan => OpCode::LesserThan,
             ComparisonOperator::GreaterThanEqual => OpCode::GreaterThanEqual,
             ComparisonOperator::LesserThanEqual => OpCode::LesserThanEqual,
-            ComparisonOperator::NotEquals => OpCode::NotEquals,
+            ComparisonOperator::NotEquals => OpCode::NotEqual,
         };
 
         self.emit_opcode(opcode);
