@@ -6,6 +6,7 @@ use crate::{bytecode::{opcode::Instruction, value::BytecodeValue, ArityRef}, Sym
 pub struct Chunk {
     pub instructions: Vec<Instruction>,
     pub constants: Vec<BytecodeValue>,
+    pub local_count: usize,
     constants_lookup: HashMap<BytecodeValue, usize>,
 }
 

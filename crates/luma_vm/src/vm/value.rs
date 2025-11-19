@@ -1,10 +1,10 @@
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
+use std::{ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}, rc::Rc};
 
-use luma_core::bytecode::{value::{Float32, Float64}, IndexRef};
+use luma_core::{bytecode::{value::{Float32, Float64}, IndexRef}, Display};
 
 use crate::VmResult;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StackValue {
     UInt8(u8),
     UInt16(u16),
@@ -23,7 +23,7 @@ pub enum StackValue {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum HeapValue {
-    String(String),
+    String(Rc<String>),
     Function(FunctionRef),
 }
 
@@ -41,17 +41,17 @@ macro_rules! impl_op {
             fn $fn_name(self, rhs: Self) -> Self::Output {
                 impl_op!(@float_case $float_supported, self, rhs, $float_op);
 
-                match (self, rhs) {
-                    (StackValue::UInt8(l), StackValue::UInt8(r)) => Ok(StackValue::UInt8(l.$method_name(r))),
-                    (StackValue::UInt16(l), StackValue::UInt16(r)) => Ok(StackValue::UInt16(l.$method_name(r))),
-                    (StackValue::UInt32(l), StackValue::UInt32(r)) => Ok(StackValue::UInt32(l.$method_name(r))),
-                    (StackValue::UInt64(l), StackValue::UInt64(r)) => Ok(StackValue::UInt64(l.$method_name(r))),
-                    (StackValue::Int8(l), StackValue::Int8(r)) => Ok(StackValue::Int8(l.$method_name(r))),
-                    (StackValue::Int16(l), StackValue::Int16(r)) => Ok(StackValue::Int16(l.$method_name(r))),
-                    (StackValue::Int32(l), StackValue::Int32(r)) => Ok(StackValue::Int32(l.$method_name(r))),
-                    (StackValue::Int64(l), StackValue::Int64(r)) => Ok(StackValue::Int64(l.$method_name(r))),
+                match (&self, &rhs) {
+                    (&StackValue::UInt8(l), &StackValue::UInt8(r)) => Ok(StackValue::UInt8(l.$method_name(r))),
+                    (&StackValue::UInt16(l), &StackValue::UInt16(r)) => Ok(StackValue::UInt16(l.$method_name(r))),
+                    (&StackValue::UInt32(l), &StackValue::UInt32(r)) => Ok(StackValue::UInt32(l.$method_name(r))),
+                    (&StackValue::UInt64(l), &StackValue::UInt64(r)) => Ok(StackValue::UInt64(l.$method_name(r))),
+                    (&StackValue::Int8(l), &StackValue::Int8(r)) => Ok(StackValue::Int8(l.$method_name(r))),
+                    (&StackValue::Int16(l), &StackValue::Int16(r)) => Ok(StackValue::Int16(l.$method_name(r))),
+                    (&StackValue::Int32(l), &StackValue::Int32(r)) => Ok(StackValue::Int32(l.$method_name(r))),
+                    (&StackValue::Int64(l), &StackValue::Int64(r)) => Ok(StackValue::Int64(l.$method_name(r))),
 
-                    _ => Err(crate::VmError::TypeMismatch),
+                    _ => Err(crate::VmError::TypeMismatch(self.to_string(), rhs.to_string())),
                 }
             }
         }
@@ -113,7 +113,7 @@ impl Neg for StackValue {
             StackValue::Int64(v) => Ok(StackValue::Int64(v.wrapping_neg())),
             StackValue::Float32(v) => Ok(StackValue::Float32(Float32(-v.0))),
             StackValue::Float64(v) => Ok(StackValue::Float64(Float64(-v.0))),
-            _ => Err(crate::VmError::TypeMismatch),
+            _ => Err(crate::VmError::InvalidType(self.to_string())),
         }
     }
 }
@@ -124,7 +124,7 @@ impl Not for StackValue {
     fn not(self) -> Self::Output {
         match self {
             StackValue::Boolean(v) => Ok(StackValue::Boolean(!v)),
-            _ => Err(crate::VmError::TypeMismatch),
+            _ => Err(crate::VmError::InvalidType(self.to_string())),
         }
     }
 }

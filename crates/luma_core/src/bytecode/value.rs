@@ -1,4 +1,4 @@
-use std::{fmt::Display, hash::Hash};
+use std::{fmt::Display, hash::Hash, rc::Rc};
 
 use crate::bytecode::IndexRef;
 
@@ -15,8 +15,8 @@ pub enum BytecodeValue {
     Float32(Float32),
     Float64(Float64),
     Boolean(bool),
-    String(String),
-    Option(Box<Option<BytecodeValue>>),
+    String(Rc<String>),
+    Option(Rc<Option<BytecodeValue>>),
     Function(IndexRef),
     NativeFunction(*const u8),
 }

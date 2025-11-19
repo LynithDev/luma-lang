@@ -1,6 +1,6 @@
 use luma_core::bytecode::IndexRef;
 
-use crate::{runtime::{CallFrame, ChunkRef, RuntimeContext, RuntimeOptions}, ProgramSource, VmError, VmExitResult, VmResult};
+use crate::{frames::{CallFrame, ChunkRef}, locals::Locals, runtime::{RuntimeContext, RuntimeOptions}, ProgramSource, VmError, VmExitResult, VmResult};
 
 use std::{fmt::Debug, hash::Hash, ops::{Deref, DerefMut}, rc::Rc};
 
@@ -8,9 +8,9 @@ mod exec;
 mod alloc;
 pub mod runtime;
 pub mod value;
-pub mod stack;
-pub mod heap;
-pub mod frames;
+
+mod data;
+pub use data::*;
 
 #[derive(Clone)]
 pub struct VmHandle(Rc<LumaVM>); // todo: arc + rwlock
@@ -55,15 +55,36 @@ impl LumaVM {
     }
 
     fn init(&mut self) {
+        let entrypoint = &self.entrypoint().bytecode.top_level;
+        let local_count = entrypoint.local_count;
+
         let call_frame = CallFrame {
             source_index: IndexRef::new(0), // entrypoint is first source
             chunk_ref: ChunkRef::TopLevel,
             instr_pointer: 0,
             base: 0,
+            locals: Locals::new(local_count),
         };
 
         let _ = self.ctx.frames.push(call_frame);
     }
+
+    // fn load_source(&mut self, source_index: usize) -> VmResult<()> {
+    //     let source = self.sources.get(source_index)
+    //         .ok_or(VmError::IndexOutOfBounds(source_index))?;
+
+    //     for chunk in source.bytecode.functions.iter() {
+    //         let func_ref = FunctionRef {
+    //             function_index: IndexRef::new(self.ctx.heap.len()),
+    //             source_index: IndexRef::new(source_index),
+    //         };
+
+    //         let heap_value = HeapValue::Function(func_ref);
+    //         let heap_index = self.ctx.heap.push(heap_value)?;
+    //     }
+
+    //     Ok(())
+    // }
 
     pub fn entrypoint(&self) -> &ProgramSource {
         &self.sources[0]

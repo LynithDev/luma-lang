@@ -4,7 +4,7 @@ use luma_macros::Display;
 
 use crate::{bytecode::{ArityRef, IndexRef}, Cursor};
 
-#[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Display, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum OpCode {
     // binary operators
@@ -35,8 +35,6 @@ pub enum OpCode {
     BitNot,
 
     // literals
-    True,
-    False,
     Const(IndexRef),
 
     // flow control

@@ -1,6 +1,6 @@
 use luma_core::bytecode::IndexRef;
 
-use crate::{value::HeapValue, VmResult};
+use crate::{value::HeapValue, VmError, VmResult};
 
 #[derive(Debug)]
 pub struct Heap {
@@ -38,6 +38,10 @@ impl Heap {
     #[must_use]
     pub fn get(&self, index: IndexRef) -> Option<&HeapValue> {
         self.inner.get(*index)
+    }
+
+    pub fn try_get(&mut self, index: IndexRef) -> VmResult<&HeapValue> {
+        self.get(index).ok_or(VmError::NullReference)
     }
 
     pub fn set(&mut self, index: IndexRef, value: HeapValue) -> VmResult<()> {

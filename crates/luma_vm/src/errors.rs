@@ -30,6 +30,8 @@ impl VmExitResult {
 pub enum VmError {
     #[error("no entrypoint provided to VM")]
     NoEntrypoint,
+    #[error("index {0} out of bounds")]
+    IndexOutOfBounds(usize),
     #[error("recursive max call depth ({0}) exceeded")]
     MaxCallDepthExceeded(usize),
     #[error("stack underflow")]
@@ -42,8 +44,12 @@ pub enum VmError {
     NoActiveCallFrame,
     #[error("null reference encountered")]
     NullReference,
-    #[error("type mismatch during operation")]
-    TypeMismatch,
+    #[error("type mismatch during operation (expected '{0}', found '{1}')")]
+    TypeMismatch(String, String),
+    #[error("invalid type: {0}")]
+    InvalidType(String),
+    #[error("function arity mismatch (expected {0}, found {1})")]
+    ArityMismatch(u8, u8),
 }
 
 pub struct Reporter {

@@ -1,5 +1,3 @@
-use luma_core::bytecode::prelude::*;
-
 use crate::{frames::Frames, heap::Heap, stack::Stack};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -15,20 +13,6 @@ impl Default for RuntimeOptions {
             max_stack_size: 65536,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ChunkRef {
-    TopLevel,
-    Function(IndexRef),
-}
-
-#[derive(Debug)]
-pub struct CallFrame {
-    pub source_index: IndexRef,
-    pub chunk_ref: ChunkRef,
-    pub instr_pointer: usize,
-    pub base: usize,
 }
 
 #[derive(Debug)]

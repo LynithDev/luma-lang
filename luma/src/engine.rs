@@ -46,15 +46,15 @@ impl LumaEngine {
         let mut program_sources: Vec<ProgramSource> = Vec::new();
         for p in parsed {
             let code = p.code.into_inner();
-
+            
             let ParsedCodeKind::Bytecode(bytecode) = code else {
                 eprintln!("Internal Error: Codegen did not produce bytecode");
                 continue;
             };
-
+            
             program_sources.push(ProgramSource::new(p.source.kind().to_owned(), bytecode));
         }
-
+        
         let mut vm = match LumaVM::try_new(program_sources) {
             Ok(vm) => vm,
             Err(e) => {

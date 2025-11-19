@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use luma_core::{bytecode::prelude::*, Cursor, SymbolId};
 use luma_semantics::hir::prelude::*;
@@ -9,7 +9,7 @@ use crate::diagnostics::CodegenDiagnostic;
 pub fn literal_to_value(kind: &HirLiteralKind) -> BytecodeValue {
     match kind {
         HirLiteralKind::Boolean(value) => BytecodeValue::Boolean(*value),
-        HirLiteralKind::String(value) => BytecodeValue::String(value.clone()),
+        HirLiteralKind::String(value) => BytecodeValue::String(Rc::new(value.clone())),
         HirLiteralKind::Integer(HirLiteralIntegerKind::Int8(value)) => BytecodeValue::Int8(*value),
         HirLiteralKind::Integer(HirLiteralIntegerKind::Int16(value)) => {
             BytecodeValue::Int16(*value)
@@ -65,51 +65,17 @@ impl ChunkBuilderEnvironment {
         }
     }
 
-    pub fn add_local(&mut self, symbol_id: SymbolId) -> IndexRef {
-        let local_index = self.next_local_index;
-        self.locals.insert(symbol_id, local_index);
-        self.next_local_index += 1;
-        IndexRef::new(local_index)
-    }
-
-    pub fn add_upvalue(&mut self, symbol_id: SymbolId) -> IndexRef {
-        let upvalue_index = self.upvalues.len();
-        self.upvalues.insert(symbol_id, upvalue_index);
-        IndexRef::new(upvalue_index)
-    }
-
-    pub fn resolve_symbol(&mut self, symbol_id: SymbolId, parent_env: Option<&ChunkBuilderEnvironment>) -> CodegenResult<Option<SymbolResolution>> {
-        Ok(if let Some(&local_index) = self.locals.get(&symbol_id) {
-            Some(SymbolResolution::Local(IndexRef::new(local_index)))
-        } else if let Some(&upvalue_index) = self.upvalues.get(&symbol_id) {
-            Some(SymbolResolution::Upvalue(IndexRef::new(upvalue_index)))
-        } else if let Some(parent_env) = parent_env {
-            let parent_resolution = self.capture_upvalue(symbol_id, parent_env)?;
-            Some(SymbolResolution::Upvalue(parent_resolution))
-        } else {
-            None
-        })
-    }
-
-    pub fn capture_upvalue(&mut self, symbol_id: SymbolId, parent_env: &ChunkBuilderEnvironment) -> CodegenResult<IndexRef> {
-        if parent_env.locals.contains_key(&symbol_id) || parent_env.upvalues.contains_key(&symbol_id){
-            let upvalue_index = self.add_upvalue(symbol_id);
-            Ok(upvalue_index)
-        } else {
-            Err(CodegenDiagnostic::UnableToCaptureUpvalue(symbol_id))
-        }
-    }
 }
 
 // MARK: Chunk Builder
 pub struct ChunkBuilder<'a> {
     functions_chunk: &'a mut Vec<FunctionChunk>,
     chunk: &'a mut Chunk,
-
+    
     env: ChunkBuilderEnvironment,
-
+    
     parent_env: Option<&'a ChunkBuilderEnvironment>,
-
+    
     curr_cursor: Cursor,
 }
 
@@ -117,7 +83,7 @@ impl<'a> ChunkBuilder<'a> {
     pub fn new(chunk: &'a mut Chunk, functions_chunk: &'a mut Vec<FunctionChunk>) -> Self {
         Self::with_outer(chunk, functions_chunk, None)
     }
-
+    
     fn with_outer(
         chunk: &'a mut Chunk,
         functions_chunk: &'a mut Vec<FunctionChunk>,
@@ -129,6 +95,44 @@ impl<'a> ChunkBuilder<'a> {
             env: ChunkBuilderEnvironment::new(),
             parent_env: outer_env,
             curr_cursor: Cursor::default(),
+        }
+    }
+    
+    pub fn add_local(&mut self, symbol_id: SymbolId) -> IndexRef {
+        let local_index = self.env.next_local_index;
+        
+        self.env.locals.insert(symbol_id, local_index);
+        self.env.next_local_index += 1;
+        self.chunk.local_count = self.env.next_local_index;
+        
+        IndexRef::new(local_index)
+    }
+    
+    pub fn add_upvalue(&mut self, symbol_id: SymbolId) -> IndexRef {
+        let upvalue_index = self.env.upvalues.len();
+        self.env.upvalues.insert(symbol_id, upvalue_index);
+        IndexRef::new(upvalue_index)
+    }
+    
+    fn resolve_symbol(&mut self, symbol_id: SymbolId, parent_env: Option<&ChunkBuilderEnvironment>) -> CodegenResult<Option<SymbolResolution>> {
+        Ok(if let Some(&local_index) = self.env.locals.get(&symbol_id) {
+            Some(SymbolResolution::Local(IndexRef::new(local_index)))
+        } else if let Some(&upvalue_index) = self.env.upvalues.get(&symbol_id) {
+            Some(SymbolResolution::Upvalue(IndexRef::new(upvalue_index)))
+        } else if let Some(parent_env) = parent_env {
+            let parent_resolution = self.capture_upvalue(symbol_id, parent_env)?;
+            Some(SymbolResolution::Upvalue(parent_resolution))
+        } else {
+            None
+        })
+    }
+    
+    fn capture_upvalue(&mut self, symbol_id: SymbolId, parent_env: &ChunkBuilderEnvironment) -> CodegenResult<IndexRef> {
+        if parent_env.locals.contains_key(&symbol_id) || parent_env.upvalues.contains_key(&symbol_id){
+            let upvalue_index = self.add_upvalue(symbol_id);
+            Ok(upvalue_index)
+        } else {
+            Err(CodegenDiagnostic::UnableToCaptureUpvalue(symbol_id))
         }
     }
 
@@ -154,9 +158,11 @@ impl<'a> ChunkBuilder<'a> {
 
     // MARK: Function Decl
     pub fn gen_func_decl(&mut self, decl: &HirFuncDecl) -> CodegenResult<()> {
+        // reserve local slot for function (this allows recursion)
+        let local_index = self.add_local(decl.symbol_id);
+
         let mut chunk = Chunk::new();
         let mut builder = ChunkBuilder::with_outer(&mut chunk, self.functions_chunk, Some(&self.env));
-
         
         if let Some(body) = &decl.body {
             builder.gen_expression(body)?;
@@ -178,8 +184,8 @@ impl<'a> ChunkBuilder<'a> {
             name: None,
             arity: ArityRef::new(decl.parameters.len() as u8),
             kind: FunctionKind::Function, // todo
-            chunk,
             upvalues,
+            chunk,
         };
 
         // push function chunk
@@ -190,8 +196,7 @@ impl<'a> ChunkBuilder<'a> {
         let const_index = self.chunk.add_const(BytecodeValue::Function(IndexRef::new(func_index)));
         self.emit_opcode(OpCode::Const(IndexRef::new(const_index)));
         
-        // store function as local variable
-        let local_index = self.env.add_local(decl.symbol_id);
+        // store the function in the reserved local slot
         self.emit_opcode(OpCode::SetLocal(local_index));
 
         Ok(())
@@ -203,7 +208,7 @@ impl<'a> ChunkBuilder<'a> {
             self.gen_expression(value)?;
         }
 
-        let local_index = self.env.add_local(decl.symbol_id);
+        let local_index = self.add_local(decl.symbol_id);
         self.emit_opcode(OpCode::SetLocal(local_index));
 
         Ok(())
@@ -276,11 +281,13 @@ impl<'a> ChunkBuilder<'a> {
         callee: &HirExpression,
         arguments: &Vec<HirExpression>,
     ) -> CodegenResult<()> {
-        self.gen_expression(callee)?;
-
+        // evaluate arguments first
         for argument in arguments {
             self.gen_expression(argument)?;
         }
+
+        // then evaluate the callee
+        self.gen_expression(callee)?;
 
         self.emit_opcode(OpCode::Call(ArityRef::new(arguments.len() as u8)));
 
@@ -385,7 +392,7 @@ impl<'a> ChunkBuilder<'a> {
         value: &HirExpression,
     ) -> CodegenResult<()> {
         self.gen_expression(value)?;
-        match self.env.resolve_symbol(*symbol_id, self.parent_env)? {
+        match self.resolve_symbol(*symbol_id, self.parent_env)? {
             Some(SymbolResolution::Local(index_ref)) => {
                 self.emit_opcode(OpCode::SetLocal(index_ref));
             }
@@ -402,7 +409,7 @@ impl<'a> ChunkBuilder<'a> {
 
     // MARK: Variable
     pub fn gen_variable(&mut self, symbol_id: SymbolId) -> CodegenResult<()> {
-        match self.env.resolve_symbol(symbol_id, self.parent_env)? {
+        match self.resolve_symbol(symbol_id, self.parent_env)? {
             Some(SymbolResolution::Local(index_ref)) => {
                 self.emit_opcode(OpCode::GetLocal(index_ref));
             }
