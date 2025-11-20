@@ -1,6 +1,6 @@
 use luma_core::bytecode::{chunk::Chunk, IndexRef};
 
-use crate::{locals::Locals, ProgramSource, VmError, VmResult};
+use crate::{slot_array::SlotArray, value::StackValue, ProgramSource, VmError, VmResult};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ChunkRef {
@@ -14,7 +14,7 @@ pub struct CallFrame {
     pub chunk_ref: ChunkRef,
     pub instr_pointer: usize,
     pub base: usize,
-    pub locals: Locals,
+    pub locals: SlotArray<StackValue>,
 }
 
 impl CallFrame {

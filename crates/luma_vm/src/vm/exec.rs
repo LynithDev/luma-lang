@@ -1,6 +1,6 @@
 use luma_core::bytecode::prelude::*;
 
-use crate::{frames::{CallFrame, ChunkRef}, locals::Locals, value::{HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult};
+use crate::{frames::{CallFrame, ChunkRef}, slot_array::SlotArray, value::{HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult};
 
 impl LumaVM {
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
@@ -23,12 +23,7 @@ impl LumaVM {
                 eprintln!("error at {}: {}", instruction.cursor, err);
                 return Err(err);
             };
-            
-            dbg!(&self.ctx.frames);
         }
-        
-        dbg!(&self.ctx.stack);
-        dbg!(&self.ctx.heap);
 
         Ok(0)
     }
@@ -171,7 +166,7 @@ impl LumaVM {
                             chunk_ref: ChunkRef::Function(function_index),
                             instr_pointer: 0,
                             base: self.ctx.stack.len() - arg_count as usize,
-                            locals: Locals::new(function_chunk.chunk.local_count),
+                            locals: SlotArray::new(function_chunk.chunk.local_count),
                         };
 
                         self.ctx.frames.push(new_frame)?;

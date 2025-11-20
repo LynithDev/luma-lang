@@ -2,14 +2,16 @@ use std::fmt::Debug;
 
 use luma_core::bytecode::IndexRef;
 
-use crate::{value::StackValue, VmError, VmResult};
+use crate::{VmError, VmResult};
 
-pub struct Locals {
-    inner: Box<[Option<StackValue>]>,
+pub struct SlotArray<T>
+where T: Debug + Clone + PartialEq {
+    inner: Box<[Option<T>]>,
     len: usize,
 }
 
-impl Locals {
+impl<T> SlotArray<T>
+where T: Debug + Clone + PartialEq {
     pub fn new(len: usize) -> Self {
         Self {
             inner: vec![None; len].into_boxed_slice(),
@@ -17,7 +19,14 @@ impl Locals {
         }
     }
 
-    pub fn set(&mut self, index: usize, value: Option<StackValue>) -> VmResult<IndexRef> {
+    pub fn empty() -> Self {
+        Self {
+            inner: Box::new([]),
+            len: 0,
+        }
+    }
+
+    pub fn set(&mut self, index: usize, value: Option<T>) -> VmResult<IndexRef> {
         if index >= self.inner.len() {
             return Err(VmError::StackOverflow);
         }
@@ -27,7 +36,7 @@ impl Locals {
         Ok(IndexRef::new(index))
     }
 
-    pub fn try_get(&self, index: usize) -> VmResult<&StackValue> {
+    pub fn try_get(&self, index: usize) -> VmResult<&T> {
         if let Some(Some(value)) = self.inner.get(index) {
             Ok(value)
         } else {
@@ -35,7 +44,7 @@ impl Locals {
         }
     }
 
-    pub fn get(&self, index: usize) -> Option<&StackValue> {
+    pub fn get(&self, index: usize) -> Option<&T> {
         self.inner.get(index).and_then(|opt| opt.as_ref())
     }
 
@@ -56,13 +65,14 @@ impl Locals {
 
     #[must_use]
     pub fn total_alloc_size(&self) -> usize {
-        std::mem::size_of::<Locals>() * self.capacity()
+        std::mem::size_of::<Self>() * self.capacity()
     }
 }
 
-impl Debug for Locals {
+impl<T> Debug for SlotArray<T>
+where T: Debug + Clone + PartialEq {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Locals")
+        f.debug_struct(std::any::type_name::<Self>())
             .field(
                 "inner",
                 &self
