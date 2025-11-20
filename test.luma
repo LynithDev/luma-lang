@@ -1,3 +1,5 @@
-fn test() = 3 + 5;
+fn test() {
+    test();
+}
 
-let c = test() * test(); // 64
+test();

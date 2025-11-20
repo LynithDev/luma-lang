@@ -55,6 +55,19 @@ fn analyze_stmt(ctx: &mut AnalyzerContext, statement: &mut Statement) {
             decl.symbol.id = Some(symbol_id);
         }
         StatementKind::FuncDecl(decl) => {
+            let return_type = decl
+                .return_type
+                .as_ref()
+                .map_or(TypeKind::Unknown, |t| t.kind.clone());
+
+            let ty = TypeKind::Function {
+                param_types: decl.parameters.iter().map(|p| p.ty.kind.clone()).collect(),
+                return_type: Box::new(return_type.clone()),
+            };
+
+            let symbol_id = ctx.symbol_table.declare_value(decl.symbol.name.clone(), ty);
+            decl.symbol.id = Some(symbol_id);
+
             // we enter scope for the function parameters as they are scoped to the func body
             ctx.symbol_table.enter_scope();
 
@@ -72,19 +85,6 @@ fn analyze_stmt(ctx: &mut AnalyzerContext, statement: &mut Statement) {
             }
 
             ctx.symbol_table.leave_scope();
-
-            let return_type = decl
-                .return_type
-                .as_ref()
-                .map_or(TypeKind::Unknown, |t| t.kind.clone());
-
-            let ty = TypeKind::Function {
-                param_types: decl.parameters.iter().map(|p| p.ty.kind.clone()).collect(),
-                return_type: Box::new(return_type.clone()),
-            };
-
-            let symbol_id = ctx.symbol_table.declare_value(decl.symbol.name.clone(), ty);
-            decl.symbol.id = Some(symbol_id);
         }
         StatementKind::ClassDecl(_) => {
             todo!("class decl name resolution")
