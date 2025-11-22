@@ -199,11 +199,9 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &mut HirExpression) ->
             let ty = infer_expr_type(ctx, &mut main_expr.body);
 
             // infer branches
-            if let Some(branches) = branches {
-                for branch in branches {
-                    infer_expr_type(ctx, &mut branch.condition);
-                    infer_expr_type(ctx, &mut branch.body);
-                }
+            for branch in branches {
+                infer_expr_type(ctx, &mut branch.condition);
+                infer_expr_type(ctx, &mut branch.body);
             }
 
             // infer else branch

@@ -36,6 +36,18 @@ where T: Debug + Clone + PartialEq {
         Ok(IndexRef::new(index))
     }
 
+    pub fn clear_range(&mut self, start: usize, end: usize) -> VmResult<()> {
+        if end > self.inner.len() || start >= end {
+            return Err(VmError::IndexOutOfBounds(end));
+        }
+
+        for index in start..end {
+            self.inner[index] = None;
+        }
+
+        Ok(())
+    }
+
     pub fn try_get(&self, index: usize) -> VmResult<&T> {
         if let Some(Some(value)) = self.inner.get(index) {
             Ok(value)

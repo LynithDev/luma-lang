@@ -4,26 +4,30 @@ use crate::{frames::{CallFrame, ChunkRef, Upvalue}, slot_array::SlotArray, value
 
 impl LumaVM {
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
+        dbg!(&self.ctx.frames.last_mut()?.try_get_chunk(&self.sources));
+
         while let Ok(frame) = self.ctx.frames.last_mut() {
             let chunk = frame.try_get_chunk(&self.sources)?;
-
+            
             if frame.instr_pointer >= chunk.instructions.len() {
                 // reached the end of the chunk (and for whatever reason it didn't exit)
+                dbg!(&self.ctx);
                 self.ctx.frames.pop();
                 continue;
             }
 
             let instruction = chunk.instructions[frame.instr_pointer].clone();
-            frame.instr_pointer += 1;
             
             let opcode = instruction.opcode;
-
             println!("{}x{} exec opcode: {:?} at {}", frame.base, frame.instr_pointer, opcode, instruction.cursor);
+            frame.instr_pointer += 1;
+
             if let Err(err) = self.exec_opcode(opcode) {
                 eprintln!("error at {}: {}", instruction.cursor, err);
                 return Err(err);
             };
         }
+
 
         Ok(0)
     }
@@ -63,8 +67,8 @@ impl LumaVM {
             // flow control
             OpCode::Return => self.exec_return(),
             OpCode::Call(arity) => self.exec_call(arity),
-            // OpCode::Jump(IndexRef),
-            // OpCode::JumpIfFalse(IndexRef),
+            OpCode::Jump(index) => self.exec_jump(index),
+            OpCode::JumpIfFalse(index) => self.exec_jump_if_false(index),
             
             // stack operations
             OpCode::GetLocal(index) => self.exec_get_local(index),
@@ -211,6 +215,29 @@ impl LumaVM {
         Ok(())
     }
 
+    fn exec_jump(&mut self, index: IndexRef) -> VmResult<()> {
+        let frame = self.ctx.frames.last_mut()?;
+        frame.instr_pointer = *index;
+        Ok(())
+    }
+
+    fn exec_jump_if_false(&mut self, index: IndexRef) -> VmResult<()> {
+        let condition = self.ctx.stack.pop()?;
+
+        match condition {
+            StackValue::Boolean(false) => {
+                let frame: &mut CallFrame = self.ctx.frames.last_mut()?;
+                frame.instr_pointer = *index;
+            }
+            StackValue::Boolean(true) => {
+                // do nothing
+            }
+            _ => return Err(VmError::TypeMismatch("Boolean".to_string(), format!("{:?}", condition))),
+        }
+
+        Ok(())
+    }
+
     fn exec_return(&mut self) -> VmResult<()> {
         let return_value = self.ctx.stack.pop().unwrap_or(StackValue::Unit);
         
@@ -226,7 +253,10 @@ impl LumaVM {
     }
 
     fn exec_pop_locals(&mut self, amount: usize) -> VmResult<()> {
-        self.ctx.stack.pop_amount(amount)?;
+        let frame = self.ctx.frames.last_mut()?;
+
+        frame.locals.clear_range(frame.locals.len() - amount, frame.locals.len())?;
+
         Ok(())
     }
 

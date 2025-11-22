@@ -141,11 +141,9 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &mut Expression) {
             analyze_expr(ctx, &mut main_branch.condition);
             analyze_expr(ctx, &mut main_branch.body);
 
-            if let Some(branches) = branches {
-                for branch in branches {
-                    analyze_expr(ctx, &mut branch.condition);
-                    analyze_expr(ctx, &mut branch.body);
-                }
+            for branch in branches {
+                analyze_expr(ctx, &mut branch.condition);
+                analyze_expr(ctx, &mut branch.body);
             }
 
             if let Some(else_expr) = else_branch {

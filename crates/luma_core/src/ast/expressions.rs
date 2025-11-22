@@ -18,7 +18,7 @@ pub struct Expression {
 pub enum ExpressionKind {
     If {
         main_branch: Box<ConditionalBranch>,
-        branches: Option<Vec<ConditionalBranch>>,
+        branches: Vec<ConditionalBranch>,
         else_branch: Option<Box<Expression>>,
     },
     Invoke {

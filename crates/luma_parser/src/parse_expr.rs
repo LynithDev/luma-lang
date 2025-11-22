@@ -22,7 +22,7 @@ impl LumaParser<'_> {
         span = span.merge(&main_branch.body.span);
 
         // check for `else if`
-        let mut branches: Option<Vec<ConditionalBranch>> = None;
+        let mut branches: Vec<ConditionalBranch> = Vec::new();
         let mut else_branch: Option<Box<Expression>> = None;
 
         while self.consume(TokenKind::Keyword(KeywordKind::Else)).is_ok() {
@@ -30,7 +30,7 @@ impl LumaParser<'_> {
                 let branch = self.parse_conditional_branch()?;
                 span = span.merge(&branch.body.span);
 
-                branches.get_or_insert_with(|| Vec::with_capacity(1)).push(branch);
+                branches.push(branch);
             } else {
                 let body = self.parse_expression()?;
 

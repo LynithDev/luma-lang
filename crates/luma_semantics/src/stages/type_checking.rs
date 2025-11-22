@@ -94,17 +94,15 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &HirExpression) -> TypeKind {
             let returns_type = !matches!(ret_ty, TypeKind::Void | TypeKind::Unknown);
 
             // analyze branches
-            if let Some(branches) = branches {
-                for branch in branches {
-                    let ty = check_conditional_branch(ctx, branch);
+            for branch in branches {
+                let ty = check_conditional_branch(ctx, branch);
 
-                    if returns_type && ty != ret_ty {
-                        ctx.reporter.report(DiagnosticReport {
-                            message: Box::new(AnalyzerDiagnostic::ExpectedTypeFoundType(ret_ty.clone(), ty.clone())),
-                            span: branch.body.span,
-                            cursor: branch.body.cursor,
-                        });
-                    }
+                if returns_type && ty != ret_ty {
+                    ctx.reporter.report(DiagnosticReport {
+                        message: Box::new(AnalyzerDiagnostic::ExpectedTypeFoundType(ret_ty.clone(), ty.clone())),
+                        span: branch.body.span,
+                        cursor: branch.body.cursor,
+                    });
                 }
             }
 

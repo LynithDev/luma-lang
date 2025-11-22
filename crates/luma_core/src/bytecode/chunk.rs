@@ -32,8 +32,14 @@ impl Chunk {
         index
     }
 
-    pub fn emit_instr(&mut self, instruction: Instruction) {
+    pub fn emit_instr(&mut self, instruction: Instruction) -> IndexRef {
+        let idx = self.instructions.len();
         self.instructions.push(instruction);
+        IndexRef::new(idx)
+    }
+
+    pub fn patch_instr(&mut self, index: IndexRef, instruction: Instruction) {
+        self.instructions[*index] = instruction;
     }
 }
 

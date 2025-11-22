@@ -231,18 +231,13 @@ fn ast_to_hir_expr(
                 body: ast_to_hir_expr(ctx, &main_expr.body)?,
             });
 
-            let hir_branches = if let Some(branches) = branches {
-                let mut hir_branches = Vec::with_capacity(branches.len());
-                for branch in branches {
-                    hir_branches.push(HirConditionalBranch {
-                        condition: ast_to_hir_expr(ctx, &branch.condition)?,
-                        body: ast_to_hir_expr(ctx, &branch.body)?,
-                    });
-                }
-                Some(hir_branches)
-            } else {
-                None
-            };
+            let mut hir_branches = Vec::with_capacity(branches.len());
+            for branch in branches {
+                hir_branches.push(HirConditionalBranch {
+                    condition: ast_to_hir_expr(ctx, &branch.condition)?,
+                    body: ast_to_hir_expr(ctx, &branch.body)?,
+                });
+            }
 
             let hir_else = if let Some(else_expr) = else_expr {
                 Some(Box::new(ast_to_hir_expr(ctx, else_expr)?))

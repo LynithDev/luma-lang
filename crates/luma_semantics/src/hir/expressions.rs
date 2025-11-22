@@ -20,7 +20,7 @@ pub struct HirExpression {
 pub enum HirExpressionKind {
     If {
         main_expr: Box<HirConditionalBranch>,
-        branches: Option<Vec<HirConditionalBranch>>,
+        branches: Vec<HirConditionalBranch>,
         else_expr: Option<Box<HirExpression>>
     },
     Invoke {
