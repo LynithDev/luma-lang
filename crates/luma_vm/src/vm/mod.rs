@@ -64,6 +64,7 @@ impl LumaVM {
             instr_pointer: 0,
             base: 0,
             locals: SlotArray::new(local_count),
+            upvalues: SlotArray::new(0),
         };
 
         let _ = self.ctx.frames.push(call_frame);

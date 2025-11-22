@@ -46,8 +46,9 @@ type CodegenResult<T> = Result<T, CodegenDiagnostic>;
 // MARK: Environment
 #[derive(Debug, Clone)]
 struct ChunkBuilderEnvironment {
-    pub locals: HashMap<SymbolId, usize>,
-    pub upvalues: HashMap<SymbolId, usize>,
+    pub locals: HashMap<SymbolId, IndexRef>,
+    pub upvalues: HashMap<SymbolId, IndexRef>,
+    pub upvalue_descriptors: Vec<UpvalueDescriptor>,
     pub next_local_index: usize,
 }
 
@@ -61,6 +62,7 @@ impl ChunkBuilderEnvironment {
         Self {
             locals: HashMap::new(),
             upvalues: HashMap::new(),
+            upvalue_descriptors: Vec::new(),
             next_local_index: 0,
         }
     }
@@ -101,24 +103,30 @@ impl<'a> ChunkBuilder<'a> {
     pub fn add_local(&mut self, symbol_id: SymbolId) -> IndexRef {
         let local_index = self.env.next_local_index;
         
-        self.env.locals.insert(symbol_id, local_index);
+        self.env.locals.insert(symbol_id, IndexRef::new(local_index));
         self.env.next_local_index += 1;
         self.chunk.local_count = self.env.next_local_index;
         
         IndexRef::new(local_index)
     }
     
-    pub fn add_upvalue(&mut self, symbol_id: SymbolId) -> IndexRef {
+    pub fn add_upvalue(&mut self, symbol_id: SymbolId, is_local: bool, index: IndexRef) -> IndexRef {
         let upvalue_index = self.env.upvalues.len();
-        self.env.upvalues.insert(symbol_id, upvalue_index);
+        self.env.upvalues.insert(symbol_id, IndexRef::new(upvalue_index));
+
+        self.env.upvalue_descriptors.push(UpvalueDescriptor {
+            is_local,
+            index,
+        });
+
         IndexRef::new(upvalue_index)
     }
     
     fn resolve_symbol(&mut self, symbol_id: SymbolId, parent_env: Option<&ChunkBuilderEnvironment>) -> CodegenResult<Option<SymbolResolution>> {
         Ok(if let Some(&local_index) = self.env.locals.get(&symbol_id) {
-            Some(SymbolResolution::Local(IndexRef::new(local_index)))
+            Some(SymbolResolution::Local(local_index))
         } else if let Some(&upvalue_index) = self.env.upvalues.get(&symbol_id) {
-            Some(SymbolResolution::Upvalue(IndexRef::new(upvalue_index)))
+            Some(SymbolResolution::Upvalue(upvalue_index))
         } else if let Some(parent_env) = parent_env {
             let parent_resolution = self.capture_upvalue(symbol_id, parent_env)?;
             Some(SymbolResolution::Upvalue(parent_resolution))
@@ -127,13 +135,21 @@ impl<'a> ChunkBuilder<'a> {
         })
     }
     
-    fn capture_upvalue(&mut self, symbol_id: SymbolId, parent_env: &ChunkBuilderEnvironment) -> CodegenResult<IndexRef> {
-        if parent_env.locals.contains_key(&symbol_id) || parent_env.upvalues.contains_key(&symbol_id){
-            let upvalue_index = self.add_upvalue(symbol_id);
-            Ok(upvalue_index)
-        } else {
-            Err(CodegenDiagnostic::UnableToCaptureUpvalue(symbol_id))
+    fn capture_upvalue(
+        &mut self,
+        symbol_id: SymbolId,
+        parent_env: &ChunkBuilderEnvironment
+    ) -> CodegenResult<IndexRef> {
+
+        if let Some(&local_index) = parent_env.locals.get(&symbol_id) {
+            return Ok(self.add_upvalue(symbol_id, true, local_index));
         }
+
+        if let Some(&upvalue_index) = parent_env.upvalues.get(&symbol_id) {
+            return Ok(self.add_upvalue(symbol_id, false, upvalue_index));
+        }
+
+        Err(CodegenDiagnostic::UnableToCaptureUpvalue(symbol_id))
     }
 
     fn emit_opcode(&mut self, opcode: OpCode) {
@@ -170,21 +186,12 @@ impl<'a> ChunkBuilder<'a> {
         } else {
             todo!("impl interface / abstract function");
         }
-
-        let upvalues: Vec<Upvalue> = builder.env.upvalues.iter().map(|(&symbol_id, _)| {
-            // `is_local` is true if the captured symbol is a local of the parent
-            let is_local = self.env.locals.contains_key(&symbol_id);
-            Upvalue {
-                symbol_id,
-                is_local,
-            }
-        }).collect();
         
         let func_chunk = FunctionChunk {
             name: None,
             arity: ArityRef::new(decl.parameters.len() as u8),
             kind: FunctionKind::Function, // todo
-            upvalues,
+            upvalues: builder.env.upvalue_descriptors,
             chunk,
         };
 

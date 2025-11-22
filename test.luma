@@ -1,5 +1,12 @@
-fn test() {
-    test();
+let x = 10;
+
+fn foo() {
+    let y = 5;
+    5 + y * 10
 }
 
-test();
+fn bar() {
+    foo();
+}
+
+bar();

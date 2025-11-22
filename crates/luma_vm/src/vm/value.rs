@@ -17,6 +17,7 @@ pub enum StackValue {
     Float32(Float32),
     Float64(Float64),
     Boolean(bool),
+    Unit,
 
     HeapRef(IndexRef),
 }

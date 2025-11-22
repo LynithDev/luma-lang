@@ -15,6 +15,13 @@ pub struct CallFrame {
     pub instr_pointer: usize,
     pub base: usize,
     pub locals: SlotArray<StackValue>,
+    pub upvalues: SlotArray<Upvalue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Upvalue {
+    Open(*mut StackValue),    // points into some stack frame slot
+    Closed(StackValue),       // heap-allocated copy after the slot’s frame ends
 }
 
 impl CallFrame {
@@ -65,6 +72,22 @@ impl Frames {
 
     pub fn last_mut(&mut self) -> VmResult<&mut CallFrame> {
         self.inner.last_mut().ok_or(VmError::NoActiveCallFrame)
+    }
+
+    pub fn get(&self, index: usize) -> Option<&CallFrame> {
+        self.inner.get(index)
+    }
+
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut CallFrame> {
+        self.inner.get_mut(index)
+    }
+
+    pub fn try_get(&self, index: usize) -> VmResult<&CallFrame> {
+        self.get(index).ok_or(VmError::IndexOutOfBounds(index))
+    }
+
+    pub fn try_get_mut(&mut self, index: usize) -> VmResult<&mut CallFrame> {
+        self.get_mut(index).ok_or(VmError::IndexOutOfBounds(index))
     }
 
     #[must_use]

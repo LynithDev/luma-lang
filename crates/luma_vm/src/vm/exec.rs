@@ -1,6 +1,6 @@
 use luma_core::bytecode::prelude::*;
 
-use crate::{frames::{CallFrame, ChunkRef}, slot_array::SlotArray, value::{HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult};
+use crate::{frames::{CallFrame, ChunkRef, Upvalue}, slot_array::SlotArray, value::{HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult};
 
 impl LumaVM {
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
@@ -69,10 +69,10 @@ impl LumaVM {
             // stack operations
             OpCode::GetLocal(index) => self.exec_get_local(index),
             OpCode::SetLocal(index) => self.exec_set_local(index),
-            // OpCode::GetUpvalue(IndexRef),
-            // OpCode::SetUpvalue(IndexRef),
+            OpCode::GetUpvalue(index) => self.exec_get_upvalue(index),
+            OpCode::SetUpvalue(index) => self.exec_set_upvalue(index),
             OpCode::Pop => self.exec_pop(),
-            // OpCode::PopLocals(usize),
+            OpCode::PopLocals(amount) => self.exec_pop_locals(amount),
             
             _ => {
                 println!("unimplemented opcode {:?}", &opcode);
@@ -127,77 +127,106 @@ impl LumaVM {
         Ok(())
     }
 
-    fn exec_call(&mut self, arity: ArityRef) -> VmResult<()> {
-        let arg_count = *arity;
+    fn exec_get_upvalue(&mut self, upvalue_index: IndexRef) -> VmResult<()> {
+        let frame = self.ctx.frames.last_mut()?; // current frame
+        let upvalue = frame.upvalues.try_get(*upvalue_index)?.clone();
 
-        // func is below args
-        let func_index = match self.ctx.stack.pop()? {
-            StackValue::HeapRef(index) => index,
-            value => {
-                return Err(VmError::InvalidType(value.to_string()));
-            }
+        let value = match upvalue {
+            Upvalue::Open(ptr) => unsafe { (*ptr).clone() },
+            Upvalue::Closed(v) => v,
         };
-        
+
+        self.ctx.stack.push(value)?;
+        Ok(())
+    }
+
+    fn exec_set_upvalue(&mut self, upvalue_index: IndexRef) -> VmResult<()> {
+        let mut value = self.ctx.stack.pop()?;
         let frame = self.ctx.frames.last_mut()?;
+        let uv = frame.upvalues.try_get_mut(*upvalue_index)?;
 
-        let value = frame.locals.try_get(*func_index)?;
-
-        match value {
-            StackValue::HeapRef(heap_index) => {
-                let heap_value = self.ctx.heap.try_get(*heap_index)?;
-
-                match heap_value {
-                    HeapValue::Function(func_ref) => {
-                        let source_index = func_ref.source_index;
-                        let function_index = func_ref.function_index;
-
-                        let source = &self.sources[*source_index];
-                        let function_chunk = &source.bytecode.functions[*function_index];
-
-                        if arg_count != *function_chunk.arity {
-                            return Err(VmError::ArityMismatch(
-                                *function_chunk.arity,
-                                arg_count,
-                            ));
-                        }
-
-                        let new_frame = CallFrame {
-                            source_index,
-                            chunk_ref: ChunkRef::Function(function_index),
-                            instr_pointer: 0,
-                            base: self.ctx.stack.len() - arg_count as usize,
-                            locals: SlotArray::new(function_chunk.chunk.local_count),
-                        };
-
-                        self.ctx.frames.push(new_frame)?;
-                    }
-                    _ => {
-                        return Err(VmError::InvalidType(value.to_string()));
-                    }
-                }
-            }
-            _ => {
-                return Err(VmError::InvalidType(value.to_string()));
-            }
+        match uv {
+            Upvalue::Open(ptr) => *ptr = &mut value,
+            Upvalue::Closed(slot) => *slot = value,
         }
 
         Ok(())
     }
 
+    fn exec_call(&mut self, arity: ArityRef) -> VmResult<()> {
+        let arg_count = *arity;
+
+        // func is below args
+        let func_value = self.ctx.stack.pop()?;
+
+        let func_ref = match func_value {
+            StackValue::HeapRef(heap_index) => {
+                let heap_val = self.ctx.heap.try_get(heap_index)?;
+                match heap_val {
+                    HeapValue::Function(func_ref) => func_ref,
+                    _ => return Err(VmError::InvalidType(format!("{:?}", heap_val))),
+                }
+            }
+            _ => return Err(VmError::InvalidType(format!("{:?}", func_value))),
+        };
+        
+        let source = &self.sources[*func_ref.source_index];
+        let func_chunk = &source.bytecode.functions[*func_ref.function_index];
+
+        if arg_count != *func_chunk.arity {
+            return Err(VmError::ArityMismatch(*func_chunk.arity, arg_count));
+        }
+
+        let parent_frame = self.ctx.frames.last_mut()?;
+
+        // initialize upvalues for the new frame
+        let mut upvalues = SlotArray::new(func_chunk.upvalues.len());
+        for (i, desc) in func_chunk.upvalues.iter().enumerate() {
+
+            let uv = if desc.is_local {
+                let ptr = parent_frame
+                    .locals
+                    .get_mut(*desc.index)
+                    .ok_or(VmError::IndexOutOfBounds(*desc.index))? as *mut StackValue;
+
+                Upvalue::Open(ptr)
+            } else {
+                // capture parent's upvalue
+                parent_frame.upvalues.try_get(*desc.index)?.clone()
+            };
+
+            upvalues.set(i, Some(uv))?;
+        }
+
+        let new_frame = CallFrame {
+            source_index: func_ref.source_index,
+            chunk_ref: ChunkRef::Function(func_ref.function_index),
+            instr_pointer: 0,
+            base: self.ctx.stack.len() - arg_count as usize,
+            locals: SlotArray::new(func_chunk.chunk.local_count),
+            upvalues,
+        };
+
+        self.ctx.frames.push(new_frame)?;
+        Ok(())
+    }
+
     fn exec_return(&mut self) -> VmResult<()> {
-        let return_value = self.ctx.stack.pop();
+        let return_value = self.ctx.stack.pop().unwrap_or(StackValue::Unit);
         
         self.ctx.frames.pop();
-
-        if let Ok(value) = return_value {
-            self.ctx.stack.push(value)?;
-        }
+        self.ctx.stack.push(return_value)?;
 
         Ok(())
     }
 
     fn exec_pop(&mut self) -> VmResult<()> {
         self.ctx.stack.pop()?;
+        Ok(())
+    }
+
+    fn exec_pop_locals(&mut self, amount: usize) -> VmResult<()> {
+        self.ctx.stack.pop_amount(amount)?;
         Ok(())
     }
 

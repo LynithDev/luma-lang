@@ -38,6 +38,19 @@ impl Stack {
         self.inner[self.count].take().ok_or(VmError::NullReference)
     }
 
+    pub fn pop_amount(&mut self, amount: usize) -> VmResult<()> {
+        if amount > self.count {
+            return Err(VmError::StackUnderflow);
+        }
+
+        for _ in 0..amount {
+            self.count -= 1;
+            self.inner[self.count].take();
+        }
+
+        Ok(())
+    }
+
     pub fn peek(&self) -> Option<&StackValue> {
         if self.count == 0 {
             None

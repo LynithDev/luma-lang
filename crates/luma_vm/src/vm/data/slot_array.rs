@@ -44,8 +44,20 @@ where T: Debug + Clone + PartialEq {
         }
     }
 
+    pub fn try_get_mut(&mut self, index: usize) -> VmResult<&mut T> {
+        if let Some(Some(value)) = self.inner.get_mut(index) {
+            Ok(value)
+        } else {
+            Err(VmError::NullReference)
+        }
+    }
+
     pub fn get(&self, index: usize) -> Option<&T> {
         self.inner.get(index).and_then(|opt| opt.as_ref())
+    }
+
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        self.inner.get_mut(index).and_then(|opt| opt.as_mut())
     }
 
     #[must_use]
@@ -66,6 +78,21 @@ where T: Debug + Clone + PartialEq {
     #[must_use]
     pub fn total_alloc_size(&self) -> usize {
         std::mem::size_of::<Self>() * self.capacity()
+    }
+}
+
+impl<T> From<Vec<T>> for SlotArray<T>
+where T: Debug + Clone + PartialEq {
+    fn from(vec: Vec<T>) -> Self {
+        let len = vec.len();
+        let mut slot_array = SlotArray::new(len);
+
+        for (index, value) in vec.into_iter().enumerate() {
+            // Safe to unwrap since we just created the SlotArray with sufficient capacity
+            slot_array.set(index, Some(value)).unwrap();
+        }
+
+        slot_array
     }
 }
 

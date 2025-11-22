@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{bytecode::{opcode::Instruction, value::BytecodeValue, ArityRef}, SymbolId};
+use crate::bytecode::{opcode::Instruction, value::BytecodeValue, ArityRef, IndexRef};
 
 #[derive(Default, Debug, Clone)]
 pub struct Chunk {
@@ -50,11 +50,11 @@ pub struct FunctionChunk {
     pub chunk: Chunk,
     pub arity: ArityRef,
     pub kind: FunctionKind,
-    pub upvalues: Vec<Upvalue>,
+    pub upvalues: Vec<UpvalueDescriptor>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Upvalue {
-    pub symbol_id: SymbolId,
-    pub is_local: bool,
+pub struct UpvalueDescriptor {
+    pub is_local: bool,   // true = capture parent local
+    pub index: IndexRef,       // slot in locals or upvalues of parent
 }
