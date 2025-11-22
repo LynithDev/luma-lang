@@ -349,11 +349,6 @@ impl<'a> ChunkBuilder<'a> {
         // main body
         self.gen_expression(&main_expr.body)?;
 
-        if else_expr.is_some() || !branches.is_empty() {
-            // jump to end after main body
-            jump_placeholders.push(self.emit_opcode(OpCode::Jump(IndexRef::new(0))));
-        }
-
         // // branches
         // for branch in branches {
         //     self.gen_expression(&branch.condition)?;
@@ -365,6 +360,8 @@ impl<'a> ChunkBuilder<'a> {
 
         // else branch
         if let Some(else_expr) = else_expr {
+            jump_placeholders.push(self.emit_opcode(OpCode::Jump(IndexRef::new(0))));
+
             self.gen_expression(else_expr)?;
         }
 
@@ -379,12 +376,12 @@ impl<'a> ChunkBuilder<'a> {
                 },
                 OpCode::JumpIfFalse(_) => {
                     let next_instr_index = if i + 1 < jump_placeholders.len() {
-                        jump_placeholders[i + 1]
+                        *jump_placeholders[i + 1] + 1 // skip jump instruction
                     } else {
-                        IndexRef::new(self.chunk.instructions.len())
+                        self.chunk.instructions.len() // to end
                     };
 
-                    self.patch_instr(placeholder, OpCode::JumpIfFalse(next_instr_index));
+                    self.patch_instr(placeholder, OpCode::JumpIfFalse(IndexRef::new(next_instr_index)));
                 }
                 _ => (),
             }

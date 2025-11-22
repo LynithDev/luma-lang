@@ -1,7 +1,10 @@
-let test = if 5 < 10 {
+fn foo() {
     5 + 2
+}
+
+let test = if foo() > 7 {
+    true
 } else {
-    let test = 10;
-    test + 5
+    false
 };
 
