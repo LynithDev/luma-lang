@@ -51,6 +51,8 @@ pub enum VmError {
     StackOverflow,
     #[error("max frame count exceeded")]
     MaxFrameCountExceeded,
+    #[error("invalid operation: {0}")]
+    InvalidOperation(String),
 
     // Runtime Errors
     #[error("index {0} out of bounds")]

@@ -19,7 +19,7 @@ impl Stack {
 
     pub fn push(&mut self, value: StackValue) -> VmResult<IndexRef> {
         let index = self.count;
-        if index >= self.inner.len() {
+        if index >= self.capacity() {
             return Err(VmError::StackOverflow);
         }
 
@@ -36,6 +36,25 @@ impl Stack {
 
         self.count -= 1;
         self.inner[self.count].take().ok_or(VmError::NullReference)
+    }
+
+    pub fn pop_n(&mut self, n: usize) -> VmResult<()> {
+        let new_len = self.count.saturating_sub(n);
+        self.truncate_to(new_len)?;
+        Ok(())
+    }
+
+    pub fn truncate_to(&mut self, new_len: usize) -> VmResult<()> {
+        if new_len > self.count {
+            return Err(VmError::StackOverflow);
+        }
+
+        while self.count > new_len {
+            self.count -= 1;
+            self.inner[self.count] = None;
+        }
+
+        Ok(())
     }
 
     pub fn peek(&self) -> Option<&StackValue> {
@@ -70,12 +89,21 @@ impl Stack {
         std::mem::size_of::<Stack>() * self.capacity()
     }
 
-    pub fn at(&self, index: usize) -> VmResult<&StackValue> {
+    pub fn get(&self, index: usize) -> VmResult<&StackValue> {
         if let Some(Some(value)) = self.inner.get(index) {
             Ok(value)
         } else {
             Err(VmError::NullReference)
         }
+    }
+
+    pub fn set(&mut self, index: usize, value: Option<StackValue>) -> VmResult<()> {
+        if index >= self.capacity() {
+            return Err(VmError::IndexOutOfBounds(index));
+        }
+
+        self.inner[index] = value;
+        Ok(())
     }
 }
 

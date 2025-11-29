@@ -5,6 +5,7 @@ pub struct Chunk {
     pub instructions: Vec<Instruction>,
     pub constants: Vec<BytecodeValue>,
     pub local_count: usize,
+    pub source_index: usize,
 }
 
 impl PartialEq for Chunk {
@@ -17,8 +18,6 @@ impl Chunk {
     pub fn new() -> Self {
         Self::default()
     }
-
-    
 }
 
 #[derive(Debug, Clone, PartialEq)]

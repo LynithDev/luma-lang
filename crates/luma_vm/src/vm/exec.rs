@@ -1,11 +1,13 @@
 use luma_core::bytecode::prelude::*;
 
-use crate::{frames::{CallFrame, ChunkRef, Upvalue}, slot_array::SlotArray, value::{HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult};
+use crate::{
+    frames::{CallFrame, FrameSource, Upvalue}, value::{HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult
+};
 
 impl LumaVM {
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
         while let Ok(frame) = self.ctx.frames.last_mut() {
-            let chunk = frame.try_get_chunk(&self.sources)?;
+            let chunk = frame.get_chunk();
             
             if frame.instr_pointer >= chunk.instructions.len() {
                 // reached the end of the chunk (and for whatever reason it didn't exit)
@@ -14,10 +16,15 @@ impl LumaVM {
                 continue;
             }
 
+            if frame.instr_pointer == 0 {
+                dbg!(&chunk.instructions);
+            }
+
             let instruction = chunk.instructions[frame.instr_pointer].clone();
-            
+
             let opcode = instruction.opcode;
-            println!("{}x{} exec opcode: {:?} at {}", frame.base, frame.instr_pointer, opcode, instruction.cursor);
+            println!("{}x{} exec opcode: {:?}", frame.base, frame.instr_pointer, opcode);
+
             frame.instr_pointer += 1;
 
             if let Err(err) = self.exec_opcode(opcode) {
@@ -25,7 +32,6 @@ impl LumaVM {
                 return Err(err);
             };
         }
-
 
         Ok(0)
     }
@@ -61,36 +67,33 @@ impl LumaVM {
 
             // literals
             OpCode::Const(index) => self.exec_push_const(index),
-            
+
             // flow control
             OpCode::Return => self.exec_return(),
             OpCode::Call(arity) => self.exec_call(arity),
             OpCode::Jump(index) => self.exec_jump(index),
             OpCode::JumpIfFalse(index) => self.exec_jump_if_false(index),
-            
+
             // stack operations
             OpCode::GetLocal(index) => self.exec_get_local(index),
             OpCode::SetLocal(index) => self.exec_set_local(index),
             OpCode::GetUpvalue(index) => self.exec_get_upvalue(index),
             OpCode::SetUpvalue(index) => self.exec_set_upvalue(index),
             OpCode::Pop => self.exec_pop(),
-            OpCode::PopLocals(amount) => self.exec_pop_locals(amount),
-            
+            OpCode::PopLocals(amount) => self.exec_pop_n(amount),
+
             _ => {
                 println!("unimplemented opcode {:?}", &opcode);
 
                 Ok(())
-            },
+            }
         }
     }
 
     fn exec_push_const(&mut self, const_index: IndexRef) -> VmResult<()> {
-        let frame = self
-            .ctx
-            .frames
-            .last_mut()?;
+        let frame = self.ctx.frames.last()?;
 
-        let chunk = frame.try_get_chunk(&self.sources)?;
+        let chunk = frame.get_chunk();
         let value = chunk
             .constants
             .get(*const_index)
@@ -106,23 +109,13 @@ impl LumaVM {
     fn exec_set_local(&mut self, local_index: IndexRef) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 
-        let frame = self
-            .ctx
-            .frames
-            .last_mut()?;
-
-        frame.locals.set(*local_index, Some(value))?;
+        self.set_local(local_index, Some(value))?;
 
         Ok(())
     }
 
     fn exec_get_local(&mut self, local_index: IndexRef) -> VmResult<()> {
-        let frame = self
-            .ctx
-            .frames
-            .last_mut()?;
-
-        let value = frame.locals.try_get(*local_index)?.clone();
+        let value = self.get_local(local_index)?.clone();
 
         self.ctx.stack.push(value)?;
 
@@ -130,25 +123,36 @@ impl LumaVM {
     }
 
     fn exec_get_upvalue(&mut self, upvalue_index: IndexRef) -> VmResult<()> {
-        let frame = self.ctx.frames.last_mut()?; // current frame
-        let upvalue = frame.upvalues.try_get(*upvalue_index)?.clone();
+        let frame = self.ctx.frames.last()?; // current frame
 
+        let closure = match frame.source {
+            FrameSource::Closure(closure_ptr) => unsafe { &*closure_ptr },
+            _ => return Err(VmError::InvalidOperation("current frame is not a closure".to_string())),
+        };
+
+        let upvalue = closure.upvalues.try_get(*upvalue_index)?;
         let value = match upvalue {
-            Upvalue::Open(ptr) => unsafe { (*ptr).clone() },
-            Upvalue::Closed(v) => v,
+            Upvalue::Open(ptr) => unsafe { ptr.read() },
+            Upvalue::Closed(v) => v.clone(),
         };
 
         self.ctx.stack.push(value)?;
+
         Ok(())
     }
 
     fn exec_set_upvalue(&mut self, upvalue_index: IndexRef) -> VmResult<()> {
-        let mut value = self.ctx.stack.pop()?;
-        let frame = self.ctx.frames.last_mut()?;
-        let uv = frame.upvalues.try_get_mut(*upvalue_index)?;
+        let value = self.ctx.stack.pop()?;
 
+        let frame = self.ctx.frames.last_mut()?; // current frame
+        let closure = match frame.source {
+            FrameSource::Closure(closure_ptr) => unsafe { &mut *closure_ptr },
+            _ => return Err(VmError::InvalidOperation("current frame is not a closure".to_string())),
+        };
+
+        let uv = closure.upvalues.try_get_mut(*upvalue_index)?;
         match uv {
-            Upvalue::Open(ptr) => *ptr = &mut value,
+            Upvalue::Open(ptr) => unsafe { ptr.write(value) },
             Upvalue::Closed(slot) => *slot = value,
         }
 
@@ -156,57 +160,32 @@ impl LumaVM {
     }
 
     fn exec_call(&mut self, arity: ArityRef) -> VmResult<()> {
-        let arg_count = *arity;
+        // attempt to get the function value from the stack (well heap)
+        let value = self.ctx.stack.pop()?;
 
-        // func is below args
-        let func_value = self.ctx.stack.pop()?;
-
-        let func_ref = match func_value {
-            StackValue::HeapRef(heap_index) => {
-                let heap_val = self.ctx.heap.try_get(heap_index)?;
-                match heap_val {
-                    HeapValue::Function(func_ref) => func_ref,
-                    _ => return Err(VmError::InvalidType(format!("{:?}", heap_val))),
-                }
-            }
-            _ => return Err(VmError::InvalidType(format!("{:?}", func_value))),
+        let StackValue::HeapRef(heap_index) = value else{
+            return Err(VmError::InvalidType(format!("{:?}", value)))
         };
-        
-        let source = &self.sources[*func_ref.source_index];
-        let func_chunk = &source.bytecode.functions[*func_ref.function_index];
 
-        if arg_count != *func_chunk.arity {
-            return Err(VmError::ArityMismatch(*func_chunk.arity, arg_count));
+        let heap_val = self.ctx.heap.try_get(heap_index)?;
+        let HeapValue::Closure(closure) = heap_val else {
+            return Err(VmError::InvalidType(format!("{:?}", heap_val)))
+        };
+
+        let func_chunk = unsafe { &closure.function.read() };
+
+        // check arity
+        if *arity != *func_chunk.arity {
+            return Err(VmError::ArityMismatch(*func_chunk.arity, *arity));
         }
 
-        let parent_frame = self.ctx.frames.last_mut()?;
-
-        // initialize upvalues for the new frame
-        let mut upvalues = SlotArray::new(func_chunk.upvalues.len());
-        for (i, desc) in func_chunk.upvalues.iter().enumerate() {
-
-            let uv = if desc.is_local {
-                let ptr = parent_frame
-                    .locals
-                    .get_mut(*desc.index)
-                    .ok_or(VmError::NoLocalAtIndex(*desc.index))? as *mut StackValue;
-
-                Upvalue::Open(ptr)
-            } else {
-                // capture parent's upvalue
-                parent_frame.upvalues.try_get(*desc.index)?.clone()
-            };
-
-            upvalues.set(i, Some(uv))?;
-        }
+        // prepare new call frame
+        let source = FrameSource::Closure(closure as *const _ as *mut _);
 
         let new_frame = CallFrame {
-            source_index: func_ref.source_index,
-            chunk_ref: ChunkRef::Function(func_ref.function_index),
+            source,
             instr_pointer: 0,
-            base: self.ctx.stack.len() - arg_count as usize,
-            locals: SlotArray::new(func_chunk.chunk.local_count),
-            upvalues,
+            base: self.ctx.stack.len() - *arity as usize,
         };
 
         self.ctx.frames.push(new_frame)?;
@@ -224,13 +203,18 @@ impl LumaVM {
 
         match condition {
             StackValue::Boolean(false) => {
-                let frame: &mut CallFrame = self.ctx.frames.last_mut()?;
+                let frame = self.ctx.frames.last_mut()?;
                 frame.instr_pointer = *index;
             }
             StackValue::Boolean(true) => {
                 // do nothing
             }
-            _ => return Err(VmError::TypeMismatch("Boolean".to_string(), format!("{:?}", condition))),
+            _ => {
+                return Err(VmError::TypeMismatch(
+                    "Boolean".to_string(),
+                    format!("{:?}", condition),
+                ));
+            }
         }
 
         Ok(())
@@ -238,7 +222,7 @@ impl LumaVM {
 
     fn exec_return(&mut self) -> VmResult<()> {
         let return_value = self.ctx.stack.pop().unwrap_or(StackValue::Unit);
-        
+
         self.ctx.frames.pop();
         self.ctx.stack.push(return_value)?;
 
@@ -250,14 +234,9 @@ impl LumaVM {
         Ok(())
     }
 
-    fn exec_pop_locals(&mut self, amount: usize) -> VmResult<()> {
-        let frame = self.ctx.frames.last_mut()?;
-
-        frame.locals.clear_range(frame.locals.len() - amount, frame.locals.len())?;
-
-        Ok(())
+    fn exec_pop_n(&mut self, n: usize) -> VmResult<()> {
+        self.ctx.stack.pop_n(n)
     }
-
 }
 
 macro_rules! impl_bin_op {
@@ -320,7 +299,10 @@ impl LumaVM {
                 self.ctx.stack.push(StackValue::Boolean(!b))?;
                 Ok(())
             }
-            _ => Err(VmError::TypeMismatch("Boolean".to_string(), format!("{:?}", value))),
+            _ => Err(VmError::TypeMismatch(
+                "Boolean".to_string(),
+                format!("{:?}", value),
+            )),
         }
     }
 

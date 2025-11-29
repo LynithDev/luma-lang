@@ -1,8 +1,8 @@
-use std::{ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}, rc::Rc};
+use std::{hash::Hash, ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}, rc::Rc};
 
-use luma_core::{bytecode::{value::{Float32, Float64}, IndexRef}, Display};
+use luma_core::{bytecode::{chunk::FunctionChunk, value::{Float32, Float64}, IndexRef}, Display};
 
-use crate::VmResult;
+use crate::{frames::Upvalue, slot_array::SlotArray, VmResult};
 
 #[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StackValue {
@@ -25,7 +25,27 @@ pub enum StackValue {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum HeapValue {
     String(Rc<String>),
-    Function(FunctionRef),
+    Closure(Rc<Closure>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Closure {
+    pub function: *const FunctionChunk,
+    pub upvalues: SlotArray<Upvalue>,
+}
+
+impl PartialEq for Closure {
+    fn eq(&self, other: &Self) -> bool {
+        self.function == other.function
+    }
+}
+
+impl Eq for Closure {}
+
+impl Hash for Closure {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.function.hash(state);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -98,6 +118,7 @@ impl PartialOrd for StackValue {
             (Self::Int64(l0), Self::Int64(r0)) => l0.partial_cmp(r0),
             (Self::Float32(l0), Self::Float32(r0)) => l0.partial_cmp(r0),
             (Self::Float64(l0), Self::Float64(r0)) => l0.partial_cmp(r0),
+            (Self::HeapRef(l0), Self::HeapRef(r0)) => l0.partial_cmp(r0),
             _ => None,
         }
     }

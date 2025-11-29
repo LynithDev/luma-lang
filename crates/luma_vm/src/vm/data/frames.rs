@@ -1,44 +1,36 @@
-use luma_core::bytecode::{chunk::Chunk, IndexRef};
+use luma_core::bytecode::chunk::Chunk;
 
-use crate::{slot_array::SlotArray, value::StackValue, ProgramSource, VmError, VmResult};
+use crate::{value::{Closure, StackValue}, VmError, VmResult};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ChunkRef {
-    TopLevel,
-    Function(IndexRef),
+pub enum FrameSource {
+    TopLevel(*mut Chunk),
+    Closure(*mut Closure),
 }
 
 #[derive(Debug)]
 pub struct CallFrame {
-    pub source_index: IndexRef,
-    pub chunk_ref: ChunkRef,
+    pub source: FrameSource,
     pub instr_pointer: usize,
     pub base: usize,
-    pub locals: SlotArray<StackValue>,
-    pub upvalues: SlotArray<Upvalue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Upvalue {
     Open(*mut StackValue),    // points into some stack frame slot
     Closed(StackValue),       // heap-allocated copy after the slot’s frame ends
 }
 
 impl CallFrame {
-    pub fn try_get_chunk<'a>(&'a self, sources: &'a [ProgramSource]) -> VmResult<&'a Chunk> {
-        let source = sources
-            .get(*self.source_index)
-            .ok_or(VmError::NoSourceAtIndex(*self.source_index))?;
-
-        match self.chunk_ref {
-            ChunkRef::TopLevel => Ok(&source.bytecode.top_level),
-            ChunkRef::Function(func_index) => {
-                let function_chunk = source
-                    .bytecode
-                    .functions
-                    .get(*func_index)
-                    .ok_or(VmError::NoFunctionAtIndex(*func_index))?;
-                Ok(&function_chunk.chunk)
+    pub fn get_chunk(&self) -> &Chunk {
+        unsafe {
+            match self.source {
+                FrameSource::TopLevel(chunk) => &*chunk,
+                FrameSource::Closure(closure) => {
+                    let closure = &*closure;
+                    let func_chunk = &*closure.function;
+                    &func_chunk.chunk
+                }
             }
         }
     }
@@ -68,6 +60,10 @@ impl Frames {
 
     pub fn pop(&mut self) -> Option<CallFrame> {
         self.inner.pop()
+    }
+
+    pub fn last(&self) -> VmResult<&CallFrame> {
+        self.inner.last().ok_or(VmError::NoActiveCallFrame)
     }
 
     pub fn last_mut(&mut self) -> VmResult<&mut CallFrame> {

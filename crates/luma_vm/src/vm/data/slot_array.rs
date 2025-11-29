@@ -1,17 +1,18 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, hash::Hash};
 
 use luma_core::bytecode::IndexRef;
 
 use crate::{VmError, VmResult};
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct SlotArray<T>
-where T: Debug + Clone + PartialEq {
+where T: Debug + Clone + PartialEq + Eq + Hash {
     inner: Box<[Option<T>]>,
     len: usize,
 }
 
 impl<T> SlotArray<T>
-where T: Debug + Clone + PartialEq {
+where T: Debug + Clone + PartialEq + Eq + Hash {
     pub fn new(len: usize) -> Self {
         Self {
             inner: vec![None; len].into_boxed_slice(),
@@ -94,7 +95,7 @@ where T: Debug + Clone + PartialEq {
 }
 
 impl<T> From<Vec<T>> for SlotArray<T>
-where T: Debug + Clone + PartialEq {
+where T: Debug + Clone + PartialEq + Eq + Hash {
     fn from(vec: Vec<T>) -> Self {
         let len = vec.len();
         let mut slot_array = SlotArray::new(len);
@@ -109,7 +110,7 @@ where T: Debug + Clone + PartialEq {
 }
 
 impl<T> Debug for SlotArray<T>
-where T: Debug + Clone + PartialEq {
+where T: Debug + Clone + PartialEq + Eq + Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(std::any::type_name::<Self>())
             .field(

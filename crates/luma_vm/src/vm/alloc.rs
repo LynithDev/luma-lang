@@ -1,8 +1,9 @@
-use luma_core::bytecode::value::BytecodeValue;
+use std::rc::Rc;
+
+use luma_core::bytecode::{IndexRef, value::BytecodeValue};
 
 use crate::{
-    LumaVM, VmResult,
-    value::{FunctionRef, HeapValue, StackValue},
+    slot_array::SlotArray, value::{Closure, HeapValue, StackValue}, LumaVM, VmError, VmResult
 };
 
 impl LumaVM {
@@ -27,14 +28,16 @@ impl LumaVM {
                 StackValue::HeapRef(index)
             }
             BytecodeValue::Function(func_index) => {
-                let frame = self.ctx.frames.last_mut()?;
+                let func_chunk = self.entrypoint().bytecode.functions.get(*func_index)
+                    .ok_or(VmError::NoFunctionAtIndex(*func_index))?;
 
-                let func_ref = FunctionRef {
-                    source_index: frame.source_index,
-                    function_index: func_index,
+                let closure = Closure {
+                    upvalues: SlotArray::new(func_chunk.upvalues.len()),
+                    function: func_chunk as *const _,
                 };
 
-                let index = self.ctx.heap.push(HeapValue::Function(func_ref))?;
+                let index = self.ctx.heap.push(HeapValue::Closure(Rc::new(closure)))?;
+
                 StackValue::HeapRef(index)
             }
 
@@ -44,5 +47,18 @@ impl LumaVM {
                 unimplemented!("NativeFunction materialization not implemented")
             }
         })
+    }
+
+    pub fn set_local(&mut self, index: IndexRef, value: Option<StackValue>) -> VmResult<()> {
+        let frame = self.ctx.frames.last()?;
+
+        self.ctx.stack.set(frame.base + *index, value)?;
+        Ok(())
+    }
+
+    pub fn get_local(&self, index: IndexRef) -> VmResult<&StackValue> {
+        let frame = self.ctx.frames.last()?;
+
+        self.ctx.stack.get(frame.base + *index)
     }
 }

@@ -1,6 +1,6 @@
-use luma_core::bytecode::IndexRef;
+use luma_core::bytecode::chunk::Chunk;
 
-use crate::{frames::{CallFrame, ChunkRef}, runtime::{RuntimeContext, RuntimeOptions}, slot_array::SlotArray, ProgramSource, VmError, VmExitResult, VmResult};
+use crate::{frames::{CallFrame, FrameSource}, runtime::{RuntimeContext, RuntimeOptions}, ProgramSource, VmError, VmExitResult, VmResult};
 
 use std::{fmt::Debug, hash::Hash, ops::{Deref, DerefMut}, rc::Rc};
 
@@ -55,16 +55,12 @@ impl LumaVM {
     }
 
     fn init(&mut self) {
-        let entrypoint = &self.entrypoint().bytecode.top_level;
-        let local_count = entrypoint.local_count;
+        let chunk_ptr: *mut Chunk = &self.entrypoint().bytecode.top_level as *const _ as *mut _;
 
         let call_frame = CallFrame {
-            source_index: IndexRef::new(0), // entrypoint is first source
-            chunk_ref: ChunkRef::TopLevel,
+            source: FrameSource::TopLevel(chunk_ptr),
             instr_pointer: 0,
             base: 0,
-            locals: SlotArray::new(local_count),
-            upvalues: SlotArray::new(0),
         };
 
         let _ = self.ctx.frames.push(call_frame);
