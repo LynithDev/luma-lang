@@ -1,10 +1,10 @@
-fn foo() {
-    5 + 2
+fn bar() {
+
 }
 
-let test = if foo() > 7 {
-    true
-} else {
-    false
-};
+fn foo() {
+    foo();
+}
+
+foo();
 

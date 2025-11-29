@@ -4,8 +4,6 @@ use crate::{frames::{CallFrame, ChunkRef, Upvalue}, slot_array::SlotArray, value
 
 impl LumaVM {
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
-        dbg!(&self.ctx.frames.last_mut()?.try_get_chunk(&self.sources));
-
         while let Ok(frame) = self.ctx.frames.last_mut() {
             let chunk = frame.try_get_chunk(&self.sources)?;
             

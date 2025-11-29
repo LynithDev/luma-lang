@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc};
 
-use luma_core::{Cursor, SymbolId, bytecode::prelude::*};
+use luma_core::{bytecode::prelude::*, Cursor, SymbolId};
 use luma_semantics::hir::prelude::*;
 
 use crate::diagnostics::CodegenDiagnostic;
@@ -72,9 +72,9 @@ impl ChunkBuilderEnvironment {
 pub struct ChunkBuilder<'a> {
     functions_chunk: &'a mut Vec<FunctionChunk>,
     chunk: &'a mut Chunk,
+    constants_lookup: HashMap<BytecodeValue, usize>,
 
     env: ChunkBuilderEnvironment,
-
     parent_env: Option<&'a ChunkBuilderEnvironment>,
 
     curr_cursor: Cursor,
@@ -92,6 +92,7 @@ impl<'a> ChunkBuilder<'a> {
     ) -> Self {
         Self {
             chunk,
+            constants_lookup: HashMap::new(),
             functions_chunk,
             env: ChunkBuilderEnvironment::new(),
             parent_env: outer_env,
@@ -99,6 +100,21 @@ impl<'a> ChunkBuilder<'a> {
         }
     }
 
+    // MARK: Add Const
+    /// adds a constant to the chunk and returns its index
+    pub fn add_const(&mut self, value: BytecodeValue) -> usize {
+        if let Some(&index) = self.constants_lookup.get(&value) {
+            return index;
+        }
+
+        self.chunk.constants.push(value.clone());
+        let index = self.chunk.constants.len() - 1;
+        self.constants_lookup.insert(value, index);
+        index
+    }
+
+    // MARK: Add Local
+    /// adds a local variable to the chunk's environment and returns its index
     pub fn add_local(&mut self, symbol_id: SymbolId) -> IndexRef {
         let local_index = self.env.next_local_index;
 
@@ -111,6 +127,8 @@ impl<'a> ChunkBuilder<'a> {
         IndexRef::new(local_index)
     }
 
+    // MARK: Add Upvalue
+    /// adds an upvalue to the chunk's environment and returns its index
     pub fn add_upvalue(
         &mut self,
         symbol_id: SymbolId,
@@ -129,6 +147,9 @@ impl<'a> ChunkBuilder<'a> {
         IndexRef::new(upvalue_index)
     }
 
+    // MARK: Resolve Symbol
+    /// resolves a symbol id to either a local or upvalue index. if the symbol is not found in the current environment,
+    /// it will attempt to capture it from the parent environment (if provided)
     fn resolve_symbol(
         &mut self,
         symbol_id: SymbolId,
@@ -148,6 +169,8 @@ impl<'a> ChunkBuilder<'a> {
         )
     }
 
+    // MARK: Capture Upvalue
+    /// captures an upvalue from the parent environment and adds it to the current environment
     fn capture_upvalue(
         &mut self,
         symbol_id: SymbolId,
@@ -164,14 +187,19 @@ impl<'a> ChunkBuilder<'a> {
         Err(CodegenDiagnostic::UnableToCaptureUpvalue(symbol_id))
     }
 
-    fn emit_opcode(&mut self, opcode: OpCode) -> IndexRef {
+    // MARK: Emit Opcode
+    /// emits an opcode to the chunk and returns its index
+    pub fn emit_opcode(&mut self, opcode: OpCode) -> IndexRef {
         let instruction = Instruction::new(opcode, self.curr_cursor);
-        self.chunk.emit_instr(instruction)
+        let idx = self.chunk.instructions.len();
+        self.chunk.instructions.push(instruction);
+        IndexRef::new(idx)
     }
 
-    fn patch_instr(&mut self, index: IndexRef, opcode: OpCode) {
-        self.chunk
-            .patch_instr(index, Instruction::new(opcode, self.curr_cursor));
+    // MARK: Patch Instruction
+    /// updates an instruction at the given index with a new opcode
+    pub fn patch_instr(&mut self, index: IndexRef, opcode: OpCode) {
+        self.chunk.instructions[*index] = Instruction::new(opcode, self.curr_cursor);
     }
 
     // MARK: -- Statement --
@@ -219,9 +247,7 @@ impl<'a> ChunkBuilder<'a> {
         self.functions_chunk.push(func_chunk);
 
         // push function as constant (for lookup)
-        let const_index = self
-            .chunk
-            .add_const(BytecodeValue::Function(IndexRef::new(func_index)));
+        let const_index = self.add_const(BytecodeValue::Function(IndexRef::new(func_index)));
         self.emit_opcode(OpCode::Const(IndexRef::new(const_index)));
 
         // store the function in the reserved local slot
@@ -304,7 +330,7 @@ impl<'a> ChunkBuilder<'a> {
     // MARK: Literal
     pub fn gen_literal(&mut self, literal: &HirLiteralKind) -> CodegenResult<()> {
         let value = literal_to_value(literal);
-        let const_index = self.chunk.add_const(value);
+        let const_index = self.add_const(value);
 
         let opcode = OpCode::Const(IndexRef::new(const_index));
         self.emit_opcode(opcode);

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::bytecode::{opcode::Instruction, value::BytecodeValue, ArityRef, IndexRef};
 
 #[derive(Default, Debug, Clone)]
@@ -7,7 +5,6 @@ pub struct Chunk {
     pub instructions: Vec<Instruction>,
     pub constants: Vec<BytecodeValue>,
     pub local_count: usize,
-    constants_lookup: HashMap<BytecodeValue, usize>,
 }
 
 impl PartialEq for Chunk {
@@ -21,26 +18,7 @@ impl Chunk {
         Self::default()
     }
 
-    pub fn add_const(&mut self, value: BytecodeValue) -> usize {
-        if let Some(&index) = self.constants_lookup.get(&value) {
-            return index;
-        }
-
-        self.constants.push(value.clone());
-        let index = self.constants.len() - 1;
-        self.constants_lookup.insert(value, index);
-        index
-    }
-
-    pub fn emit_instr(&mut self, instruction: Instruction) -> IndexRef {
-        let idx = self.instructions.len();
-        self.instructions.push(instruction);
-        IndexRef::new(idx)
-    }
-
-    pub fn patch_instr(&mut self, index: IndexRef, instruction: Instruction) {
-        self.instructions[*index] = instruction;
-    }
+    
 }
 
 #[derive(Debug, Clone, PartialEq)]
