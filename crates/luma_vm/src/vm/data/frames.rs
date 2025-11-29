@@ -28,7 +28,7 @@ impl CallFrame {
     pub fn try_get_chunk<'a>(&'a self, sources: &'a [ProgramSource]) -> VmResult<&'a Chunk> {
         let source = sources
             .get(*self.source_index)
-            .ok_or(VmError::IndexOutOfBounds(*self.source_index))?;
+            .ok_or(VmError::NoSourceAtIndex(*self.source_index))?;
 
         match self.chunk_ref {
             ChunkRef::TopLevel => Ok(&source.bytecode.top_level),
@@ -37,7 +37,7 @@ impl CallFrame {
                     .bytecode
                     .functions
                     .get(*func_index)
-                    .ok_or(VmError::IndexOutOfBounds(*func_index))?;
+                    .ok_or(VmError::NoFunctionAtIndex(*func_index))?;
                 Ok(&function_chunk.chunk)
             }
         }
@@ -83,11 +83,11 @@ impl Frames {
     }
 
     pub fn try_get(&self, index: usize) -> VmResult<&CallFrame> {
-        self.get(index).ok_or(VmError::IndexOutOfBounds(index))
+        self.get(index).ok_or(VmError::NoCallFrameAtIndex(index))
     }
 
     pub fn try_get_mut(&mut self, index: usize) -> VmResult<&mut CallFrame> {
-        self.get_mut(index).ok_or(VmError::IndexOutOfBounds(index))
+        self.get_mut(index).ok_or(VmError::NoCallFrameAtIndex(index))
     }
 
     #[must_use]

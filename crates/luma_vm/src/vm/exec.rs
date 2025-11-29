@@ -94,7 +94,7 @@ impl LumaVM {
         let value = chunk
             .constants
             .get(*const_index)
-            .ok_or(VmError::IndexOutOfBounds(*const_index))?
+            .ok_or(VmError::NoConstantAtIndex(*const_index))?
             .clone();
 
         let value = self.materialize_value(value)?;
@@ -189,7 +189,7 @@ impl LumaVM {
                 let ptr = parent_frame
                     .locals
                     .get_mut(*desc.index)
-                    .ok_or(VmError::IndexOutOfBounds(*desc.index))? as *mut StackValue;
+                    .ok_or(VmError::NoLocalAtIndex(*desc.index))? as *mut StackValue;
 
                 Upvalue::Open(ptr)
             } else {

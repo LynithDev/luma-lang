@@ -28,28 +28,58 @@ impl VmExitResult {
 
 #[derive(Debug, Clone, Diagnostic, PartialEq, Eq)]
 pub enum VmError {
+    // Critical Errors (crashes VM)
     #[error("no entrypoint provided to VM")]
     NoEntrypoint,
-    #[error("index {0} out of bounds")]
-    IndexOutOfBounds(usize),
-    #[error("recursive max call depth ({0}) exceeded")]
-    MaxCallDepthExceeded(usize),
+    #[error("no source found at index {0}")]
+    NoSourceAtIndex(usize),
+    #[error("no function found at index {0}")]
+    NoFunctionAtIndex(usize),
+    #[error("no call frame found at index {0}")]
+    NoCallFrameAtIndex(usize),
+    #[error("no constant found at index {0}")]
+    NoConstantAtIndex(usize),
+    #[error("no local found at index {0}")]
+    NoLocalAtIndex(usize),
+    #[error("no active call frame")]
+    NoActiveCallFrame,
+    #[error("function arity mismatch (expected {0}, found {1})")]
+    ArityMismatch(u8, u8),
     #[error("stack underflow")]
     StackUnderflow,
     #[error("stack overflow")]
     StackOverflow,
     #[error("max frame count exceeded")]
     MaxFrameCountExceeded,
-    #[error("no active call frame")]
-    NoActiveCallFrame,
+
+    // Runtime Errors
+    #[error("index {0} out of bounds")]
+    IndexOutOfBounds(usize),
+    #[error("recursive max call depth ({0}) exceeded")]
+    MaxCallDepthExceeded(usize),
     #[error("null reference encountered")]
     NullReference,
     #[error("type mismatch during operation (expected '{0}', found '{1}')")]
     TypeMismatch(String, String),
     #[error("invalid type: {0}")]
     InvalidType(String),
-    #[error("function arity mismatch (expected {0}, found {1})")]
-    ArityMismatch(u8, u8),
+}
+
+impl VmError {
+    pub fn is_critical(&self) -> bool {
+        matches!(
+            self,
+            | VmError::NoEntrypoint
+                | VmError::NoSourceAtIndex(_)
+                | VmError::NoFunctionAtIndex(_)
+                | VmError::NoCallFrameAtIndex(_)
+                | VmError::NoActiveCallFrame
+                | VmError::ArityMismatch(_, _)
+                | VmError::StackUnderflow
+                | VmError::StackOverflow
+                | VmError::MaxFrameCountExceeded
+        )
+    }
 }
 
 pub struct Reporter {
