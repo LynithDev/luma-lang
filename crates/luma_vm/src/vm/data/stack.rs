@@ -6,7 +6,7 @@ use crate::{VmError, VmResult, value::StackValue};
 
 pub struct Stack {
     inner: Box<[Option<StackValue>]>,
-    count: usize,
+    pub count: usize,
 }
 
 impl Stack {
@@ -91,6 +91,14 @@ impl Stack {
 
     pub fn get(&self, index: usize) -> VmResult<&StackValue> {
         if let Some(Some(value)) = self.inner.get(index) {
+            Ok(value)
+        } else {
+            Err(VmError::NullReference)
+        }
+    }
+
+    pub fn get_mut(&mut self, index: usize) -> VmResult<&mut StackValue> {
+        if let Some(Some(value)) = self.inner.get_mut(index) {
             Ok(value)
         } else {
             Err(VmError::NullReference)

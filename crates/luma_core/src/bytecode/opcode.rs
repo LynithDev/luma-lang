@@ -36,6 +36,7 @@ pub enum OpCode {
 
     // literals
     Const(IndexRef),
+    Closure(IndexRef, Option<IndexRef>),
 
     // flow control
     Return,

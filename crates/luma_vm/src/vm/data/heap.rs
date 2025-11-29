@@ -1,8 +1,9 @@
+use std::fmt::Debug;
+
 use luma_core::bytecode::IndexRef;
 
 use crate::{value::HeapValue, VmError, VmResult};
 
-#[derive(Debug)]
 pub struct Heap {
     inner: Vec<HeapValue>,
 }
@@ -53,5 +54,22 @@ impl Heap {
 impl Default for Heap {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Debug for Heap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Heap")
+            .field(
+                "inner",
+                &self
+                    .inner
+                    .iter()
+                    .enumerate()
+                    .collect::<Vec<_>>(),
+            )
+            .field("len", &self.len())
+            .field("capacity", &self.inner.capacity())
+            .finish()
     }
 }

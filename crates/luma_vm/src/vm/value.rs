@@ -25,7 +25,7 @@ pub enum StackValue {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum HeapValue {
     String(Rc<String>),
-    Closure(Rc<Closure>),
+    Closure(*mut Closure),
 }
 
 #[derive(Debug, Clone)]

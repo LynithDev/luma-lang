@@ -1,6 +1,6 @@
 use luma_core::bytecode::chunk::Chunk;
 
-use crate::{frames::{CallFrame, FrameSource}, runtime::{RuntimeContext, RuntimeOptions}, ProgramSource, VmError, VmExitResult, VmResult};
+use crate::{arena::Arena, frames::{CallFrame, FrameSource}, runtime::{RuntimeContext, RuntimeOptions}, ProgramSource, VmError, VmExitResult, VmResult};
 
 use std::{fmt::Debug, hash::Hash, ops::{Deref, DerefMut}, rc::Rc};
 
@@ -16,7 +16,7 @@ pub use data::*;
 pub struct VmHandle(Rc<LumaVM>); // todo: arc + rwlock
 
 pub struct LumaVM {
-    pub(crate) sources: Vec<ProgramSource>,
+    pub(crate) sources: Arena<ProgramSource>,
     pub(crate) ctx: RuntimeContext,
 }
 
@@ -31,7 +31,7 @@ impl LumaVM {
         }
 
         Ok(VmHandle(Rc::new(Self {
-            sources,
+            sources: Arena::from(sources),
             ctx: RuntimeContext::new(options),
         })))
     }
@@ -45,16 +45,15 @@ impl LumaVM {
     }
 
     pub fn run(&mut self) -> VmExitResult {
-        self.init();
 
-        if let Err(err) = self.exec() {
+        if let Err(err) = self.init().and_then(|_| self.exec()) {
             return VmExitResult::from_error(err);
         }
         
         VmExitResult::from_code(0)
     }
 
-    fn init(&mut self) {
+    fn init(&mut self) -> VmResult<()> {
         let chunk_ptr: *mut Chunk = &self.entrypoint().bytecode.top_level as *const _ as *mut _;
 
         let call_frame = CallFrame {
@@ -63,7 +62,9 @@ impl LumaVM {
             base: 0,
         };
 
-        let _ = self.ctx.frames.push(call_frame);
+        self.push_frame(call_frame)?;
+
+        Ok(())
     }
 
     // fn load_source(&mut self, source_index: usize) -> VmResult<()> {
@@ -84,7 +85,15 @@ impl LumaVM {
     // }
 
     pub fn entrypoint(&self) -> &ProgramSource {
-        &self.sources[0]
+        self.sources.get(0).unwrap()
+    }
+
+    pub fn push_frame(&mut self, frame: CallFrame) -> VmResult<()> {
+        self.ctx.stack.count += frame.get_chunk().local_count;
+
+        self.ctx.frames.push(frame)?;
+
+        Ok(())
     }
 }
 

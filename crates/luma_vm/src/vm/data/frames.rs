@@ -55,6 +55,7 @@ impl Frames {
         }
         
         self.inner.push(frame);
+        
         Ok(())
     }
 

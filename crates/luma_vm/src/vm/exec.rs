@@ -1,29 +1,35 @@
 use luma_core::bytecode::prelude::*;
 
 use crate::{
-    frames::{CallFrame, FrameSource, Upvalue}, value::{HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult
+    frames::{CallFrame, FrameSource, Upvalue}, slot_array::SlotArray, value::{Closure, HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult
 };
 
 impl LumaVM {
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
-        while let Ok(frame) = self.ctx.frames.last_mut() {
+        // while let Ok(frame) = self.ctx.frames.last_mut() {
+        loop {
+            let frame_index = self.ctx.frames.len() - 1;
+            let frame = match self.ctx.frames.get_mut(frame_index) {
+                Some(f) => f,
+                None => break, // no more frames to execute
+            };
+            
             let chunk = frame.get_chunk();
             
             if frame.instr_pointer >= chunk.instructions.len() {
                 // reached the end of the chunk (and for whatever reason it didn't exit)
-                dbg!(&self.ctx);
-                self.ctx.frames.pop();
-                continue;
-            }
+                if let Some(frame) = self.ctx.frames.pop() {
+                    self.ctx.stack.truncate_to(frame.base)?;
+                }
 
-            if frame.instr_pointer == 0 {
-                dbg!(&chunk.instructions);
+                dbg!(&self.ctx);
+                break;
             }
 
             let instruction = chunk.instructions[frame.instr_pointer].clone();
 
             let opcode = instruction.opcode;
-            println!("{}x{} exec opcode: {:?}", frame.base, frame.instr_pointer, opcode);
+            println!("{}x{} exec opcode: {:?}", frame_index, frame.instr_pointer, opcode);
 
             frame.instr_pointer += 1;
 
@@ -67,6 +73,7 @@ impl LumaVM {
 
             // literals
             OpCode::Const(index) => self.exec_push_const(index),
+            OpCode::Closure(const_index, local_index) => self.exec_closure(const_index, local_index),
 
             // flow control
             OpCode::Return => self.exec_return(),
@@ -100,8 +107,72 @@ impl LumaVM {
             .ok_or(VmError::NoConstantAtIndex(*const_index))?
             .clone();
 
-        let value = self.materialize_value(value)?;
-        self.ctx.stack.push(value)?;
+        self.alloc_value(value)?;
+
+        Ok(())
+    }
+
+    fn exec_closure(&mut self, const_index: IndexRef, local_index: Option<IndexRef>) -> VmResult<()> {
+        let frame = self.ctx.frames.last()?;
+
+        let chunk = frame.get_chunk();
+        let value = chunk
+            .constants
+            .get(*const_index)
+            .ok_or(VmError::NoConstantAtIndex(*const_index))?
+            .clone();
+
+        let func_index = match value {
+            BytecodeValue::Function(index) => index,
+            _ => return Err(VmError::TypeMismatch("Function".to_string(), format!("{:?}", value))),
+        };
+
+        let func_chunk = self.entrypoint().bytecode.functions.get(*func_index)
+            .ok_or(VmError::NoFunctionAtIndex(*func_index))?;
+        
+        // create our closure object
+        let closure = Closure {
+            upvalues: SlotArray::new(func_chunk.upvalues.len()),
+            function: func_chunk,
+        };
+
+        // pre-alloc our closure
+        let ptr = self.ctx.closures.alloc(closure) as *mut Closure;
+        
+        let index = self.ctx.heap.push(HeapValue::Closure(ptr))?;
+
+        // push our pre-allocated closure onto the stack
+        let value = StackValue::HeapRef(index);
+        if let Some(local_index) = local_index {
+            self.set_local(local_index, Some(value))?;
+            local_index
+        } else {
+            self.ctx.stack.push(value)?
+        };
+        
+        // now initialize upvalues
+        let closure = unsafe { &mut *ptr };
+        let func_chunk = unsafe { &*closure.function };
+
+        for (i, desc) in func_chunk.upvalues.clone().iter().enumerate() {
+            let upvalue = if desc.is_local {
+                // points to a stack slot
+                let value = self.get_local_mut(desc.index)?;
+
+                if let StackValue::HeapRef(_) = value {
+                    Upvalue::Closed(value.clone())
+                } else {
+                    Upvalue::Open(value as *mut StackValue)
+                }
+            } else {
+                // points to an upvalue from the parent closure
+                // let parent_upval = parent_closure.upvalues[parent_index];
+                // parent_upval.clone()
+                todo!("parent closure upvalue capture not implemented")
+            };
+            
+            closure.upvalues.set(i, Some(upvalue))?;
+        }
 
         Ok(())
     }
@@ -109,7 +180,8 @@ impl LumaVM {
     fn exec_set_local(&mut self, local_index: IndexRef) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 
-        self.set_local(local_index, Some(value))?;
+        self.set_local(local_index, Some(value.clone()))?;
+        self.ctx.stack.push(value)?;
 
         Ok(())
     }
@@ -131,8 +203,9 @@ impl LumaVM {
         };
 
         let upvalue = closure.upvalues.try_get(*upvalue_index)?;
+
         let value = match upvalue {
-            Upvalue::Open(ptr) => unsafe { ptr.read() },
+            Upvalue::Open(ptr) => unsafe { (&**ptr).clone() },
             Upvalue::Closed(v) => v.clone(),
         };
 
@@ -152,9 +225,11 @@ impl LumaVM {
 
         let uv = closure.upvalues.try_get_mut(*upvalue_index)?;
         match uv {
-            Upvalue::Open(ptr) => unsafe { ptr.write(value) },
-            Upvalue::Closed(slot) => *slot = value,
+            Upvalue::Open(ptr) => unsafe { ptr.write(value.clone()) },
+            Upvalue::Closed(slot) => *slot = value.clone(),
         }
+
+        self.ctx.stack.push(value)?;
 
         Ok(())
     }
@@ -172,7 +247,7 @@ impl LumaVM {
             return Err(VmError::InvalidType(format!("{:?}", heap_val)))
         };
 
-        let func_chunk = unsafe { &closure.function.read() };
+        let func_chunk = unsafe { &*(&**closure).function };
 
         // check arity
         if *arity != *func_chunk.arity {
@@ -180,7 +255,7 @@ impl LumaVM {
         }
 
         // prepare new call frame
-        let source = FrameSource::Closure(closure as *const _ as *mut _);
+        let source = FrameSource::Closure(*closure as *mut _);
 
         let new_frame = CallFrame {
             source,
@@ -188,7 +263,8 @@ impl LumaVM {
             base: self.ctx.stack.len() - *arity as usize,
         };
 
-        self.ctx.frames.push(new_frame)?;
+        self.push_frame(new_frame)?;
+
         Ok(())
     }
 
@@ -231,6 +307,7 @@ impl LumaVM {
 
     fn exec_pop(&mut self) -> VmResult<()> {
         self.ctx.stack.pop()?;
+
         Ok(())
     }
 

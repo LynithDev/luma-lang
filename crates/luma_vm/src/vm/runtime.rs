@@ -1,4 +1,4 @@
-use crate::{frames::Frames, heap::Heap, stack::Stack};
+use crate::{arena::Arena, frames::Frames, heap::Heap, stack::Stack, value::Closure};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RuntimeOptions {
@@ -9,8 +9,8 @@ pub struct RuntimeOptions {
 impl Default for RuntimeOptions {
     fn default() -> Self {
         Self {
-            max_frames: 128,
-            max_stack_size: 65536,
+            max_frames: u8::MAX as usize,
+            max_stack_size: u16::MAX as usize,
         }
     }
 }
@@ -20,6 +20,7 @@ pub struct RuntimeContext {
     pub frames: Frames,
     pub stack: Stack,
     pub heap: Heap,
+    pub closures: Arena<Closure>,
 }
 
 impl RuntimeContext {
@@ -29,6 +30,7 @@ impl RuntimeContext {
             frames: Frames::new(options.max_frames),
             stack: Stack::new(options.max_stack_size),
             heap: Heap::new(),
+            closures: Arena::new(),
         }
     }
 }

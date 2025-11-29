@@ -1,9 +1,10 @@
-fn bar() {
-
-}
+let i = 0;
 
 fn foo() {
-    foo();
+    if i < 3 {
+        i = i + 1;
+        foo();
+    }
 }
 
 foo();

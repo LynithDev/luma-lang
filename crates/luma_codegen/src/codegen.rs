@@ -248,10 +248,7 @@ impl<'a> ChunkBuilder<'a> {
 
         // push function as constant (for lookup)
         let const_index = self.add_const(BytecodeValue::Function(IndexRef::new(func_index)));
-        self.emit_opcode(OpCode::Const(IndexRef::new(const_index)));
-
-        // store the function in the reserved local slot
-        self.emit_opcode(OpCode::SetLocal(local_index));
+        self.emit_opcode(OpCode::Closure(IndexRef::new(const_index), Some(local_index)));
 
         Ok(())
     }
@@ -272,8 +269,8 @@ impl<'a> ChunkBuilder<'a> {
     pub fn gen_expr_stmt(&mut self, expr: &HirExpression) -> CodegenResult<()> {
         self.gen_expression(expr)?;
 
+        // Pop the result of the expression off the stack
         if expr.ty != TypeKind::Void {
-            // Pop the result of the expression off the stack
             self.emit_opcode(OpCode::Pop);
         }
 

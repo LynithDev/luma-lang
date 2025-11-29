@@ -1,14 +1,12 @@
-use std::rc::Rc;
-
 use luma_core::bytecode::{IndexRef, value::BytecodeValue};
 
 use crate::{
-    slot_array::SlotArray, value::{Closure, HeapValue, StackValue}, LumaVM, VmError, VmResult
+    value::{HeapValue, StackValue}, LumaVM, VmError, VmResult
 };
 
 impl LumaVM {
-    pub(super) fn materialize_value(&mut self, value: BytecodeValue) -> VmResult<StackValue> {
-        Ok(match value {
+    pub(super) fn alloc_value(&mut self, value: BytecodeValue) -> VmResult<IndexRef> {
+        let value = match value {
             // primitives get pushed to stack normally
             BytecodeValue::UInt8(i) => StackValue::UInt8(i),
             BytecodeValue::UInt16(i) => StackValue::UInt16(i),
@@ -27,18 +25,8 @@ impl LumaVM {
                 let index = self.ctx.heap.push(HeapValue::String(s))?;
                 StackValue::HeapRef(index)
             }
-            BytecodeValue::Function(func_index) => {
-                let func_chunk = self.entrypoint().bytecode.functions.get(*func_index)
-                    .ok_or(VmError::NoFunctionAtIndex(*func_index))?;
-
-                let closure = Closure {
-                    upvalues: SlotArray::new(func_chunk.upvalues.len()),
-                    function: func_chunk as *const _,
-                };
-
-                let index = self.ctx.heap.push(HeapValue::Closure(Rc::new(closure)))?;
-
-                StackValue::HeapRef(index)
+            BytecodeValue::Function(_) => {
+                return Err(VmError::InvalidOperation("function allocations should be done with CLOSURE opcode".to_string()))
             }
 
             // todo: implement these
@@ -46,19 +34,27 @@ impl LumaVM {
             BytecodeValue::NativeFunction(_) => {
                 unimplemented!("NativeFunction materialization not implemented")
             }
-        })
+        };
+
+        self.ctx.stack.push(value)
     }
 
-    pub fn set_local(&mut self, index: IndexRef, value: Option<StackValue>) -> VmResult<()> {
+    pub fn set_local(&mut self, index: IndexRef, value: Option<StackValue>) -> VmResult<IndexRef> {
         let frame = self.ctx.frames.last()?;
 
         self.ctx.stack.set(frame.base + *index, value)?;
-        Ok(())
+        Ok(IndexRef::new(frame.base + *index))
     }
 
     pub fn get_local(&self, index: IndexRef) -> VmResult<&StackValue> {
         let frame = self.ctx.frames.last()?;
 
         self.ctx.stack.get(frame.base + *index)
+    }
+
+    pub fn get_local_mut(&mut self, index: IndexRef) -> VmResult<&mut StackValue> {
+        let frame = self.ctx.frames.last()?;
+
+        self.ctx.stack.get_mut(frame.base + *index)
     }
 }
