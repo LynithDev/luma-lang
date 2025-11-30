@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::{Index, Range, RangeFrom}};
+use std::{alloc::Layout, fmt::Debug, ops::{Index, Range, RangeFrom}};
 
 use luma_core::bytecode::IndexRef;
 
@@ -11,20 +11,22 @@ pub struct Stack<T> {
 }
 
 impl<T> Stack<T> {
-    pub fn new(len: usize) -> Self {
+    pub fn new(cap: usize) -> Self {
+        let layout = Layout::array::<T>(cap)
+            .expect("failed to create stack layout");
+
+        let storage = unsafe {
+            let ptr = std::alloc::alloc(layout) as *mut T;
+            if ptr.is_null() {
+                std::alloc::handle_alloc_error(layout);
+            }
+
+            ptr
+        };
+
         Self {
-            storage: unsafe {
-                let layout = std::alloc::Layout::array::<T>(len)
-                    .expect("failed to create stack layout");
-
-                let ptr = std::alloc::alloc_zeroed(layout) as *mut T;
-                if ptr.is_null() {
-                    std::alloc::handle_alloc_error(layout);
-                }
-
-                ptr
-            },
-            cap: len,
+            storage,
+            cap,
             len: 0,
         }
     }
@@ -65,12 +67,12 @@ impl<T> Stack<T> {
             return Err(VmError::StackOverflow);
         }
 
-        self.len = new_len;
         unsafe {
-            for i in new_len..self.cap {
+            for i in new_len..self.len {
                 std::ptr::drop_in_place(self.storage.add(i));
             }
         }
+        self.len = new_len;
 
         Ok(())
     }
@@ -194,7 +196,7 @@ impl<T: Debug> Debug for Stack<T> {
         f.debug_struct(&format!("Stack<{}>", std::any::type_name::<T>()))
             .field(
                 "inner",
-                &self[0..]
+                &self[0..self.len()]
                     .iter()
                     .enumerate()
                     .collect::<Vec<_>>(),

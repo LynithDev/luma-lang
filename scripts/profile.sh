@@ -18,7 +18,16 @@ PROFILE_DIR="$PROJECT_ROOT/scripts/profiles/$PROFILE_NAME"
 
 # make profile directory
 mkdir -p $PROFILE_DIR 2> /dev/null || true
-cp "$BINARY_PATH" "$PROFILE_DIR/"
+
+# should build?
+if [ "$1" == "--build" ]; then
+    shift # remove the first argument
+
+    echo "Building the project in release-profiling profile..."
+    cargo build --profile release-profiling
+
+    cp "$BINARY_PATH" "$PROFILE_DIR/"
+fi
 
 # run samply with the binary
 samply record \

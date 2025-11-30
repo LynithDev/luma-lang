@@ -14,7 +14,7 @@ impl LumaVM {
             };
             
             let chunk = frame.get_chunk();
-            
+
             if frame.instr_pointer >= chunk.instructions.len() {
                 dbg!(&self.ctx.stack);
                 // reached the end of the chunk (and for whatever reason it didn't exit)
@@ -23,12 +23,12 @@ impl LumaVM {
             }
 
             let instruction = chunk.instructions[frame.instr_pointer].clone();
-
+            
             let opcode = instruction.opcode;
             // println!("{}x{} exec opcode: {:?}", frame_index, frame.instr_pointer, opcode);
-
+            
             frame.instr_pointer += 1;
-
+            
             if let Err(err) = self.exec_opcode(opcode) {
                 eprintln!("error at {}: {}", instruction.cursor, err);
                 return Err(err);

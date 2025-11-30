@@ -25,7 +25,6 @@ mkdir -p $CURR_BENCHMARK_DIR 2> /dev/null || true
 # should skip build?
 if [ "$1" == "--build" ]; then
     shift # remove the first argument
-    SKIP_BUILD=1
 
     echo "Building the project in release-speed profile..."
     cargo build --profile release-speed
