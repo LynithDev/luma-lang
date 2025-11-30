@@ -52,11 +52,65 @@ impl LumaParser<'_> {
 
     // MARK: Scope
     fn expr_scope(&mut self) -> DiagnosticResult<Expression> {
-        if self.check(TokenKind::Punctuation(PunctuationKind::LeftBrace)) {
-            return self.consume_scope();
+        if !self.check(TokenKind::Punctuation(PunctuationKind::LeftBrace)) {
+            return self.expr_assignment();
         }
 
-        self.expr_assignment()
+        let (mut span, cursor) = self
+            .consume(TokenKind::Punctuation(PunctuationKind::LeftBrace))?
+            .pos();
+
+        let mut statements: Vec<Statement> = Vec::new();
+
+        let mut value: Option<Box<Expression>> = None;
+        let mut had_return = false;
+
+        while !self.is_at_end() {
+            if let Ok(rbrace) = self.consume(TokenKind::Punctuation(PunctuationKind::RightBrace)) {
+                span = span.merge(&rbrace.span);
+                break;
+            }
+
+            match self.parse_statement(Some(had_return)) {
+                Ok(statement) => {
+                    let kind = statement.kind.clone();
+
+                    let is_implicit_return = self.is_semi_required(&statement)
+                        && self.previous().kind != TokenKind::Punctuation(PunctuationKind::Semicolon);
+
+                    let is_control_flow = matches!(
+                        kind,
+                        StatementKind::Break { .. }
+                            | StatementKind::Continue { .. }
+                            | StatementKind::Return { .. }
+                    );
+
+                    if is_control_flow || is_implicit_return {
+                        had_return = true;
+                    }
+
+                    if is_implicit_return {
+                        if let StatementKind::Expression { inner } = kind {
+                            value = Some(Box::new(inner));
+                        }
+                    } else {
+                        statements.push(statement);
+                    }
+                }
+                Err(err) => {
+                    self.reporter.report(err);
+                }
+            }
+        }
+
+        Ok(Expression {
+            cursor,
+            span,
+            kind: ExpressionKind::Scope { 
+                statements,
+                block_value: value
+            },
+        })
     }
 
     // MARK: Assignment

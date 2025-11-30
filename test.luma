@@ -1,9 +1,18 @@
-fn fib(n: u32): u32 {
+fn explicit(n: u32): u32 {
     if n <= 1 {
         return n;
     } else {
-        return fib(n - 1) + fib(n - 2);
+        return explicit(n - 1) + explicit(n - 2);
     }
 }
 
-fib(25);
+fn implicit(n: u32): u32 {
+    if n <= 1 {
+        n
+    } else {
+        implicit(n - 1) + implicit(n - 2)
+    }
+}
+
+let a = explicit(7);
+let b = implicit(8);

@@ -67,23 +67,6 @@ impl LumaVM {
         Ok(())
     }
 
-    // fn load_source(&mut self, source_index: usize) -> VmResult<()> {
-    //     let source = self.sources.get(source_index)
-    //         .ok_or(VmError::IndexOutOfBounds(source_index))?;
-
-    //     for chunk in source.bytecode.functions.iter() {
-    //         let func_ref = FunctionRef {
-    //             function_index: IndexRef::new(self.ctx.heap.len()),
-    //             source_index: IndexRef::new(source_index),
-    //         };
-
-    //         let heap_value = HeapValue::Function(func_ref);
-    //         let heap_index = self.ctx.heap.push(heap_value)?;
-    //     }
-
-    //     Ok(())
-    // }
-
     pub fn entrypoint(&self) -> &ProgramSource {
         self.sources.get(0).unwrap()
     }
