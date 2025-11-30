@@ -6,7 +6,6 @@ use crate::{
 
 impl LumaVM {
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
-        dbg!(&self.entrypoint().bytecode.functions);
         loop {
             let frame_index = self.ctx.frames.len() - 1;
             let frame = match self.ctx.frames.get_mut(frame_index) {
@@ -26,7 +25,7 @@ impl LumaVM {
             let instruction = chunk.instructions[frame.instr_pointer].clone();
 
             let opcode = instruction.opcode;
-            println!("{}x{} exec opcode: {:?}", frame_index, frame.instr_pointer, opcode);
+            // println!("{}x{} exec opcode: {:?}", frame_index, frame.instr_pointer, opcode);
 
             frame.instr_pointer += 1;
 

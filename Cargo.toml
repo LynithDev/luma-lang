@@ -39,6 +39,12 @@ opt-level = 3
 panic = "abort"
 strip = true
 
+# Fast build for profiling
+[profile.release-profiling]
+inherits = "release"
+debug = true
+strip = false
+
 # Smallest possible binary
 [profile.release-size]
 codegen-units = 1
