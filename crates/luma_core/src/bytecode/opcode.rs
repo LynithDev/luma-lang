@@ -45,6 +45,7 @@ pub enum OpCode {
     JumpIfFalse(IndexRef),
     
     // stack operations
+    Dup,
     GetLocal(IndexRef),
     SetLocal(IndexRef),
     GetUpvalue(IndexRef),

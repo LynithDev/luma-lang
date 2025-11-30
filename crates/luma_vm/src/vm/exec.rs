@@ -79,6 +79,7 @@ impl LumaVM {
             OpCode::JumpIfFalse(index) => self.exec_jump_if_false(index),
 
             // stack operations
+            OpCode::Dup => self.exec_dup(),
             OpCode::GetLocal(index) => self.exec_get_local(index),
             OpCode::SetLocal(index) => self.exec_set_local(index),
             OpCode::GetUpvalue(index) => self.exec_get_upvalue(index),
@@ -174,12 +175,18 @@ impl LumaVM {
         Ok(())
     }
 
+    fn exec_dup(&mut self) -> VmResult<()> {
+        let value = self.ctx.stack.peek().unwrap_or(&StackValue::Unit);
+
+        self.ctx.stack.push(value.clone())?;
+
+        Ok(())
+    }
+
     fn exec_set_local(&mut self, local_index: IndexRef) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 
         self.set_local(local_index, Some(value.clone()))?;
-        self.ctx.stack.push(value)?;
-
 
         Ok(())
     }
@@ -226,8 +233,6 @@ impl LumaVM {
             Upvalue::Open(ptr) => unsafe { ptr.write(value.clone()) },
             Upvalue::Closed(slot) => *slot = value.clone(),
         }
-
-        self.ctx.stack.push(value)?;
 
         Ok(())
     }

@@ -526,18 +526,22 @@ impl<'a> ChunkBuilder<'a> {
     // MARK: Assign
     pub fn gen_assign(&mut self, symbol_id: &SymbolId, value: &HirExpression) -> CodegenResult<()> {
         self.gen_expression(value)?;
-        match self.resolve_symbol(*symbol_id, self.parent_env)? {
+        
+        let set_opcode = match self.resolve_symbol(*symbol_id, self.parent_env)? {
             Some(SymbolResolution::Local(index_ref)) => {
-                self.emit_opcode(OpCode::SetLocal(index_ref));
+                OpCode::SetLocal(index_ref)
             }
             Some(SymbolResolution::Upvalue(index_ref)) => {
-                self.emit_opcode(OpCode::SetUpvalue(index_ref));
+                OpCode::SetUpvalue(index_ref)
             }
             None => {
                 return Err(CodegenDiagnostic::UnableToCaptureUpvalue(*symbol_id));
             }
-        }
+        };
 
+        self.emit_opcode(OpCode::Dup);
+        self.emit_opcode(set_opcode);
+        
         Ok(())
     }
 

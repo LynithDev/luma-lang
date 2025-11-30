@@ -15,4 +15,3 @@ fn implicit(n: u32): u32 {
 }
 
 let a = explicit(7);
-let b = implicit(8);
