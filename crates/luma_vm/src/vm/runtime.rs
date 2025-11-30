@@ -1,4 +1,4 @@
-use crate::{arena::Arena, frames::Frames, heap::Heap, stack::Stack, value::Closure};
+use crate::{arena::Arena, frames::CallFrame, heap::Heap, stack::Stack, value::{Closure, StackValue}};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RuntimeOptions {
@@ -17,8 +17,8 @@ impl Default for RuntimeOptions {
 
 #[derive(Debug)]
 pub struct RuntimeContext {
-    pub frames: Frames,
-    pub stack: Stack,
+    pub frames: Stack<CallFrame>,
+    pub stack: Stack<StackValue>,
     pub heap: Heap,
     pub closures: Arena<Closure>,
 }
@@ -27,7 +27,7 @@ impl RuntimeContext {
     #[allow(clippy::new_without_default)]
     pub fn new(options: RuntimeOptions) -> Self {
         Self {
-            frames: Frames::new(options.max_frames),
+            frames: Stack::new(options.max_frames),
             stack: Stack::new(options.max_stack_size),
             heap: Heap::new(),
             closures: Arena::new(),

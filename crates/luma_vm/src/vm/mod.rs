@@ -82,7 +82,7 @@ impl LumaVM {
     }
 
     pub fn pop_frame(&mut self) -> VmResult<CallFrame> {
-        let frame = self.ctx.frames.pop().ok_or(VmError::NoActiveCallFrame)?;
+        let frame = self.ctx.frames.pop().map_err(|_| VmError::NoActiveCallFrame)?;
         self.ctx.stack.truncate_to(frame.base)?;
 
         Ok(frame)

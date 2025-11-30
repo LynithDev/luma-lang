@@ -9,8 +9,8 @@ impl LumaVM {
         loop {
             let frame_index = self.ctx.frames.len() - 1;
             let frame = match self.ctx.frames.get_mut(frame_index) {
-                Some(f) => f,
-                None => break, // no more frames to execute
+                Ok(f) => f,
+                Err(_) => break, // no more frames to execute
             };
             
             let chunk = frame.get_chunk();
@@ -95,7 +95,7 @@ impl LumaVM {
     }
 
     fn exec_push_const(&mut self, const_index: IndexRef) -> VmResult<()> {
-        let frame = self.ctx.frames.last()?;
+        let frame = self.ctx.frames.try_peek()?;
 
         let chunk = frame.get_chunk();
         let value = chunk
@@ -110,7 +110,7 @@ impl LumaVM {
     }
 
     fn exec_closure(&mut self, const_index: IndexRef, local_index: Option<IndexRef>) -> VmResult<()> {
-        let frame = self.ctx.frames.last()?;
+        let frame = self.ctx.frames.try_peek()?;
 
         let chunk = frame.get_chunk();
         let value = chunk
@@ -141,7 +141,7 @@ impl LumaVM {
         // push our pre-allocated closure onto the stack
         let value = StackValue::HeapRef(index);
         if let Some(local_index) = local_index {
-            self.set_local(local_index, Some(value))?;
+            self.set_local(local_index, value)?;
             local_index
         } else {
             self.ctx.stack.push(value)?
@@ -185,7 +185,7 @@ impl LumaVM {
     fn exec_set_local(&mut self, local_index: IndexRef) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 
-        self.set_local(local_index, Some(value.clone()))?;
+        self.set_local(local_index, value.clone())?;
 
         Ok(())
     }
@@ -199,7 +199,7 @@ impl LumaVM {
     }
 
     fn exec_get_upvalue(&mut self, upvalue_index: IndexRef) -> VmResult<()> {
-        let frame = self.ctx.frames.last()?; // current frame
+        let frame = self.ctx.frames.try_peek()?; // current frame
 
         let closure = match frame.source {
             FrameSource::Closure(closure_ptr) => unsafe { &*closure_ptr },
@@ -221,7 +221,8 @@ impl LumaVM {
     fn exec_set_upvalue(&mut self, upvalue_index: IndexRef) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 
-        let frame = self.ctx.frames.last_mut()?; // current frame
+        let frame = self.ctx.frames.try_peek()?;
+
         let closure = match frame.source {
             FrameSource::Closure(closure_ptr) => unsafe { &mut *closure_ptr },
             _ => return Err(VmError::InvalidOperation("current frame is not a closure".to_string())),
@@ -275,7 +276,7 @@ impl LumaVM {
     }
 
     fn exec_jump(&mut self, index: IndexRef) -> VmResult<()> {
-        let frame = self.ctx.frames.last_mut()?;
+        let frame = self.ctx.frames.try_peek_mut()?;
         frame.instr_pointer = *index;
         Ok(())
     }
@@ -285,7 +286,7 @@ impl LumaVM {
 
         match condition {
             StackValue::Boolean(false) => {
-                let frame = self.ctx.frames.last_mut()?;
+                let frame = self.ctx.frames.try_peek_mut()?;
                 frame.instr_pointer = *index;
             }
             StackValue::Boolean(true) => {

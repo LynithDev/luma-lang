@@ -2,101 +2,113 @@ use std::{fmt::Debug, ops::{Index, Range, RangeFrom}};
 
 use luma_core::bytecode::IndexRef;
 
-use crate::{VmError, VmResult, value::StackValue};
+use crate::{VmError, VmResult};
 
-pub struct Stack {
-    inner: *mut StackValue,
+pub struct Stack<T> {
+    storage: *mut T,
     cap: usize,
-    count: usize,
+    len: usize,
 }
 
-impl Stack {
+impl<T> Stack<T> {
     pub fn new(len: usize) -> Self {
         Self {
-            inner: unsafe {
-                let layout = std::alloc::Layout::array::<StackValue>(len)
+            storage: unsafe {
+                let layout = std::alloc::Layout::array::<T>(len)
                     .expect("failed to create stack layout");
-                let ptr = std::alloc::alloc_zeroed(layout) as *mut StackValue;
+
+                let ptr = std::alloc::alloc_zeroed(layout) as *mut T;
                 if ptr.is_null() {
                     std::alloc::handle_alloc_error(layout);
                 }
+
                 ptr
             },
             cap: len,
-            count: 0,
+            len: 0,
         }
     }
 
-    pub fn push(&mut self, value: StackValue) -> VmResult<IndexRef> {
-        let index = self.count;
+    pub fn push(&mut self, value: T) -> VmResult<IndexRef> {
+        let index = self.len;
         if index >= self.capacity() {
             return Err(VmError::StackOverflow);
         }
 
         unsafe {
-            *self.inner.add(index) = value;
+            *self.storage.add(index) = value;
         }
 
-        self.count += 1;
+        self.len += 1;
         Ok(IndexRef::new(index))
     }
 
-    pub fn pop(&mut self) -> VmResult<StackValue> {
-        if self.count == 0 {
+    pub fn pop(&mut self) -> VmResult<T> {
+        if self.len == 0 {
             return Err(VmError::StackUnderflow);
         }
 
-        self.count -= 1;
+        self.len -= 1;
         unsafe {
-            Ok(std::ptr::read(self.inner.add(self.count)))
+            Ok(std::ptr::read(self.storage.add(self.len)))
         }
     }
 
     pub fn pop_n(&mut self, n: usize) -> VmResult<()> {
-        let new_len = self.count.saturating_sub(n);
+        let new_len = self.len.saturating_sub(n);
         self.truncate_to(new_len)?;
         Ok(())
     }
 
     pub fn truncate_to(&mut self, new_len: usize) -> VmResult<()> {
-        if new_len > self.count {
+        if new_len > self.len {
             return Err(VmError::StackOverflow);
         }
 
-        // while self.count > new_len {
-        //     self.count -= 1;
-        //     self.inner[self.count] = None;
-        // }
-
-        self.count = new_len;
+        self.len = new_len;
         unsafe {
             for i in new_len..self.cap {
-                std::ptr::drop_in_place(self.inner.add(i));
+                std::ptr::drop_in_place(self.storage.add(i));
             }
         }
 
         Ok(())
     }
 
-    pub fn peek(&self) -> Option<&StackValue> {
-        if self.count == 0 {
+    pub fn peek(&self) -> Option<&T> {
+        if self.len == 0 {
             None
         } else {
             unsafe {
-                let index = self.count - 1;
-                Some(&*self.inner.add(index))
+                let index = self.len - 1;
+                Some(&*self.storage.add(index))
             }
         }
     }
 
-    pub fn try_peek(&self) -> VmResult<&StackValue> {
+    pub fn peek_mut(&mut self) -> Option<&mut T> {
+        if self.len == 0 {
+            None
+        } else {
+            unsafe {
+                let index = self.len - 1;
+                Some(&mut *self.storage.add(index))
+            }
+        }
+    }
+
+    pub fn try_peek(&self) -> VmResult<&T> {
         self.peek().ok_or(VmError::StackUnderflow)
+    }
+
+    pub fn try_peek_mut(&mut self) -> VmResult<&mut T> {
+        self.peek_mut().ok_or(VmError::StackUnderflow)
     }
 
     #[must_use]
     #[inline(always)]
     pub fn len(&self) -> usize {
-        self.count
+        self.len
     }
 
     #[must_use]
@@ -113,55 +125,44 @@ impl Stack {
     #[must_use]
     #[inline(always)]
     pub fn total_alloc_size(&self) -> usize {
-        std::mem::size_of::<Stack>() * self.capacity()
+        std::mem::size_of::<Stack<T>>() * self.capacity()
     }
 
-    pub fn get(&self, index: usize) -> VmResult<&StackValue> {
-        // if let Some(Some(value)) = self.inner.get(index) {
-        //     Ok(value)
-        // } else {
-        //     Err(VmError::NullReference)
-        // }
+    pub fn get(&self, index: usize) -> VmResult<&T> {
         if index >= self.capacity() {
             return Err(VmError::IndexOutOfBounds(index));
         }
 
         unsafe {
-            Ok(&*self.inner.add(index))
+            Ok(&*self.storage.add(index))
         }
     }
 
-    pub fn get_mut(&mut self, index: usize) -> VmResult<&mut StackValue> {
-        // if let Some(Some(value)) = self.inner.get_mut(index) {
-        //     Ok(value)
-        // } else {
-        //     Err(VmError::NullReference)
-        // }
+    pub fn get_mut(&mut self, index: usize) -> VmResult<&mut T> {
         if index >= self.capacity() {
             return Err(VmError::IndexOutOfBounds(index));
         }
 
         unsafe {
-            Ok(&mut *self.inner.add(index))
+            Ok(&mut *self.storage.add(index))
         }
     }
 
-    pub fn set(&mut self, index: usize, value: Option<StackValue>) -> VmResult<()> {
+    pub fn set(&mut self, index: usize, value: T) -> VmResult<()> {
         if index >= self.capacity() {
             return Err(VmError::IndexOutOfBounds(index));
         }
 
-        // self.inner[index] = value;
         unsafe {
-            std::ptr::write(self.inner.add(index), value.unwrap());
+            std::ptr::write(self.storage.add(index), value);
         }
 
         Ok(())
     }
 }
 
-impl Index<usize> for Stack {
-    type Output = StackValue;
+impl<T> Index<usize> for Stack<T> {
+    type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index)
@@ -170,27 +171,27 @@ impl Index<usize> for Stack {
     }
 }
 
-impl Index<Range<usize>> for Stack {
-    type Output = [StackValue];
+impl<T> Index<Range<usize>> for Stack<T> {
+    type Output = [T];
 
     fn index(&self, range: Range<usize>) -> &Self::Output {
         unsafe {
-            std::slice::from_raw_parts(self.inner.add(range.start), range.end - range.start)
+            std::slice::from_raw_parts(self.storage.add(range.start), range.end - range.start)
         }
     }
 }
 
-impl Index<RangeFrom<usize>> for Stack {
-    type Output = [StackValue];
+impl<T> Index<RangeFrom<usize>> for Stack<T> {
+    type Output = [T];
 
     fn index(&self, range: RangeFrom<usize>) -> &Self::Output {
-        &self[range.start..self.count]
+        &self[range.start..self.len]
     }
 }
 
-impl Debug for Stack {
+impl<T: Debug> Debug for Stack<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Stack")
+        f.debug_struct(&format!("Stack<{}>", std::any::type_name::<T>()))
             .field(
                 "inner",
                 &self[0..]
@@ -204,167 +205,3 @@ impl Debug for Stack {
             .finish()
     }
 }
-
-// use std::{fmt::Debug, ops::{Index, Range, RangeFrom}};
-
-// use luma_core::bytecode::IndexRef;
-
-// use crate::{VmError, VmResult, value::StackValue};
-
-// pub struct Stack {
-//     inner: Box<[Option<StackValue>]>,
-//     pub count: usize,
-// }
-
-// impl Stack {
-//     pub fn new(len: usize) -> Self {
-//         Self {
-//             inner: vec![None; len].into_boxed_slice(),
-//             count: 0,
-//         }
-//     }
-
-//     pub fn push(&mut self, value: StackValue) -> VmResult<IndexRef> {
-//         let index = self.count;
-//         if index >= self.capacity() {
-//             return Err(VmError::StackOverflow);
-//         }
-
-//         self.inner[self.count] = Some(value);
-//         self.count += 1;
-
-//         Ok(IndexRef::new(index))
-//     }
-
-//     pub fn pop(&mut self) -> VmResult<StackValue> {
-//         if self.count == 0 {
-//             return Err(VmError::StackUnderflow);
-//         }
-
-//         self.count -= 1;
-//         self.inner[self.count].take().ok_or(VmError::NullReference)
-//     }
-
-//     pub fn pop_n(&mut self, n: usize) -> VmResult<()> {
-//         let new_len = self.count.saturating_sub(n);
-//         self.truncate_to(new_len)?;
-//         Ok(())
-//     }
-
-//     pub fn truncate_to(&mut self, new_len: usize) -> VmResult<()> {
-//         if new_len > self.count {
-//             return Err(VmError::StackOverflow);
-//         }
-
-//         while self.count > new_len {
-//             self.count -= 1;
-//             self.inner[self.count] = None;
-//         }
-
-//         Ok(())
-//     }
-
-//     pub fn peek(&self) -> Option<&StackValue> {
-//         if self.count == 0 {
-//             None
-//         } else {
-//             self.inner[self.count - 1].as_ref()
-//         }
-//     }
-
-//     pub fn try_peek(&self) -> VmResult<&StackValue> {
-//         self.peek().ok_or(VmError::StackUnderflow)
-//     }
-
-//     #[must_use]
-//     pub fn len(&self) -> usize {
-//         self.count
-//     }
-
-//     #[must_use]
-//     pub fn is_empty(&self) -> bool {
-//         self.len() == 0
-//     }
-
-//     #[must_use]
-//     pub fn capacity(&self) -> usize {
-//         self.inner.len()
-//     }
-
-//     #[must_use]
-//     pub fn total_alloc_size(&self) -> usize {
-//         std::mem::size_of::<Stack>() * self.capacity()
-//     }
-
-//     pub fn get(&self, index: usize) -> VmResult<&StackValue> {
-//         if let Some(Some(value)) = self.inner.get(index) {
-//             Ok(value)
-//         } else {
-//             Err(VmError::NullReference)
-//         }
-//     }
-
-//     pub fn get_mut(&mut self, index: usize) -> VmResult<&mut StackValue> {
-//         if let Some(Some(value)) = self.inner.get_mut(index) {
-//             Ok(value)
-//         } else {
-//             Err(VmError::NullReference)
-//         }
-//     }
-
-//     pub fn set(&mut self, index: usize, value: Option<StackValue>) -> VmResult<()> {
-//         if index >= self.capacity() {
-//             return Err(VmError::IndexOutOfBounds(index));
-//         }
-
-//         self.inner[index] = value;
-//         Ok(())
-//     }
-// }
-
-// impl Index<usize> for Stack {
-//     type Output = StackValue;
-
-//     fn index(&self, index: usize) -> &Self::Output {
-//         self.inner[index]
-//             .as_ref()
-//             .expect("attempted to index null stack value")
-//     }
-// }
-
-// impl Index<Range<usize>> for Stack {
-//     type Output = [Option<StackValue>];
-
-//     fn index(&self, range: Range<usize>) -> &Self::Output {
-//         &self.inner[range]
-//     }
-// }
-
-// impl Index<RangeFrom<usize>> for Stack {
-//     type Output = [Option<StackValue>];
-
-//     fn index(&self, range: RangeFrom<usize>) -> &Self::Output {
-//         &self.inner[range.start..self.count]
-//     }
-// }
-
-// impl Debug for Stack {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         f.debug_struct("Stack")
-//             .field(
-//                 "inner",
-//                 &self
-//                     .inner
-//                     .iter()
-//                     .enumerate()
-//                     .filter_map(|(index, item)| {
-//                         Some((index, item.as_ref()?))
-//                     })
-//                     .collect::<Vec<_>>(),
-//             )
-//             .field("len", &self.len())
-//             .field("capacity", &self.inner.len())
-//             .field("allocated", &self.total_alloc_size())
-//             .finish()
-//     }
-// }

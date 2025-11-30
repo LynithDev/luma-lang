@@ -40,21 +40,21 @@ impl LumaVM {
         self.ctx.stack.push(value)
     }
 
-    pub fn set_local(&mut self, index: IndexRef, value: Option<StackValue>) -> VmResult<IndexRef> {
-        let frame = self.ctx.frames.last()?;
+    pub fn set_local(&mut self, index: IndexRef, value: StackValue) -> VmResult<IndexRef> {
+        let frame = self.ctx.frames.try_peek()?;
 
         self.ctx.stack.set(frame.base + *index, value)?;
         Ok(IndexRef::new(frame.base + *index))
     }
 
     pub fn get_local(&self, index: IndexRef) -> VmResult<&StackValue> {
-        let frame = self.ctx.frames.last()?;
+        let frame = self.ctx.frames.try_peek()?;
 
         self.ctx.stack.get(frame.base + *index)
     }
 
     pub fn get_local_mut(&mut self, index: IndexRef) -> VmResult<&mut StackValue> {
-        let frame = self.ctx.frames.last()?;
+        let frame = self.ctx.frames.try_peek()?;
 
         self.ctx.stack.get_mut(frame.base + *index)
     }
