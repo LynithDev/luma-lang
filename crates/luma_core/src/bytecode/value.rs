@@ -19,6 +19,7 @@ pub enum BytecodeValue {
     Option(Rc<Option<BytecodeValue>>),
     Function(IndexRef),
     NativeFunction(*const u8),
+    Unit,
 }
 
 impl Display for BytecodeValue {
@@ -42,6 +43,7 @@ impl Display for BytecodeValue {
             },
             BytecodeValue::Function(index) => write!(f, "<Fn@{}>", index),
             BytecodeValue::NativeFunction(ptr) => write!(f, "<NFn@{:p}>", ptr),
+            BytecodeValue::Unit => write!(f, "()"),
         }
     }
 }

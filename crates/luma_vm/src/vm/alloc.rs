@@ -19,6 +19,7 @@ impl LumaVM {
             BytecodeValue::Float32(f) => StackValue::Float32(f),
             BytecodeValue::Float64(f) => StackValue::Float64(f),
             BytecodeValue::Boolean(b) => StackValue::Boolean(b),
+            BytecodeValue::Unit => StackValue::Unit,
 
             // heap-stored values get pushed to heap and return [`StackValue::HeapRef`]
             BytecodeValue::String(s) => {

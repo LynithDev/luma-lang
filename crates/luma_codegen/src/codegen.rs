@@ -210,6 +210,7 @@ impl<'a> ChunkBuilder<'a> {
             HirStatementKind::VarDecl(decl) => self.gen_var_decl(decl),
             HirStatementKind::Expression { inner } => self.gen_expr_stmt(inner),
             HirStatementKind::FuncDecl(decl) => self.gen_func_decl(decl),
+            HirStatementKind::Return { value } => self.gen_return_stmt(value),
 
             _ => todo!(
                 "statement kind '{}' not implemented",
@@ -228,6 +229,10 @@ impl<'a> ChunkBuilder<'a> {
             ChunkBuilder::with_outer(&mut chunk, self.functions_chunk, Some(&self.env));
 
         if let Some(body) = &decl.body {
+            for param in &decl.parameters {
+                builder.add_local(param.symbol_id);
+            }
+
             builder.gen_expression(body)?;
             builder.emit_opcode(OpCode::Return);
         } else {
@@ -261,6 +266,20 @@ impl<'a> ChunkBuilder<'a> {
 
         let local_index = self.add_local(decl.symbol_id);
         self.emit_opcode(OpCode::SetLocal(local_index));
+
+        Ok(())
+    }
+
+    // MARK: Return Stmt
+    pub fn gen_return_stmt(&mut self, value: &Option<Box<HirExpression>>) -> CodegenResult<()> {
+        if let Some(value) = value {
+            self.gen_expression(value)?;
+        } else {
+            let idx = self.add_const(BytecodeValue::Unit);
+            self.emit_opcode(OpCode::Const(IndexRef::new(idx)));
+        }
+
+        self.emit_opcode(OpCode::Return);
 
         Ok(())
     }

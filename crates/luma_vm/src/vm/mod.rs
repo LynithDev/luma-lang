@@ -62,7 +62,7 @@ impl LumaVM {
             base: 0,
         };
 
-        self.push_frame(call_frame)?;
+        self.push_frame(call_frame, None)?;
 
         Ok(())
     }
@@ -88,12 +88,21 @@ impl LumaVM {
         self.sources.get(0).unwrap()
     }
 
-    pub fn push_frame(&mut self, frame: CallFrame) -> VmResult<()> {
-        self.ctx.stack.count += frame.get_chunk().local_count;
+    pub fn push_frame(&mut self, frame: CallFrame, reserve_amount: Option<usize>) -> VmResult<()> {
+        for _ in 0..reserve_amount.unwrap_or(frame.get_chunk().local_count) {
+            self.ctx.stack.push(value::StackValue::Unit)?;
+        }
 
         self.ctx.frames.push(frame)?;
 
         Ok(())
+    }
+
+    pub fn pop_frame(&mut self) -> VmResult<CallFrame> {
+        let frame = self.ctx.frames.pop().ok_or(VmError::NoActiveCallFrame)?;
+        self.ctx.stack.truncate_to(frame.base)?;
+
+        Ok(frame)
     }
 }
 

@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::{Index, Range, RangeFrom}};
 
 use luma_core::bytecode::IndexRef;
 
@@ -112,6 +112,32 @@ impl Stack {
 
         self.inner[index] = value;
         Ok(())
+    }
+}
+
+impl Index<usize> for Stack {
+    type Output = StackValue;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.inner[index]
+            .as_ref()
+            .expect("attempted to index null stack value")
+    }
+}
+
+impl Index<Range<usize>> for Stack {
+    type Output = [Option<StackValue>];
+
+    fn index(&self, range: Range<usize>) -> &Self::Output {
+        &self.inner[range]
+    }
+}
+
+impl Index<RangeFrom<usize>> for Stack {
+    type Output = [Option<StackValue>];
+
+    fn index(&self, range: RangeFrom<usize>) -> &Self::Output {
+        &self.inner[range.start..self.count]
     }
 }
 

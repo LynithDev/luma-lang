@@ -6,7 +6,6 @@ use crate::{
 
 impl LumaVM {
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
-        // while let Ok(frame) = self.ctx.frames.last_mut() {
         loop {
             let frame_index = self.ctx.frames.len() - 1;
             let frame = match self.ctx.frames.get_mut(frame_index) {
@@ -17,19 +16,18 @@ impl LumaVM {
             let chunk = frame.get_chunk();
             
             if frame.instr_pointer >= chunk.instructions.len() {
+                dbg!(&self.ctx.stack);
                 // reached the end of the chunk (and for whatever reason it didn't exit)
-                if let Some(frame) = self.ctx.frames.pop() {
-                    self.ctx.stack.truncate_to(frame.base)?;
-                }
+                self.pop_frame()?;
 
-                dbg!(&self.ctx);
+
                 break;
             }
 
             let instruction = chunk.instructions[frame.instr_pointer].clone();
 
             let opcode = instruction.opcode;
-            println!("{}x{} exec opcode: {:?}", frame_index, frame.instr_pointer, opcode);
+            // println!("{}x{} exec opcode: {:?}", frame_index, frame.instr_pointer, opcode);
 
             frame.instr_pointer += 1;
 
@@ -183,6 +181,7 @@ impl LumaVM {
         self.set_local(local_index, Some(value.clone()))?;
         self.ctx.stack.push(value)?;
 
+
         Ok(())
     }
 
@@ -263,7 +262,11 @@ impl LumaVM {
             base: self.ctx.stack.len() - *arity as usize,
         };
 
-        self.push_frame(new_frame)?;
+        let reserve_amount = func_chunk.chunk.local_count - *arity as usize;
+
+        // println!("\ncalling function {:?} with arity {}", func_chunk.name, arity);
+        // println!("{:#?}", &self.ctx.stack[new_frame.base..]);
+        self.push_frame(new_frame, Some(reserve_amount))?;
 
         Ok(())
     }
@@ -299,7 +302,7 @@ impl LumaVM {
     fn exec_return(&mut self) -> VmResult<()> {
         let return_value = self.ctx.stack.pop().unwrap_or(StackValue::Unit);
 
-        self.ctx.frames.pop();
+        self.pop_frame()?;
         self.ctx.stack.push(return_value)?;
 
         Ok(())
@@ -321,6 +324,7 @@ macro_rules! impl_bin_op {
         fn $name(&mut self) -> VmResult<()> {
             let right = self.ctx.stack.pop()?;
             let left = self.ctx.stack.pop()?;
+
 
             use std::ops::*;
             let value = (left.$fn_name(right))?;

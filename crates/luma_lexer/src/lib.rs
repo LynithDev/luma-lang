@@ -329,7 +329,7 @@ impl<'a> LumaLexer<'a> {
         Token {
             kind,
             cursor: Cursor {
-                column: self.column - lexeme.len(),
+                column: self.column.saturating_sub(lexeme.len()),
                 line: self.line,
             },
             span: Span {

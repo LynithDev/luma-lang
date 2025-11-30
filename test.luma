@@ -1,11 +1,9 @@
-let i = 0;
-
-fn foo() {
-    if i < 3 {
-        i = i + 1;
-        foo();
+fn fib(n: u32): u32 {
+    if n <= 1 {
+        return n;
+    } else {
+        return fib(n - 1) + fib(n - 2);
     }
 }
 
-foo();
-
+fib(25);
