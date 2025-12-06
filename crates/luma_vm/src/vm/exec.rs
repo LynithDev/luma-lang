@@ -5,7 +5,10 @@ use crate::{
 };
 
 impl LumaVM {
+    // MARK: Exec
     pub(super) fn exec(&mut self) -> VmResult<VmExitCode> {
+        dbg!(&self.entrypoint().bytecode);
+
         loop {
             let frame_index = self.ctx.frames.len() - 1;
             let frame = match self.ctx.frames.get_mut(frame_index) {
@@ -25,7 +28,8 @@ impl LumaVM {
             let instruction = chunk.instructions[frame.instr_pointer].clone();
             
             let opcode = instruction.opcode;
-            // println!("{}x{} exec opcode: {:?}", frame_index, frame.instr_pointer, opcode);
+            #[cfg(debug_assertions)]
+            println!("{}{:04}. {:?}", "     ".repeat(frame_index), frame.instr_pointer, opcode);
             
             frame.instr_pointer += 1;
             
@@ -38,6 +42,7 @@ impl LumaVM {
         Ok(0)
     }
 
+    // MARK: Opcode
     pub(super) fn exec_opcode(&mut self, opcode: OpCode) -> VmResult<()> {
         match opcode {
             // binary operators
@@ -73,6 +78,7 @@ impl LumaVM {
 
             // flow control
             OpCode::Return => self.exec_return(),
+            OpCode::ReturnUnit => self.exec_return_unit(),
             OpCode::Call(arity) => self.exec_call(arity),
             OpCode::Jump(index) => self.exec_jump(index),
             OpCode::JumpIfFalse(index) => self.exec_jump_if_false(index),
@@ -84,7 +90,7 @@ impl LumaVM {
             OpCode::GetUpvalue(index) => self.exec_get_upvalue(index),
             OpCode::SetUpvalue(index) => self.exec_set_upvalue(index),
             OpCode::Pop => self.exec_pop(),
-            OpCode::PopLocals(amount) => self.exec_pop_n(amount),
+            OpCode::PopMul(amount) => self.exec_pop_n(amount),
 
             _ => {
                 println!("unimplemented opcode {:?}", &opcode);
@@ -94,6 +100,7 @@ impl LumaVM {
         }
     }
 
+    // MARK: Push Const
     fn exec_push_const(&mut self, const_index: IndexRef) -> VmResult<()> {
         let frame = self.ctx.frames.try_peek()?;
 
@@ -174,6 +181,7 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Dup
     fn exec_dup(&mut self) -> VmResult<()> {
         let value = self.ctx.stack.peek().unwrap_or(&StackValue::Unit);
 
@@ -182,6 +190,7 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Set Local
     fn exec_set_local(&mut self, local_index: IndexRef) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 
@@ -190,14 +199,16 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Get Local
     fn exec_get_local(&mut self, local_index: IndexRef) -> VmResult<()> {
         let value = self.get_local(local_index)?.clone();
-
+        
         self.ctx.stack.push(value)?;
 
         Ok(())
     }
 
+    // MARK: Get Upvalue
     fn exec_get_upvalue(&mut self, upvalue_index: IndexRef) -> VmResult<()> {
         let frame = self.ctx.frames.try_peek()?; // current frame
 
@@ -218,6 +229,7 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Set Upvalue
     fn exec_set_upvalue(&mut self, upvalue_index: IndexRef) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 
@@ -237,6 +249,7 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Call
     fn exec_call(&mut self, arity: ArityRef) -> VmResult<()> {
         // attempt to get the function value from the stack (well heap)
         let value = self.ctx.stack.pop()?;
@@ -275,12 +288,14 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Jump
     fn exec_jump(&mut self, index: IndexRef) -> VmResult<()> {
         let frame = self.ctx.frames.try_peek_mut()?;
         frame.instr_pointer = *index;
         Ok(())
     }
 
+    // MARK: Jump If False
     fn exec_jump_if_false(&mut self, index: IndexRef) -> VmResult<()> {
         let condition = self.ctx.stack.pop()?;
 
@@ -303,8 +318,9 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Return
     fn exec_return(&mut self) -> VmResult<()> {
-        let return_value = self.ctx.stack.pop().unwrap_or(StackValue::Unit);
+        let return_value = self.ctx.stack.pop()?;
 
         self.pop_frame()?;
         self.ctx.stack.push(return_value)?;
@@ -312,24 +328,34 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Return Unit
+    fn exec_return_unit(&mut self) -> VmResult<()> {
+        self.pop_frame()?;
+
+        Ok(())
+    }
+
+    // MARK: Pop
     fn exec_pop(&mut self) -> VmResult<()> {
         self.ctx.stack.pop()?;
 
         Ok(())
     }
 
+    // MARK: Pop N
     fn exec_pop_n(&mut self, n: usize) -> VmResult<()> {
         self.ctx.stack.pop_n(n)
     }
 }
 
+// MARK: Bin Op
 macro_rules! impl_bin_op {
     ($name:ident, $fn_name:ident) => {
         fn $name(&mut self) -> VmResult<()> {
             let right = self.ctx.stack.pop()?;
             let left = self.ctx.stack.pop()?;
 
-
+            
             use std::ops::*;
             let value = (left.$fn_name(right))?;
 
@@ -340,6 +366,7 @@ macro_rules! impl_bin_op {
     };
 }
 
+// MARK: Cmp Op
 macro_rules! impl_cmp_op {
     ($name:ident, $fn_name:ident) => {
         fn $name(&mut self) -> VmResult<()> {
@@ -358,6 +385,7 @@ macro_rules! impl_cmp_op {
 
 #[allow(unused)]
 impl LumaVM {
+    // MARK: Bin Ops Impl
     impl_bin_op!(exec_add, add);
     impl_bin_op!(exec_sub, sub);
     impl_bin_op!(exec_mul, mul);
@@ -369,6 +397,7 @@ impl LumaVM {
     impl_bin_op!(exec_shift_left, shl);
     impl_bin_op!(exec_shift_right, shr);
 
+    // MARK: Cmp Ops Impl
     impl_cmp_op!(exec_greater_equal, ge);
     impl_cmp_op!(exec_greater, gt);
     impl_cmp_op!(exec_lesser_equal, le);
@@ -376,6 +405,7 @@ impl LumaVM {
     impl_cmp_op!(exec_equal, eq);
     impl_cmp_op!(exec_not_equal, ne);
 
+    // MARK: Not
     fn exec_not(&mut self) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 
@@ -391,6 +421,7 @@ impl LumaVM {
         }
     }
 
+    // MARK: Negate
     fn exec_negate(&mut self) -> VmResult<()> {
         let value = self.ctx.stack.pop()?;
 

@@ -196,10 +196,12 @@ impl<'a> ChunkBuilder<'a> {
         IndexRef::new(idx)
     }
 
-    // MARK: Patch Instruction
-    /// updates an instruction at the given index with a new opcode
-    pub fn patch_instr(&mut self, index: IndexRef, opcode: OpCode) {
-        self.chunk.instructions[*index] = Instruction::new(opcode, self.curr_cursor);
+    // MARK: Patch Opcode
+    /// patches an opcode at the given index
+    pub fn patch_opcode(&mut self, index: IndexRef, opcode: OpCode) {
+        if let Some(instruction) = self.chunk.instructions.get_mut(*index) {
+            instruction.opcode = opcode;
+        }
     }
 
     // MARK: -- Statement --
@@ -234,7 +236,6 @@ impl<'a> ChunkBuilder<'a> {
             }
 
             builder.gen_expression(body)?;
-            builder.emit_opcode(OpCode::Return);
         } else {
             todo!("impl interface / abstract function");
         }
@@ -274,12 +275,11 @@ impl<'a> ChunkBuilder<'a> {
     pub fn gen_return_stmt(&mut self, value: &Option<Box<HirExpression>>) -> CodegenResult<()> {
         if let Some(value) = value {
             self.gen_expression(value)?;
+            self.emit_opcode(OpCode::Return);
         } else {
-            let idx = self.add_const(BytecodeValue::Unit);
-            self.emit_opcode(OpCode::Const(IndexRef::new(idx)));
+            self.emit_opcode(OpCode::ReturnUnit);
         }
 
-        self.emit_opcode(OpCode::Return);
 
         Ok(())
     }
@@ -380,52 +380,54 @@ impl<'a> ChunkBuilder<'a> {
         branches: &[HirConditionalBranch],
         else_expr: &Option<Box<HirExpression>>,
     ) -> CodegenResult<()> {
-        let mut jump_placeholders: Vec<IndexRef> = Vec::new();
+        let mut jump_instructions: Vec<IndexRef> = Vec::new();
+        let mut branch_positions: Vec<usize> = Vec::new();
 
         // main condition
         self.gen_expression(&main_expr.condition)?;
-
-        // jump to end if main condition is false
-        jump_placeholders.push(self.emit_opcode(OpCode::JumpIfFalse(IndexRef::new(0))));
-
-        // main body
+        jump_instructions.push(self.emit_opcode(OpCode::JumpIfFalse(IndexRef::new(0))));
+        
         self.gen_expression(&main_expr.body)?;
 
-        // // branches
-        // for branch in branches {
-        //     self.gen_expression(&branch.condition)?;
+        // branch conditions
 
-        //     let jump_placeholder = self.emit_opcode(OpCode::JumpIfFalse(IndexRef::new(0))); // placeholder
+        macro_rules! branch_start {
+            ($self:ident) => {
+                let emit_jump = self.chunk.instructions.last().is_some_and(|instr| {
+                    !instr.opcode.is_return()
+                });
 
-        //     self.gen_expression(&branch.body)?;
-        // }
+                if emit_jump {
+                    let instr_index = self.emit_opcode(OpCode::Jump(IndexRef::new(0)));
+                    jump_instructions.push(instr_index);
+                }
+
+                branch_positions.push($self.chunk.instructions.len());
+            };
+        }
 
         // else branch
         if let Some(else_expr) = else_expr {
-            jump_placeholders.push(self.emit_opcode(OpCode::Jump(IndexRef::new(0))));
+            branch_start!(self);
 
             self.gen_expression(else_expr)?;
         }
 
         // patch jumps
-        for (i, placeholder) in jump_placeholders.iter().enumerate() {
-            let placeholder = *placeholder;
-            let instr = &self.chunk.instructions[*placeholder];
-
+        let len = self.chunk.instructions.len();
+        for (index, jump_target) in jump_instructions.iter().enumerate() {
+            let instr = self.chunk.instructions.get_mut(**jump_target).unwrap();
+            
             match instr.opcode {
-                OpCode::Jump(_) => {
-                    self.patch_instr(placeholder, OpCode::Jump(IndexRef::new(self.chunk.instructions.len())));
-                },
                 OpCode::JumpIfFalse(_) => {
-                    let next_instr_index = if i + 1 < jump_placeholders.len() {
-                        *jump_placeholders[i + 1] + 1 // skip jump instruction
-                    } else {
-                        self.chunk.instructions.len() // to end
-                    };
-
-                    self.patch_instr(placeholder, OpCode::JumpIfFalse(IndexRef::new(next_instr_index)));
-                }
-                _ => (),
+                    let target_pos = branch_positions.get(index).cloned().unwrap_or(len);
+                    instr.opcode = OpCode::JumpIfFalse(IndexRef::new(target_pos));
+                },
+                OpCode::Jump(_) => {
+                    let target_pos = len - 1;
+                    instr.opcode = OpCode::Jump(IndexRef::new(target_pos));
+                },
+                _ => unreachable!(),
             }
         }
 
@@ -583,7 +585,7 @@ impl<'a> ChunkBuilder<'a> {
         }
 
         if locals > 0 {
-            self.emit_opcode(OpCode::PopLocals(locals));
+            self.emit_opcode(OpCode::PopMul(locals));
         }
 
         Ok(())

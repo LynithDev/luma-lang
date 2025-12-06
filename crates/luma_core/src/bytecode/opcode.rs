@@ -7,7 +7,10 @@ use crate::{bytecode::{ArityRef, IndexRef}, Cursor};
 #[derive(Display, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum OpCode {
-    // binary operators
+    // ##########################
+    // ###  binary operators  ###
+    // ##########################
+    
     Add,
     Sub,
     Mul,
@@ -19,7 +22,10 @@ pub enum OpCode {
     ShiftLeft,
     ShiftRight,
 
-    // comparison operators
+    // ##############################
+    // ###  comparison operators  ###
+    // ##############################
+
     Equal,
     GreaterThan,
     LesserThan,
@@ -27,31 +33,87 @@ pub enum OpCode {
     LesserThanEqual,
     NotEqual,
     
-    // logical operators
+    // ###########################
+    // ###  logical operators  ###
+    // ###########################
+
     And,
     Or,
     Negate,
     Not,
     BitNot,
 
-    // literals
+    // ###########################
+    // ###  values / literals  ###
+    // ###########################
+
+    /// load constant from constant pool
     Const(IndexRef),
+
+    /// create a closure from a function in the constant pool
     Closure(IndexRef, Option<IndexRef>),
 
-    // flow control
+    // ######################
+    // ###  flow control  ###
+    // ######################
+
+    /// for returning a value from a function
     Return,
+    
+    /// for returning from a function with no return value
+    ReturnUnit,
+    
+    /// for calling a function
     Call(ArityRef),
+
+    /// goto instruction pointer
     Jump(IndexRef),
+
+    /// jump if top of stack is false
     JumpIfFalse(IndexRef),
     
-    // stack operations
+    // ##########################
+    // ###  stack operations  ###
+    // ##########################
+
+    /// duplicate top of stack
     Dup,
+
+    /// get local variable
     GetLocal(IndexRef),
+
+    /// set local variable
     SetLocal(IndexRef),
+
+    /// get upvalue
     GetUpvalue(IndexRef),
+
+    /// set upvalue
     SetUpvalue(IndexRef),
+
+    /// remove top of stack
     Pop,
-    PopLocals(usize),
+
+    /// remove N slots from stack
+    PopMul(usize),
+}
+
+impl OpCode {
+    #[inline(always)]
+    pub fn is_return(&self) -> bool {
+        matches!(self,
+            OpCode::Return |
+            OpCode::ReturnUnit
+        )
+    }
+
+    #[inline(always)]
+    pub fn is_jump(&self) -> bool {
+        matches!(self,
+            OpCode::Jump(_) |
+            OpCode::JumpIfFalse(_)
+        )
+    }
 }
 
 #[derive(Clone, PartialEq)]

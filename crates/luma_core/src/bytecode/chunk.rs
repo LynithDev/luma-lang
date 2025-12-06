@@ -1,6 +1,8 @@
+use std::fmt::Debug;
+
 use crate::bytecode::{opcode::Instruction, value::BytecodeValue, ArityRef, IndexRef};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Clone)]
 pub struct Chunk {
     pub instructions: Vec<Instruction>,
     pub constants: Vec<BytecodeValue>,
@@ -39,4 +41,42 @@ pub struct FunctionChunk {
 pub struct UpvalueDescriptor {
     pub is_local: bool,   // true = capture parent local
     pub index: IndexRef,       // slot in locals or upvalues of parent
+}
+
+impl Debug for Chunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut dbg = f.debug_struct("Chunk");
+
+        dbg.field("instructions", &{
+            struct Instrs<'a>(&'a [Instruction]);
+
+            impl Debug for Instrs<'_> {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    let mut list = f.debug_list();
+
+                    for (i, instr) in self.0.iter().enumerate() {
+                        struct Line<'a> {
+                            i: usize,
+                            instr: &'a Instruction,
+                        }
+
+                        impl Debug for Line<'_> {
+                            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                                write!(f, "{:04}. {:?}", self.i, self.instr)
+                            }
+                        }
+
+                        list.entry(&Line { i, instr });
+                    }
+
+                    list.finish()
+                }
+            }
+            Instrs(&self.instructions)
+        });
+
+        dbg.field("constants", &self.constants);
+        dbg.field("local_count", &self.local_count);
+        dbg.finish()
+    }
 }
