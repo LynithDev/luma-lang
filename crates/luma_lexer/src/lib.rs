@@ -106,6 +106,9 @@ impl<'a> LumaLexer<'a> {
                 if self.eat_if('/') {
                     self.comment();
                     return Ok(None);
+                } else if self.eat_if('*') {
+                    self.multi_line_comment();
+                    return Ok(None);
                 } else if self.eat_if('=') {
                     TokenKind::Operator(OperatorKind::SlashEquals)
                 } else {
@@ -286,6 +289,7 @@ impl<'a> LumaLexer<'a> {
                     'n' => '\n',
                     't' => '\t',
                     'r' => '\r',
+                    '0' => '\0',
                     c => c,
                 };
 
@@ -316,10 +320,24 @@ impl<'a> LumaLexer<'a> {
             if c == '\n' {
                 self.newline();
                 break;
+            } else if self.is_at_end() {
+                break;
             }
         }
     }
 
+    fn multi_line_comment(&mut self) {
+        while !self.is_at_end() {
+            let c = self.advance().unwrap_or('\0');
+
+            if c == '*' && self.current_is('/') {
+                self.advance();
+                break;
+            } else if c == '\n' {
+                self.newline();
+            }
+        }
+    }
 
     fn token(&mut self, kind: TokenKind) -> Token {
         self.token_lexeme(kind, self.get_lexeme())
