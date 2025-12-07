@@ -8,4 +8,6 @@ pub enum CodegenDiagnostic {
     ExpectedExpression(HirExpressionKind, HirExpressionKind),
     #[error("unable to capture non-existent upvalue for symbol id '{0}'")]
     UnableToCaptureUpvalue(SymbolId),
+    #[error("invalid assignment target of kind '{0}'")]
+    InvalidAssignmentTarget(HirExpressionKind),
 }

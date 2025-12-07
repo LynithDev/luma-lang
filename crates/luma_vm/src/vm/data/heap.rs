@@ -39,8 +39,16 @@ impl Heap {
         self.inner.get(index)
     }
 
-    pub fn try_get(&mut self, index: usize) -> VmResult<&HeapValue> {
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut HeapValue> {
+        self.inner.get_mut(index)
+    }
+
+    pub fn try_get(&self, index: usize) -> VmResult<&HeapValue> {
         self.get(index).ok_or(VmError::NullReference)
+    }
+
+    pub fn try_get_mut(&mut self, index: usize) -> VmResult<&mut HeapValue> {
+        self.get_mut(index).ok_or(VmError::NullReference)
     }
 
     pub fn set(&mut self, index: usize, value: HeapValue) -> VmResult<()> {

@@ -1,7 +1,7 @@
 use luma_core::bytecode::prelude::*;
 
 use crate::{
-    frames::{CallFrame, FrameSource, Upvalue}, slot_array::SlotArray, value::{Closure, HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult
+    frames::{CallFrame, FrameSource, Upvalue}, slot_array::SlotArray, value::{Array, Closure, DynamicArray, FixedArray, HeapValue, StackValue}, LumaVM, VmError, VmExitCode, VmResult
 };
 
 impl LumaVM {
@@ -19,7 +19,7 @@ impl LumaVM {
             let chunk = frame.get_chunk();
 
             if frame.instr_pointer >= chunk.instructions.len() {
-                dbg!(&self.ctx.stack);
+                dbg!(&self.ctx);
                 // // reached the end of the chunk (and for whatever reason it didn't exit)
                 // self.ctx.pop_frame()?;
                 break;
@@ -74,7 +74,9 @@ impl LumaVM {
 
             // literals
             OpCode::Const(index) => self.exec_push_const(index),
-            OpCode::Closure(const_index, local_index) => self.exec_closure(const_index, local_index),
+            OpCode::AllocClosure(const_index, local_index) => self.exec_closure(const_index, local_index),
+            OpCode::InitArray(pop_count) => self.exec_init_array(pop_count),
+            OpCode::AllocArray => self.exec_alloc_array(),
 
             // flow control
             OpCode::Return => self.exec_return(),
@@ -85,6 +87,8 @@ impl LumaVM {
 
             // stack operations
             OpCode::Dup => self.exec_dup(),
+            OpCode::ArrayGet => self.exec_array_get(),
+            OpCode::ArraySet => self.exec_array_set(),
             OpCode::GetLocal(index) => self.exec_get_local(index),
             OpCode::SetLocal(index) => self.exec_set_local(index),
             OpCode::GetUpvalue(index) => self.exec_get_upvalue(index),
@@ -116,6 +120,7 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Alloc Closure
     fn exec_closure(&mut self, const_index: usize, local_index: Option<usize>) -> VmResult<()> {
         let frame = self.ctx.frames.try_peek()?;
 
@@ -181,11 +186,69 @@ impl LumaVM {
         Ok(())
     }
 
+    // MARK: Init Array
+    fn exec_init_array(&mut self, pop_count: usize) -> VmResult<()> {
+        let mut elements = Vec::with_capacity(pop_count);
+        
+        for _ in 0..pop_count {
+            let value = self.ctx.stack.pop()?;
+            elements.push(value);
+        }
+
+        elements.reverse();
+        
+        let heap_value = HeapValue::DynamicArray(DynamicArray::from(elements));
+
+        let heap_index = self.ctx.heap.push(heap_value)?;
+        self.ctx.stack.push(StackValue::HeapRef(heap_index))?;
+
+        Ok(())
+    }
+
+    // MARK: Alloc Array
+    fn exec_alloc_array(&mut self) -> VmResult<()> {
+        let size = self.ctx.stack.pop()?.as_usize()?;
+
+        let stack_value = StackValue::FixedArray(FixedArray::new(size));
+
+        self.ctx.stack.push(stack_value)?;
+
+        Ok(())
+    }
+
     // MARK: Dup
     fn exec_dup(&mut self) -> VmResult<()> {
         let value = self.ctx.stack.peek().unwrap_or(&StackValue::Unit);
 
         self.ctx.stack.push(value.clone())?;
+
+        Ok(())
+    }
+
+    // MARK: Array Get
+    fn exec_array_get(&mut self) -> VmResult<()> {
+        let index = self.ctx.stack.pop()?.as_usize()?;
+
+        let mut array_ref = self.ctx.stack.pop()?;
+        let heap = &mut self.ctx.heap;
+
+        let array = array_ref.as_array(heap)?;
+        self.ctx.stack.push(array.get(index)?.clone())?;
+
+        Ok(())
+    }
+
+    // MARK: Array Set
+    fn exec_array_set(&mut self) -> VmResult<()> {
+        let value = self.ctx.stack.pop()?;
+        let index = self.ctx.stack.pop()?.as_usize()?;
+        let stack = &mut self.ctx.stack;
+        let heap = &mut self.ctx.heap;
+
+        let array_ref = stack.try_peek_mut()?;
+        let array: &mut dyn Array = array_ref.as_array(heap)?;
+
+        array.set(index, value)?;
 
         Ok(())
     }

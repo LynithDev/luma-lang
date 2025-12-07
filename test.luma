@@ -1,9 +1,12 @@
-fn explicit(n: u32): u32 {
-    if n <= 1 {
-        return n;
-    } else {
-        return explicit(n - 1) + explicit(n - 2);
-    }
-}
+let arr = [5, 10, 15];
+arr[3] = 20;
+let a = arr[3] - arr[0];
 
-let a = explicit(7);
+let arr = [u8; 10];
+let b = 0;
+
+arr[2] = 42;
+b = arr[2];
+
+arr[0] = 7;
+b = arr[0] + arr[2]; // b should be 49

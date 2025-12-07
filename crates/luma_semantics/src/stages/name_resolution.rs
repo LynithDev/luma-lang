@@ -164,26 +164,28 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &mut Expression) {
             ctx.symbol_table.leave_scope();
         }
         ExpressionKind::Assign {
-            symbol,
+            target,
             value,
             ..
         } => {
             analyze_expr(ctx, value);
-            
-            if let Some(lookup) = ctx.symbol_table.value_table.lookup_name(&symbol.name) {
-                symbol.id = Some(lookup.id);
-            } else {
-                ctx.reporter.report(DiagnosticReport {
-                    message: Box::new(AnalyzerDiagnostic::UnresolvedSymbol(symbol.name.clone())),
-                    span: symbol.span,
-                    cursor: symbol.cursor,
-                });
-            }
+            analyze_expr(ctx, target);
         },
         ExpressionKind::Group { inner } => analyze_expr(ctx, inner),
         ExpressionKind::Literal { .. } => {},
         ExpressionKind::Get { .. } => todo!("property access name resolution"),
-        ExpressionKind::ArrayGet { .. } => todo!("array get name resolution"),
-        ExpressionKind::ArraySet { .. } => todo!("array set name resolution"),
+        ExpressionKind::ArrayGet { array, index } => {
+            analyze_expr(ctx, array);
+            analyze_expr(ctx, index);
+        },
+        ExpressionKind::ArrayLiteral { elements, size, .. } => {
+            for element in elements {
+                analyze_expr(ctx, element);
+            }
+
+            if let Some(size_expr) = size {
+                analyze_expr(ctx, size_expr);
+            }
+        }
     }
 }

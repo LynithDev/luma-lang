@@ -1,4 +1,5 @@
 use crate::ast::AstSymbol;
+use crate::types::TypeKind;
 use crate::{Cursor, Span};
 
 use crate::{
@@ -26,7 +27,7 @@ pub enum ExpressionKind {
         arguments: Vec<Expression>,
     },
     Assign {
-        symbol: AstSymbol,
+        target: Box<Expression>,
         value: Box<Expression>,
     },
     Binary {
@@ -71,10 +72,10 @@ pub enum ExpressionKind {
         array: Box<Expression>,
         index: Box<Expression>,
     },
-    ArraySet {
-        array: Box<Expression>,
-        index: Box<Expression>,
-        value: Box<Expression>,
+    ArrayLiteral {
+        elements: Vec<Expression>,
+        inner_type: TypeKind,
+        size: Option<Box<Expression>>,
     },
 }
 

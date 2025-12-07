@@ -40,7 +40,10 @@ impl AnalyzerStage for AstLoweringStage {
     }
 }
 
-fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticResult<Option<HirStatement>> {
+fn ast_to_hir_stmt(
+    ctx: &mut AnalyzerContext,
+    stmt: &Statement,
+) -> DiagnosticResult<Option<HirStatement>> {
     let kind = match &stmt.kind {
         StatementKind::While { .. } => todo!("while statement lowering not implemented"),
         StatementKind::Expression { inner } => HirStatementKind::Expression {
@@ -137,7 +140,7 @@ fn ast_to_hir_stmt(ctx: &mut AnalyzerContext, stmt: &Statement) -> DiagnosticRes
         StatementKind::ClassDecl(_) => todo!("class lowering not implementat"),
         StatementKind::EndOfFile => {
             return Ok(None);
-        },
+        }
     };
 
     Ok(Some(HirStatement {
@@ -159,24 +162,29 @@ fn ast_to_hir_expr(
             },
             TypeKind::Unknown,
         ),
-        ExpressionKind::ArraySet {
-            array,
-            index,
-            value,
-        } => (
-            HirExpressionKind::ArraySet {
-                array: Box::new(ast_to_hir_expr(ctx, array)?),
-                index: Box::new(ast_to_hir_expr(ctx, index)?),
-                value: Box::new(ast_to_hir_expr(ctx, value)?),
-            },
-            TypeKind::Unit,
-        ),
-        ExpressionKind::Assign {
-            symbol,
-            value,
-        } => (
+        ExpressionKind::ArrayLiteral { elements, inner_type, size } => {
+            let array_kind = match size {
+                Some(size_expr) => {
+                    let hir_size = Box::new(ast_to_hir_expr(ctx, size_expr)?);
+                    HirArrayKind::FixedSize(hir_size)
+                }
+                None => {
+                    let mut hir_elements = Vec::with_capacity(elements.len());
+                    for element in elements {
+                        hir_elements.push(ast_to_hir_expr(ctx, element)?);
+                    }
+                    HirArrayKind::Dynamic(hir_elements)
+                }
+            };
+
+            (
+                HirExpressionKind::ArrayLiteral(array_kind),
+                TypeKind::Array(Box::new(inner_type.clone())),
+            )
+        }
+        ExpressionKind::Assign { target, value } => (
             HirExpressionKind::Assign {
-                symbol_id: unwrap_ast_symbol(ctx, symbol)?,
+                target: Box::new(ast_to_hir_expr(ctx, target)?),
                 value: Box::new(ast_to_hir_expr(ctx, value)?),
             },
             TypeKind::Unknown,
@@ -285,7 +293,10 @@ fn ast_to_hir_expr(
             },
             TypeKind::Boolean,
         ),
-        ExpressionKind::Scope { statements, block_value: value } => {
+        ExpressionKind::Scope {
+            statements,
+            block_value: value,
+        } => {
             let mut hir_statements = Vec::with_capacity(statements.len());
             for statement in statements {
                 if let Some(hir_stmt) = ast_to_hir_stmt(ctx, statement)? {
@@ -302,7 +313,7 @@ fn ast_to_hir_expr(
             (
                 HirExpressionKind::Scope {
                     statements: hir_statements,
-                    value
+                    value,
                 },
                 TypeKind::Unknown,
             )
@@ -317,14 +328,14 @@ fn ast_to_hir_expr(
         ExpressionKind::Variable { symbol } => {
             // dbg!(&ctx.symbol_table);
             // dbg!(symbol);
-            
+
             (
-            HirExpressionKind::Variable {
-                symbol_id: unwrap_ast_symbol(ctx, symbol)?,
-            },
-            TypeKind::Unknown,
-        )
-        },
+                HirExpressionKind::Variable {
+                    symbol_id: unwrap_ast_symbol(ctx, symbol)?,
+                },
+                TypeKind::Unknown,
+            )
+        }
     };
 
     Ok(HirExpression {

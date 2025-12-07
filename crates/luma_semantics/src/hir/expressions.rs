@@ -28,7 +28,7 @@ pub enum HirExpressionKind {
         arguments: Vec<HirExpression>,
     },
     Assign {
-        symbol_id: SymbolId,
+        target: Box<HirExpression>,
         value: Box<HirExpression>
     },
     Binary {
@@ -71,11 +71,14 @@ pub enum HirExpressionKind {
         array: Box<HirExpression>,
         index: Box<HirExpression>,
     },
-    ArraySet {
-        array: Box<HirExpression>,
-        index: Box<HirExpression>,
-        value: Box<HirExpression>,
-    },
+    ArrayLiteral(HirArrayKind),
+}
+
+#[derive(Display, Debug, Clone, PartialEq)]
+#[display(case = "snake_case")]
+pub enum HirArrayKind {
+    FixedSize(Box<HirExpression>),
+    Dynamic(Vec<HirExpression>),
 }
 
 #[derive(Display, Debug, Clone, PartialEq)]

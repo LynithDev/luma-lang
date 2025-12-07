@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc};
 
-use luma_core::{bytecode::prelude::*, Cursor, SymbolId};
+use luma_core::{Cursor, SymbolId, bytecode::prelude::*};
 use luma_semantics::hir::prelude::*;
 
 use crate::diagnostics::CodegenDiagnostic;
@@ -118,9 +118,7 @@ impl<'a> ChunkBuilder<'a> {
     pub fn add_local(&mut self, symbol_id: SymbolId) -> usize {
         let local_index = self.env.next_local_index;
 
-        self.env
-            .locals
-            .insert(symbol_id, local_index);
+        self.env.locals.insert(symbol_id, local_index);
         self.env.next_local_index += 1;
         self.chunk.local_count = self.env.next_local_index;
 
@@ -129,16 +127,9 @@ impl<'a> ChunkBuilder<'a> {
 
     // MARK: Add Upvalue
     /// adds an upvalue to the chunk's environment and returns its index
-    pub fn add_upvalue(
-        &mut self,
-        symbol_id: SymbolId,
-        is_local: bool,
-        index: usize,
-    ) -> usize {
+    pub fn add_upvalue(&mut self, symbol_id: SymbolId, is_local: bool, index: usize) -> usize {
         let upvalue_index = self.env.upvalues.len();
-        self.env
-            .upvalues
-            .insert(symbol_id, upvalue_index);
+        self.env.upvalues.insert(symbol_id, upvalue_index);
 
         self.env
             .upvalue_descriptors
@@ -254,7 +245,7 @@ impl<'a> ChunkBuilder<'a> {
 
         // push function as constant (for lookup)
         let const_index = self.add_const(BytecodeValue::Function(func_index));
-        self.emit_opcode(OpCode::Closure(const_index, Some(local_index)));
+        self.emit_opcode(OpCode::AllocClosure(const_index, Some(local_index)));
 
         Ok(())
     }
@@ -280,7 +271,6 @@ impl<'a> ChunkBuilder<'a> {
             self.emit_opcode(OpCode::ReturnUnit);
         }
 
-
         Ok(())
     }
 
@@ -301,15 +291,10 @@ impl<'a> ChunkBuilder<'a> {
         self.curr_cursor = expression.cursor;
 
         match &expression.kind {
-            // syntax
             HirExpressionKind::Literal { kind } => self.gen_literal(kind),
             HirExpressionKind::Group { inner } => self.gen_expression(inner),
-
-            // other
             HirExpressionKind::Variable { symbol_id } => self.gen_variable(*symbol_id),
-
-            // operators
-            HirExpressionKind::Assign { symbol_id, value } => self.gen_assign(symbol_id, value),
+            HirExpressionKind::Assign { target, value } => self.gen_assign(target, value),
             HirExpressionKind::Unary { operator, value } => self.gen_unary(value, operator),
             HirExpressionKind::Binary {
                 left,
@@ -326,20 +311,20 @@ impl<'a> ChunkBuilder<'a> {
                 right,
                 operator,
             } => self.gen_logical(left, right, operator),
-
             HirExpressionKind::Scope { statements, value } => self.gen_scope(statements, value),
             HirExpressionKind::Invoke { callee, arguments } => self.gen_invoke(callee, arguments),
-
             HirExpressionKind::If {
                 main_expr,
                 branches,
                 else_expr,
             } => self.gen_if_expression(main_expr, branches, else_expr),
 
-            _ => todo!(
-                "expression kind '{}' not implemented",
-                &expression.kind.to_string()
-            ),
+            HirExpressionKind::Get {
+                object,
+                property_symbol_id,
+            } => todo!(),
+            HirExpressionKind::ArrayGet { array, index } => self.gen_array_get(array, index),
+            HirExpressionKind::ArrayLiteral(array_kind) => self.gen_array_literal(array_kind),
         }
     }
 
@@ -350,6 +335,39 @@ impl<'a> ChunkBuilder<'a> {
 
         let opcode = OpCode::Const(const_index);
         self.emit_opcode(opcode);
+
+        Ok(())
+    }
+
+    // MARK: Array Literal
+    pub fn gen_array_literal(&mut self, array_kind: &HirArrayKind) -> CodegenResult<()> {
+        match array_kind {
+            HirArrayKind::Dynamic(elements) => {
+                for element in elements {
+                    self.gen_expression(element)?;
+                }
+
+                self.emit_opcode(OpCode::InitArray(elements.len()));
+            }
+            HirArrayKind::FixedSize(size) => {
+                self.gen_expression(size)?;
+                self.emit_opcode(OpCode::AllocArray);
+            }
+        }
+
+        Ok(())
+    }
+
+    // MARK: Array Get
+    pub fn gen_array_get(
+        &mut self,
+        array: &HirExpression,
+        index: &HirExpression,
+    ) -> CodegenResult<()> {
+        self.gen_expression(array)?;
+        self.gen_expression(index)?;
+
+        self.emit_opcode(OpCode::ArrayGet);
 
         Ok(())
     }
@@ -386,16 +404,18 @@ impl<'a> ChunkBuilder<'a> {
         // main condition
         self.gen_expression(&main_expr.condition)?;
         jump_instructions.push(self.emit_opcode(OpCode::JumpIfFalse(0)));
-        
+
         self.gen_expression(&main_expr.body)?;
 
         // branch conditions
 
         macro_rules! branch_start {
             ($self:ident) => {
-                let emit_jump = self.chunk.instructions.last().is_some_and(|instr| {
-                    !instr.opcode.is_return()
-                });
+                let emit_jump = self
+                    .chunk
+                    .instructions
+                    .last()
+                    .is_some_and(|instr| !instr.opcode.is_return());
 
                 if emit_jump {
                     let instr_index = self.emit_opcode(OpCode::Jump(0));
@@ -417,16 +437,16 @@ impl<'a> ChunkBuilder<'a> {
         let len = self.chunk.instructions.len();
         for (index, jump_target) in jump_instructions.iter().enumerate() {
             let instr = self.chunk.instructions.get_mut(*jump_target).unwrap();
-            
+
             match instr.opcode {
                 OpCode::JumpIfFalse(_) => {
                     let target_pos = branch_positions.get(index).cloned().unwrap_or(len);
                     instr.opcode = OpCode::JumpIfFalse(target_pos);
-                },
+                }
                 OpCode::Jump(_) => {
                     let target_pos = len - 1;
                     instr.opcode = OpCode::Jump(target_pos);
-                },
+                }
                 _ => unreachable!(),
             }
         }
@@ -526,24 +546,40 @@ impl<'a> ChunkBuilder<'a> {
     }
 
     // MARK: Assign
-    pub fn gen_assign(&mut self, symbol_id: &SymbolId, value: &HirExpression) -> CodegenResult<()> {
-        self.gen_expression(value)?;
-        
-        let set_opcode = match self.resolve_symbol(*symbol_id, self.parent_env)? {
-            Some(SymbolResolution::Local(index_ref)) => {
-                OpCode::SetLocal(index_ref)
+    pub fn gen_assign(
+        &mut self,
+        target: &HirExpression,
+        value: &HirExpression,
+    ) -> CodegenResult<()> {
+        match &target.kind {
+            HirExpressionKind::Variable { symbol_id } => {
+                self.gen_expression(value)?;
+                
+                let set_opcode = match self.resolve_symbol(*symbol_id, self.parent_env)? {
+                    Some(SymbolResolution::Local(index_ref)) => OpCode::SetLocal(index_ref),
+                    Some(SymbolResolution::Upvalue(index_ref)) => OpCode::SetUpvalue(index_ref),
+                    None => {
+                        return Err(CodegenDiagnostic::UnableToCaptureUpvalue(*symbol_id));
+                    }
+                };
+
+                self.emit_opcode(OpCode::Dup);
+                self.emit_opcode(set_opcode);
             }
-            Some(SymbolResolution::Upvalue(index_ref)) => {
-                OpCode::SetUpvalue(index_ref)
+            HirExpressionKind::ArrayGet { array, index } => {
+                self.gen_expression(array)?;
+                self.gen_expression(index)?;
+                self.gen_expression(value)?;
+
+                self.emit_opcode(OpCode::ArraySet);
             }
-            None => {
-                return Err(CodegenDiagnostic::UnableToCaptureUpvalue(*symbol_id));
+            _ => {
+                return Err(CodegenDiagnostic::InvalidAssignmentTarget(
+                    target.kind.clone(),
+                ));
             }
         };
 
-        self.emit_opcode(OpCode::Dup);
-        self.emit_opcode(set_opcode);
-        
         Ok(())
     }
 

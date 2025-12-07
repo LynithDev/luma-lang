@@ -1,8 +1,9 @@
-use std::{hash::Hash, ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}, rc::Rc};
+use std::ops::*;
 
-use luma_core::{bytecode::{chunk::FunctionChunk, value::{Float32, Float64}}, Display};
+use luma_core::{bytecode::value::{Float32, Float64}, Display};
 
-use crate::{frames::Upvalue, slot_array::SlotArray, VmResult};
+use crate::{heap::Heap, value::{Array, FixedArray, HeapValue}, VmResult};
+
 
 #[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StackValue {
@@ -17,34 +18,39 @@ pub enum StackValue {
     Float32(Float32),
     Float64(Float64),
     Boolean(bool),
+    FixedArray(FixedArray),
     Unit,
 
     HeapRef(usize),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum HeapValue {
-    String(Rc<String>),
-    Closure(*mut Closure),
-}
-
-#[derive(Debug, Clone)]
-pub struct Closure {
-    pub function: *const FunctionChunk,
-    pub upvalues: SlotArray<Upvalue>,
-}
-
-impl PartialEq for Closure {
-    fn eq(&self, other: &Self) -> bool {
-        self.function == other.function
+impl StackValue {
+    pub fn as_usize(&self) -> VmResult<usize> {
+        match self {
+            StackValue::UInt8(v) => Ok(*v as usize),
+            StackValue::UInt16(v) => Ok(*v as usize),
+            StackValue::UInt32(v) => Ok(*v as usize),
+            StackValue::UInt64(v) => Ok(*v as usize),
+            StackValue::Int8(v) => Ok(*v as usize),
+            StackValue::Int16(v) => Ok(*v as usize),
+            StackValue::Int32(v) => Ok(*v as usize),
+            StackValue::Int64(v) => Ok(*v as usize),
+            _ => Err(crate::VmError::InvalidType(self.to_string())),
+        }
     }
-}
 
-impl Eq for Closure {}
-
-impl Hash for Closure {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.function.hash(state);
+    pub fn as_array<'a>(&'a mut self, heap: &'a mut Heap) -> VmResult<&'a mut dyn Array> {
+        match self {
+            StackValue::FixedArray(arr) => Ok(arr as &mut dyn Array),
+            StackValue::HeapRef(heap_index) => {
+                let heap_value = heap.try_get_mut(*heap_index)?;
+                match heap_value {
+                    HeapValue::DynamicArray(dynamic_array) => Ok(dynamic_array as &mut dyn Array),
+                    _ => Err(crate::VmError::TypeMismatch("Array".to_string(), format!("{:?}", heap_value))),
+                }
+            }
+            _ => Err(crate::VmError::InvalidType(self.to_string())),
+        }
     }
 }
 

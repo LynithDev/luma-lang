@@ -118,14 +118,12 @@ fn infer_expr_type(ctx: &mut AnalyzerContext, expression: &mut HirExpression) ->
         }
 
         HirExpressionKind::Assign {
-            symbol_id,
+            target,
             value,
         } => {
             let value_type = infer_expr_type(ctx, value);
 
-            if let Some(symbol) = ctx.symbol_table.value_table.lookup_id_mut(*symbol_id) {
-                symbol.ty = value_type.clone();
-            }
+            infer_expr_type(ctx, target);
 
             value_type
         }

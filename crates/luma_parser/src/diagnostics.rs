@@ -39,6 +39,9 @@ pub enum ParserDiagnostic {
     #[error("missing type annotation for '{0}'")]
     MissingTypeAnnotation(String),
 
+    #[error("missing array type annotation")]
+    MissingArrayTypeAnnotation,
+
     #[error("expected special keyword '{0}'")]
     ExpectedSpecialKeyword(String),
     

@@ -53,7 +53,14 @@ pub enum OpCode {
     /// create a closure from a function in the constant pool
     /// first usize = function index in constant pool
     /// second usize = optional local slot to store the closure in
-    Closure(usize, Option<usize>),
+    AllocClosure(usize, Option<usize>),
+
+    /// allocates an array with a size of N (on the stack)
+    AllocArray,
+
+    /// allocates and initializes an array with N elements
+    /// usize = N
+    InitArray(usize),
 
     // ######################
     // ###  flow control  ###
@@ -80,6 +87,12 @@ pub enum OpCode {
 
     /// duplicate top of stack
     Dup,
+
+    /// get array element
+    ArrayGet,
+
+    /// set array element
+    ArraySet,
 
     /// get local variable
     GetLocal(usize),

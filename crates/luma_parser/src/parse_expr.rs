@@ -144,30 +144,14 @@ impl LumaParser<'_> {
                 }
             };
 
-            match left.kind {
-                ExpressionKind::Variable { symbol } => {
-                    left = Expression {
-                        cursor,
-                        span: left.span.merge(&right.span),
-                        kind: ExpressionKind::Assign {
-                            symbol,
-                            value: Box::new(right)
-                        },
-                    }
+            left = Expression {
+                cursor,
+                span: span.merge(&left.span).merge(&right.span),
+                kind: ExpressionKind::Assign {
+                    target: Box::new(left),
+                    value: Box::new(right)
                 },
-                ExpressionKind::ArrayGet { array, index } => {
-                    left = Expression {
-                        cursor,
-                        span: left.span.merge(&right.span),
-                        kind: ExpressionKind::ArraySet {
-                            array,
-                            index,
-                            value: Box::new(right)
-                        },
-                    }
-                }
-                _ => return Err(self.diagnostic_at(ParserDiagnostic::InvalidLeftHandSide(Box::new(left.kind)), span, cursor))
-            }
+            };
         }
 
         Ok(left)
@@ -429,6 +413,9 @@ impl LumaParser<'_> {
                 TokenKind::Punctuation(PunctuationKind::Dot) => {
                     expr = self.parse_get(expr)?;
                 }
+                TokenKind::Punctuation(PunctuationKind::LeftBracket) => {
+                    expr = self.parse_array_get(expr)?;
+                }
                 _ => break,
             }
         }
@@ -496,6 +483,68 @@ impl LumaParser<'_> {
                         value
                     },
                 }
+            },
+
+            TokenKind::Punctuation(PunctuationKind::LeftBracket) => {
+                let (span, cursor) = current.pos();
+                self.advance(); // consume '['
+
+                let mut elements: Vec<Expression> = Vec::new();
+                let mut ty = TypeKind::Unknown;
+                let mut size: Option<Box<Expression>> = None;
+
+                if !self.check(TokenKind::Punctuation(PunctuationKind::RightBracket)) {
+                    loop {
+                        let element = self.parse_expression()?;
+                        elements.push(element);
+
+                        if self.check(TokenKind::Punctuation(PunctuationKind::RightBracket)) {
+                            break;
+                        } else if self.check(TokenKind::Punctuation(PunctuationKind::Semicolon)) {
+                            // array with type and size
+                            self.advance(); // consume ';'
+
+                            // parse type
+                            let type_expr = elements.pop().ok_or_else(|| self.diagnostic_at(
+                                ParserDiagnostic::MissingArrayTypeAnnotation,
+                                span,
+                                cursor,
+                            ))?;
+
+                            let type_identifier = if let ExpressionKind::Variable { symbol } = type_expr.kind {
+                                symbol
+                            } else {
+                                return Err(self.diagnostic_at(
+                                    ParserDiagnostic::MissingArrayTypeAnnotation,
+                                    type_expr.span,
+                                    type_expr.cursor,
+                                ));
+                            };
+                            
+                            ty = TypeKind::from(type_identifier.name.as_str());
+
+                            // parse size
+                            size = Some(Box::new(self.parse_expression()?));
+
+                            break;
+                        } else {
+                            self.consume(TokenKind::Punctuation(PunctuationKind::Comma))?;
+                        }
+                    }
+                }
+
+                let rbracket = self.expect(TokenKind::Punctuation(PunctuationKind::RightBracket))?;
+                let (rbracket_span, _) = rbracket.pos();
+
+                Expression {
+                    cursor,
+                    span: span.merge(&rbracket_span),
+                    kind: ExpressionKind::ArrayLiteral {
+                        elements,
+                        inner_type: ty,
+                        size,
+                    },
+                }
             }
 
             _ => {
@@ -526,6 +575,25 @@ impl LumaParser<'_> {
             kind: ExpressionKind::Get {
                 object: Box::new(target),
                 property_symbol: AstSymbol::new(identifier.lexeme.clone(), identifier.span, identifier.cursor),
+            },
+        })
+    }
+
+    // MARK: Array Get
+    fn parse_array_get(&mut self, target: Expression) -> DiagnosticResult<Expression> {
+        let lbrace = self.consume(TokenKind::Punctuation(PunctuationKind::LeftBracket))?;
+        let (span, cursor) = lbrace.pos();
+
+        let index = self.parse_expression()?;
+        let rbrace = self.consume(TokenKind::Punctuation(PunctuationKind::RightBracket))?;
+        let (rbrace_span, _) = rbrace.pos();
+
+        Ok(Expression {
+            cursor,
+            span: span.merge(&rbrace_span),
+            kind: ExpressionKind::ArrayGet {
+                array: Box::new(target),
+                index: Box::new(index),
             },
         })
     }
