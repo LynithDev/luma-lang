@@ -1,6 +1,6 @@
 use std::{rc::Rc, sync::{Arc, Mutex}};
 
-use luma_core::CodeSourceKind;
+use luma_core::{bytecode::chunk::Arity, CodeSourceKind};
 use luma_diagnostic::{Diagnostic, DiagnosticKind, DiagnosticReport, DiagnosticStore};
 
 pub type VmResult<T> = Result<T, VmError>;
@@ -20,7 +20,7 @@ impl VmExitResult {
 
     pub fn from_error(error: VmError) -> Self {
         Self { 
-            code: -1, 
+            code: error.exit_code(), 
             error: Some(error)
         }
     }
@@ -44,7 +44,7 @@ pub enum VmError {
     #[error("no active call frame")]
     NoActiveCallFrame,
     #[error("function arity mismatch (expected {0}, found {1})")]
-    ArityMismatch(u8, u8),
+    ArityMismatch(Arity, Arity),
     #[error("stack underflow")]
     StackUnderflow,
     #[error("stack overflow")]
@@ -81,6 +81,21 @@ impl VmError {
                 | VmError::StackOverflow
                 | VmError::MaxFrameCountExceeded
         )
+    }
+
+    pub fn exit_code(&self) -> VmExitCode {
+        match self {
+            VmError::NoEntrypoint => 1,
+            VmError::NoSourceAtIndex(_) => 2,
+            VmError::NoFunctionAtIndex(_) => 3,
+            VmError::NoCallFrameAtIndex(_) => 4,
+            VmError::NoActiveCallFrame => 5,
+            VmError::ArityMismatch(_, _) => 6,
+            VmError::StackUnderflow => 7,
+            VmError::StackOverflow => 8,
+            VmError::MaxFrameCountExceeded => 9,
+            _ => -1,
+        }
     }
 }
 

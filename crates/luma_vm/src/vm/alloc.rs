@@ -1,11 +1,11 @@
-use luma_core::bytecode::{IndexRef, value::BytecodeValue};
+use luma_core::bytecode::{value::BytecodeValue};
 
 use crate::{
-    value::{HeapValue, StackValue}, LumaVM, VmError, VmResult
+    runtime::RuntimeContext, value::{HeapValue, StackValue}, VmError, VmResult
 };
 
-impl LumaVM {
-    pub(super) fn alloc_value(&mut self, value: BytecodeValue) -> VmResult<IndexRef> {
+impl RuntimeContext {
+    pub(super) fn alloc_value(&mut self, value: BytecodeValue) -> VmResult<usize> {
         let value = match value {
             // primitives get pushed to stack normally
             BytecodeValue::UInt8(i) => StackValue::UInt8(i),
@@ -23,7 +23,7 @@ impl LumaVM {
 
             // heap-stored values get pushed to heap and return [`StackValue::HeapRef`]
             BytecodeValue::String(s) => {
-                let index = self.ctx.heap.push(HeapValue::String(s))?;
+                let index = self.heap.push(HeapValue::String(s))?;
                 StackValue::HeapRef(index)
             }
             BytecodeValue::Function(_) => {
@@ -37,25 +37,26 @@ impl LumaVM {
             }
         };
 
-        self.ctx.stack.push(value)
+        self.stack.push(value)
     }
 
-    pub fn set_local(&mut self, index: IndexRef, value: StackValue) -> VmResult<IndexRef> {
-        let frame = self.ctx.frames.try_peek()?;
+    pub fn set_local(&mut self, index: usize, value: StackValue) -> VmResult<usize> {
+        let frame = self.frames.try_peek()?;
 
-        self.ctx.stack.set(frame.base + *index, value)?;
-        Ok(IndexRef::new(frame.base + *index))
+        self.stack.set(frame.base + index, value)?;
+
+        Ok(frame.base + index)
     }
 
-    pub fn get_local(&self, index: IndexRef) -> VmResult<&StackValue> {
-        let frame = self.ctx.frames.try_peek()?;
+    pub fn get_local(&self, index: usize) -> VmResult<&StackValue> {
+        let frame = self.frames.try_peek()?;
 
-        self.ctx.stack.get(frame.base + *index)
+        self.stack.get(frame.base + index)
     }
 
-    pub fn get_local_mut(&mut self, index: IndexRef) -> VmResult<&mut StackValue> {
-        let frame = self.ctx.frames.try_peek()?;
+    pub fn get_local_mut(&mut self, index: usize) -> VmResult<&mut StackValue> {
+        let frame = self.frames.try_peek()?;
 
-        self.ctx.stack.get_mut(frame.base + *index)
+        self.stack.get_mut(frame.base + index)
     }
 }

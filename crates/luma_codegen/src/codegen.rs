@@ -46,15 +46,15 @@ type CodegenResult<T> = Result<T, CodegenDiagnostic>;
 // MARK: Environment
 #[derive(Debug, Clone)]
 struct ChunkBuilderEnvironment {
-    pub locals: HashMap<SymbolId, IndexRef>,
-    pub upvalues: HashMap<SymbolId, IndexRef>,
+    pub locals: HashMap<SymbolId, usize>,
+    pub upvalues: HashMap<SymbolId, usize>,
     pub upvalue_descriptors: Vec<UpvalueDescriptor>,
     pub next_local_index: usize,
 }
 
 enum SymbolResolution {
-    Local(IndexRef),
-    Upvalue(IndexRef),
+    Local(usize),
+    Upvalue(usize),
 }
 
 impl ChunkBuilderEnvironment {
@@ -115,16 +115,16 @@ impl<'a> ChunkBuilder<'a> {
 
     // MARK: Add Local
     /// adds a local variable to the chunk's environment and returns its index
-    pub fn add_local(&mut self, symbol_id: SymbolId) -> IndexRef {
+    pub fn add_local(&mut self, symbol_id: SymbolId) -> usize {
         let local_index = self.env.next_local_index;
 
         self.env
             .locals
-            .insert(symbol_id, IndexRef::new(local_index));
+            .insert(symbol_id, local_index);
         self.env.next_local_index += 1;
         self.chunk.local_count = self.env.next_local_index;
 
-        IndexRef::new(local_index)
+        local_index
     }
 
     // MARK: Add Upvalue
@@ -133,18 +133,18 @@ impl<'a> ChunkBuilder<'a> {
         &mut self,
         symbol_id: SymbolId,
         is_local: bool,
-        index: IndexRef,
-    ) -> IndexRef {
+        index: usize,
+    ) -> usize {
         let upvalue_index = self.env.upvalues.len();
         self.env
             .upvalues
-            .insert(symbol_id, IndexRef::new(upvalue_index));
+            .insert(symbol_id, upvalue_index);
 
         self.env
             .upvalue_descriptors
             .push(UpvalueDescriptor { is_local, index });
 
-        IndexRef::new(upvalue_index)
+        upvalue_index
     }
 
     // MARK: Resolve Symbol
@@ -175,7 +175,7 @@ impl<'a> ChunkBuilder<'a> {
         &mut self,
         symbol_id: SymbolId,
         parent_env: &ChunkBuilderEnvironment,
-    ) -> CodegenResult<IndexRef> {
+    ) -> CodegenResult<usize> {
         if let Some(&local_index) = parent_env.locals.get(&symbol_id) {
             return Ok(self.add_upvalue(symbol_id, true, local_index));
         }
@@ -189,17 +189,17 @@ impl<'a> ChunkBuilder<'a> {
 
     // MARK: Emit Opcode
     /// emits an opcode to the chunk and returns its index
-    pub fn emit_opcode(&mut self, opcode: OpCode) -> IndexRef {
+    pub fn emit_opcode(&mut self, opcode: OpCode) -> usize {
         let instruction = Instruction::new(opcode, self.curr_cursor);
         let idx = self.chunk.instructions.len();
         self.chunk.instructions.push(instruction);
-        IndexRef::new(idx)
+        idx
     }
 
     // MARK: Patch Opcode
     /// patches an opcode at the given index
-    pub fn patch_opcode(&mut self, index: IndexRef, opcode: OpCode) {
-        if let Some(instruction) = self.chunk.instructions.get_mut(*index) {
+    pub fn patch_opcode(&mut self, index: usize, opcode: OpCode) {
+        if let Some(instruction) = self.chunk.instructions.get_mut(index) {
             instruction.opcode = opcode;
         }
     }
@@ -242,7 +242,7 @@ impl<'a> ChunkBuilder<'a> {
 
         let func_chunk = FunctionChunk {
             name: None,
-            arity: ArityRef::new(decl.parameters.len() as u8),
+            arity: decl.parameters.len() as Arity,
             kind: FunctionKind::Function, // todo
             upvalues: builder.env.upvalue_descriptors,
             chunk,
@@ -253,8 +253,8 @@ impl<'a> ChunkBuilder<'a> {
         self.functions_chunk.push(func_chunk);
 
         // push function as constant (for lookup)
-        let const_index = self.add_const(BytecodeValue::Function(IndexRef::new(func_index)));
-        self.emit_opcode(OpCode::Closure(IndexRef::new(const_index), Some(local_index)));
+        let const_index = self.add_const(BytecodeValue::Function(func_index));
+        self.emit_opcode(OpCode::Closure(const_index, Some(local_index)));
 
         Ok(())
     }
@@ -289,7 +289,7 @@ impl<'a> ChunkBuilder<'a> {
         self.gen_expression(expr)?;
 
         // Pop the result of the expression off the stack
-        if expr.ty != TypeKind::Void {
+        if expr.ty != TypeKind::Unit {
             self.emit_opcode(OpCode::Pop);
         }
 
@@ -348,7 +348,7 @@ impl<'a> ChunkBuilder<'a> {
         let value = literal_to_value(literal);
         let const_index = self.add_const(value);
 
-        let opcode = OpCode::Const(IndexRef::new(const_index));
+        let opcode = OpCode::Const(const_index);
         self.emit_opcode(opcode);
 
         Ok(())
@@ -368,7 +368,7 @@ impl<'a> ChunkBuilder<'a> {
         // then evaluate the callee
         self.gen_expression(callee)?;
 
-        self.emit_opcode(OpCode::Call(ArityRef::new(arguments.len() as u8)));
+        self.emit_opcode(OpCode::Call(arguments.len() as Arity));
 
         Ok(())
     }
@@ -380,12 +380,12 @@ impl<'a> ChunkBuilder<'a> {
         branches: &[HirConditionalBranch],
         else_expr: &Option<Box<HirExpression>>,
     ) -> CodegenResult<()> {
-        let mut jump_instructions: Vec<IndexRef> = Vec::new();
+        let mut jump_instructions: Vec<usize> = Vec::new();
         let mut branch_positions: Vec<usize> = Vec::new();
 
         // main condition
         self.gen_expression(&main_expr.condition)?;
-        jump_instructions.push(self.emit_opcode(OpCode::JumpIfFalse(IndexRef::new(0))));
+        jump_instructions.push(self.emit_opcode(OpCode::JumpIfFalse(0)));
         
         self.gen_expression(&main_expr.body)?;
 
@@ -398,7 +398,7 @@ impl<'a> ChunkBuilder<'a> {
                 });
 
                 if emit_jump {
-                    let instr_index = self.emit_opcode(OpCode::Jump(IndexRef::new(0)));
+                    let instr_index = self.emit_opcode(OpCode::Jump(0));
                     jump_instructions.push(instr_index);
                 }
 
@@ -416,16 +416,16 @@ impl<'a> ChunkBuilder<'a> {
         // patch jumps
         let len = self.chunk.instructions.len();
         for (index, jump_target) in jump_instructions.iter().enumerate() {
-            let instr = self.chunk.instructions.get_mut(**jump_target).unwrap();
+            let instr = self.chunk.instructions.get_mut(*jump_target).unwrap();
             
             match instr.opcode {
                 OpCode::JumpIfFalse(_) => {
                     let target_pos = branch_positions.get(index).cloned().unwrap_or(len);
-                    instr.opcode = OpCode::JumpIfFalse(IndexRef::new(target_pos));
+                    instr.opcode = OpCode::JumpIfFalse(target_pos);
                 },
                 OpCode::Jump(_) => {
                     let target_pos = len - 1;
-                    instr.opcode = OpCode::Jump(IndexRef::new(target_pos));
+                    instr.opcode = OpCode::Jump(target_pos);
                 },
                 _ => unreachable!(),
             }

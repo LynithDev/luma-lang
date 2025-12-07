@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use luma_macros::Display;
 
-use crate::{bytecode::{ArityRef, IndexRef}, Cursor};
+use crate::{bytecode::chunk::Arity, Cursor};
 
 #[derive(Display, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -48,10 +48,12 @@ pub enum OpCode {
     // ###########################
 
     /// load constant from constant pool
-    Const(IndexRef),
+    Const(usize),
 
     /// create a closure from a function in the constant pool
-    Closure(IndexRef, Option<IndexRef>),
+    /// first usize = function index in constant pool
+    /// second usize = optional local slot to store the closure in
+    Closure(usize, Option<usize>),
 
     // ######################
     // ###  flow control  ###
@@ -64,13 +66,13 @@ pub enum OpCode {
     ReturnUnit,
     
     /// for calling a function
-    Call(ArityRef),
+    Call(Arity),
 
     /// goto instruction pointer
-    Jump(IndexRef),
+    Jump(usize),
 
     /// jump if top of stack is false
-    JumpIfFalse(IndexRef),
+    JumpIfFalse(usize),
     
     // ##########################
     // ###  stack operations  ###
@@ -80,16 +82,16 @@ pub enum OpCode {
     Dup,
 
     /// get local variable
-    GetLocal(IndexRef),
+    GetLocal(usize),
 
     /// set local variable
-    SetLocal(IndexRef),
+    SetLocal(usize),
 
     /// get upvalue
-    GetUpvalue(IndexRef),
+    GetUpvalue(usize),
 
     /// set upvalue
-    SetUpvalue(IndexRef),
+    SetUpvalue(usize),
 
     /// remove top of stack
     Pop,

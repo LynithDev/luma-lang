@@ -169,7 +169,7 @@ fn ast_to_hir_expr(
                 index: Box::new(ast_to_hir_expr(ctx, index)?),
                 value: Box::new(ast_to_hir_expr(ctx, value)?),
             },
-            TypeKind::Void,
+            TypeKind::Unit,
         ),
         ExpressionKind::Assign {
             symbol,

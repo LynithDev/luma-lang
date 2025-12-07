@@ -78,11 +78,13 @@ dependencies = [
 name = "luma_tests"
 version = "0.1.0"
 dependencies = [
+ "luma",
  "luma_core",
  "luma_diagnostic",
  "luma_lexer",
  "luma_parser",
  "luma_semantics",
+ "luma_vm",
 ]
 
 [[package]]

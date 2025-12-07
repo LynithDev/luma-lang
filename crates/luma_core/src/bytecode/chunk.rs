@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::bytecode::{opcode::Instruction, value::BytecodeValue, ArityRef, IndexRef};
+use crate::bytecode::{opcode::Instruction, value::BytecodeValue};
 
 #[derive(Default, Clone)]
 pub struct Chunk {
@@ -28,11 +28,13 @@ pub enum FunctionKind {
     Initializer,
 }
 
+pub type Arity = u8;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionChunk {
     pub name: Option<String>,
     pub chunk: Chunk,
-    pub arity: ArityRef,
+    pub arity: Arity,
     pub kind: FunctionKind,
     pub upvalues: Vec<UpvalueDescriptor>,
 }
@@ -40,7 +42,7 @@ pub struct FunctionChunk {
 #[derive(Debug, Clone, PartialEq)]
 pub struct UpvalueDescriptor {
     pub is_local: bool,   // true = capture parent local
-    pub index: IndexRef,       // slot in locals or upvalues of parent
+    pub index: usize,       // slot in locals or upvalues of parent
 }
 
 impl Debug for Chunk {

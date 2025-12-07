@@ -1,6 +1,6 @@
 use std::{hash::Hash, ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}, rc::Rc};
 
-use luma_core::{bytecode::{chunk::FunctionChunk, value::{Float32, Float64}, IndexRef}, Display};
+use luma_core::{bytecode::{chunk::FunctionChunk, value::{Float32, Float64}}, Display};
 
 use crate::{frames::Upvalue, slot_array::SlotArray, VmResult};
 
@@ -19,7 +19,7 @@ pub enum StackValue {
     Boolean(bool),
     Unit,
 
-    HeapRef(IndexRef),
+    HeapRef(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -46,12 +46,6 @@ impl Hash for Closure {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.function.hash(state);
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct FunctionRef {
-    pub source_index: IndexRef,
-    pub function_index: IndexRef,
 }
 
 macro_rules! impl_op {

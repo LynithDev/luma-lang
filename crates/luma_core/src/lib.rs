@@ -59,7 +59,6 @@ impl Span {
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
 pub enum NumberRadix {
     Hexadecimal = 16, // 16 - x
     #[default]

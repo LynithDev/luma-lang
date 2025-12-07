@@ -20,6 +20,7 @@ luma_parser = { path = "crates/luma_parser" }
 luma_semantics = { path = "crates/luma_semantics" }
 luma_codegen = { path = "crates/luma_codegen" }
 luma_vm = { path = "crates/luma_vm" }
+luma = { path = "luma" }
 
 # util
 owo-colors = { version = "=4.2.2" }

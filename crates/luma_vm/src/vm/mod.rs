@@ -17,7 +17,7 @@ pub struct VmHandle(Rc<LumaVM>); // todo: arc + rwlock
 
 pub struct LumaVM {
     pub(crate) sources: Arena<ProgramSource>,
-    pub(crate) ctx: RuntimeContext,
+    pub ctx: RuntimeContext,
 }
 
 impl LumaVM {
@@ -62,30 +62,13 @@ impl LumaVM {
             base: 0,
         };
 
-        self.push_frame(call_frame, None)?;
+        self.ctx.push_frame(call_frame, None)?;
 
         Ok(())
     }
 
     pub fn entrypoint(&self) -> &ProgramSource {
         self.sources.get(0).unwrap()
-    }
-
-    pub fn push_frame(&mut self, frame: CallFrame, reserve_amount: Option<usize>) -> VmResult<()> {
-        for _ in 0..reserve_amount.unwrap_or(frame.get_chunk().local_count) {
-            self.ctx.stack.push(value::StackValue::Unit)?;
-        }
-
-        self.ctx.frames.push(frame)?;
-
-        Ok(())
-    }
-
-    pub fn pop_frame(&mut self) -> VmResult<CallFrame> {
-        let frame = self.ctx.frames.pop().map_err(|_| VmError::NoActiveCallFrame)?;
-        self.ctx.stack.truncate_to(frame.base)?;
-
-        Ok(frame)
     }
 }
 
@@ -121,13 +104,13 @@ impl Deref for VmHandle {
     type Target = LumaVM;
 
     fn deref(&self) -> &Self::Target {
-        self.get()
+        self.inner()
     }
 }
 
 impl DerefMut for VmHandle {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.get_mut()
+        self.inner_mut()
     }
 }
 
@@ -140,11 +123,11 @@ impl VmHandle {
         self.0.as_ptr()
     }
 
-    pub fn get(&self) -> &LumaVM {
+    pub fn inner(&self) -> &LumaVM {
         &self.0
     }
 
-    pub fn get_mut(&mut self) -> &mut LumaVM {
+    pub fn inner_mut(&mut self) -> &mut LumaVM {
         Rc::get_mut(&mut self.0).expect("Multiple handles exist; cannot get mutable reference")
     }
 }

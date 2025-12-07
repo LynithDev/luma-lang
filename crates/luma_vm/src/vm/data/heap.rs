@@ -1,7 +1,5 @@
 use std::fmt::Debug;
 
-use luma_core::bytecode::IndexRef;
-
 use crate::{value::HeapValue, VmError, VmResult};
 
 pub struct Heap {
@@ -15,10 +13,10 @@ impl Heap {
         }
     }
 
-    pub fn push(&mut self, value: HeapValue) -> VmResult<IndexRef> {
+    pub fn push(&mut self, value: HeapValue) -> VmResult<usize> {
         let index = self.inner.len();
         self.inner.push(value);
-        Ok(IndexRef::new(index))
+        Ok(index)
     }
 
     #[must_use]
@@ -37,16 +35,16 @@ impl Heap {
     }
 
     #[must_use]
-    pub fn get(&self, index: IndexRef) -> Option<&HeapValue> {
-        self.inner.get(*index)
+    pub fn get(&self, index: usize) -> Option<&HeapValue> {
+        self.inner.get(index)
     }
 
-    pub fn try_get(&mut self, index: IndexRef) -> VmResult<&HeapValue> {
+    pub fn try_get(&mut self, index: usize) -> VmResult<&HeapValue> {
         self.get(index).ok_or(VmError::NullReference)
     }
 
-    pub fn set(&mut self, index: IndexRef, value: HeapValue) -> VmResult<()> {
-        self.inner[*index] = value;
+    pub fn set(&mut self, index: usize, value: HeapValue) -> VmResult<()> {
+        self.inner[index] = value;
         Ok(())
     }
 }

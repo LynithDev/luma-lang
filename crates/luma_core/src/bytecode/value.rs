@@ -1,7 +1,5 @@
 use std::{fmt::Display, hash::Hash, rc::Rc};
 
-use crate::bytecode::IndexRef;
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BytecodeValue {
     UInt8(u8),
@@ -17,7 +15,7 @@ pub enum BytecodeValue {
     Boolean(bool),
     String(Rc<String>),
     Option(Rc<Option<BytecodeValue>>),
-    Function(IndexRef),
+    Function(usize),
     NativeFunction(*const u8),
     Unit,
 }

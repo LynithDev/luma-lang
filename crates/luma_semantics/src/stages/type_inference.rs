@@ -75,7 +75,7 @@ fn try_analyze_stmt(ctx: &mut AnalyzerContext, stmt: &mut HirStatement) -> Diagn
 
                 body.ty.clone()
             } else {
-                TypeKind::Void
+                TypeKind::Unit
             };
 
             ctx.symbol_table.leave_scope();
@@ -252,7 +252,7 @@ fn infer_scope(
     statements: &mut [HirStatement],
     value: &mut Option<Box<HirExpression>>,
 ) -> TypeKind {
-    let mut found_type = TypeKind::Void;
+    let mut found_type = TypeKind::Unit;
 
     for stmt in statements {
         analyze_stmt(ctx, stmt);

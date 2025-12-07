@@ -1,7 +1,5 @@
 use std::{alloc::Layout, fmt::Debug, ops::{Index, Range, RangeFrom}};
 
-use luma_core::bytecode::IndexRef;
-
 use crate::{VmError, VmResult};
 
 pub struct Stack<T> {
@@ -31,7 +29,7 @@ impl<T> Stack<T> {
         }
     }
 
-    pub fn push(&mut self, value: T) -> VmResult<IndexRef> {
+    pub fn push(&mut self, value: T) -> VmResult<usize> {
         let index = self.len;
         if index >= self.capacity() {
             return Err(VmError::StackOverflow);
@@ -42,7 +40,7 @@ impl<T> Stack<T> {
         }
 
         self.len += 1;
-        Ok(IndexRef::new(index))
+        Ok(index)
     }
 
     pub fn pop(&mut self) -> VmResult<T> {

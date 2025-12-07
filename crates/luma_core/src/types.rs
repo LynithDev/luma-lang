@@ -21,7 +21,7 @@ pub enum TypeKind {
     Float32,
     Float64,
     Boolean,
-    Void,
+    Unit,
     Function {
         param_types: Vec<TypeKind>,
         return_type: Box<TypeKind>,
@@ -46,7 +46,7 @@ impl std::fmt::Display for TypeKind {
             TypeKind::Float32 => write!(f, "f32"),
             TypeKind::Float64 => write!(f, "f64"),
             TypeKind::Boolean => write!(f, "bool"),
-            TypeKind::Void => write!(f, "void"),
+            TypeKind::Unit => write!(f, "void"),
             TypeKind::Function { .. } => write!(f, "fn"),
             TypeKind::Array(inner) => write!(f, "{}[]", inner),
             TypeKind::Object(name) => write!(f, "{}", name),
@@ -75,7 +75,7 @@ impl From<&str> for TypeKind {
             "f64" => TypeKind::Float64,
             
             "bool" => TypeKind::Boolean,
-            "void" => TypeKind::Void,
+            "void" => TypeKind::Unit,
             
             // CPU target dependant
             #[cfg(target_pointer_width = "32")]
@@ -113,7 +113,7 @@ impl TypeKind {
         // lower value means higher precedence
         // e.g. during type coercion, the type with the lower value will be chosen
         match self {
-            TypeKind::Void => 0,
+            TypeKind::Unit => 0,
             TypeKind::String => 1,
             TypeKind::Array(_) => 2,
 

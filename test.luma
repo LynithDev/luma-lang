@@ -6,4 +6,4 @@ fn explicit(n: u32): u32 {
     }
 }
 
-let a = explicit(35);
+let a = explicit(7);

@@ -13,6 +13,8 @@ luma_lexer = { workspace = true }
 luma_parser = { workspace = true }
 luma_semantics = { workspace = true }
 luma_diagnostic = { workspace = true }
+luma_vm = { workspace = true }
+luma = { workspace = true }
 
 [[test]]
 name = "luma_tests"

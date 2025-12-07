@@ -1,13 +1,16 @@
 mod parsing;
+mod exec;
 
 pub use helpers::*;
 
 mod helpers {
+    use luma::LumaEngine;
     use luma_core::{ast::Ast, CodeSource};
     use luma_diagnostic::Reporter;
     use luma_lexer::{tokens::TokenStream, LumaLexer};
     use luma_parser::LumaParser;
     use luma_semantics::{LumaAnalyzer, ParsedCodeKind, ParsedCodeSource};
+    use luma_vm::{runtime::RuntimeOptions, LumaVM, ProgramSource, VmHandle};
 
     pub fn tokenize_input(reporter: &Reporter, input: &str) -> TokenStream {
         let mut lexer = LumaLexer::new(input.as_bytes(), reporter);
@@ -37,5 +40,18 @@ mod helpers {
         let mut semantics_analyzer = LumaAnalyzer::new(reporter);
         semantics_analyzer.add_entry(code_source);
         semantics_analyzer.analyze()
+    }
+
+    pub fn compile(input: &str) -> Vec<ProgramSource> {
+        let engine = LumaEngine::new();
+        engine.compile(vec![CodeSource::from(input)]).expect("couldn't compile input")
+    }
+
+    pub fn initialize_vm(sources: Vec<ProgramSource>) -> VmHandle {
+        initialize_vm_opts(sources, RuntimeOptions::default())
+    }
+
+    pub fn initialize_vm_opts(sources: Vec<ProgramSource>, options: RuntimeOptions) -> VmHandle {
+        LumaVM::with_options(sources, options).expect("failed to create VM")
     }
 }

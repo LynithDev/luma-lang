@@ -5,9 +5,13 @@ use crate::helpers;
 #[test]
 pub fn test_parsing_if() {
     const INPUT: &str = r#"
+        let arg = "0";
+        
         // errors as it returns a type and no semi-colon therefore its a "scope" return type
         if arg == "1" {
             arg = "1a"
+        } else {
+            arg = "1b"
         }
     "#;
 

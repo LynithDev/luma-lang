@@ -1,4 +1,4 @@
-use crate::{arena::Arena, frames::CallFrame, heap::Heap, stack::Stack, value::{Closure, StackValue}};
+use crate::{arena::Arena, frames::CallFrame, heap::Heap, stack::Stack, value::{Closure, StackValue}, VmError, VmResult};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RuntimeOptions {
@@ -32,5 +32,22 @@ impl RuntimeContext {
             heap: Heap::new(),
             closures: Arena::new(),
         }
+    }
+
+    pub fn push_frame(&mut self, frame: CallFrame, reserve_amount: Option<usize>) -> VmResult<()> {
+        for _ in 0..reserve_amount.unwrap_or(frame.get_chunk().local_count) {
+            self.stack.push(StackValue::Unit)?;
+        }
+
+        self.frames.push(frame)?;
+
+        Ok(())
+    }
+
+    pub fn pop_frame(&mut self) -> VmResult<CallFrame> {
+        let frame = self.frames.pop().map_err(|_| VmError::NoActiveCallFrame)?;
+        self.stack.truncate_to(frame.base)?;
+
+        Ok(frame)
     }
 }

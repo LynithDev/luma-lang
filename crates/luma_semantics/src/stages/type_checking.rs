@@ -34,19 +34,19 @@ fn analyze_stmt(ctx: &mut AnalyzerContext, statement: &HirStatement) -> TypeKind
             if let Some(body) = &decl.body {
                 analyze_expr(ctx, body)
             } else {
-                TypeKind::Void
+                TypeKind::Unit
             }
         }
         HirStatementKind::Return { value } => {
             if let Some(value) = value {
                 analyze_expr(ctx, value)
             } else {
-                TypeKind::Void
+                TypeKind::Unit
             }
         },
         _ => {
             // dbg!("Type checking for statement kind {:?}", &statement.kind);
-            TypeKind::Void
+            TypeKind::Unit
         },
     }
 }
@@ -84,14 +84,14 @@ fn analyze_expr(ctx: &mut AnalyzerContext, expr: &HirExpression) -> TypeKind {
             if let Some(value) = value {
                 analyze_expr(ctx, value)
             } else {
-                TypeKind::Void
+                TypeKind::Unit
             }
         },
         HirExpressionKind::If { main_expr, branches, else_expr } => {
             // analyze main branch
             let ret_ty = check_conditional_branch(ctx, main_expr);
 
-            let returns_type = !matches!(ret_ty, TypeKind::Void | TypeKind::Unknown);
+            let returns_type = !matches!(ret_ty, TypeKind::Unit | TypeKind::Unknown);
 
             // analyze branches
             for branch in branches {

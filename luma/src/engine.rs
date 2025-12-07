@@ -1,6 +1,6 @@
 use luma_codegen::LumaCodegen;
 use luma_core::{ast::Ast, CodeSource};
-use luma_diagnostic::{DiagnosticKind, DiagnosticResult, Reporter};
+use luma_diagnostic::{DiagnosticKind, Reporter};
 use luma_lexer::LumaLexer;
 use luma_parser::LumaParser;
 use luma_semantics::{LumaAnalyzer, ParsedCodeKind, ParsedCodeSource};
@@ -18,7 +18,40 @@ impl LumaEngine {
         }
     }
 
+    /// Evaluate multiple code sources. The first source is treated as the main entry point.
     pub fn eval_sources(&self, sources: Vec<CodeSource>) -> VmExitResult {
+        let program_sources = match self.compile(sources) {
+            Ok(sources) => sources,
+            Err(code) => return VmExitResult::from_code(code),
+        };
+
+        // vm
+        let mut vm = match LumaVM::try_new(program_sources) {
+            Ok(vm) => vm,
+            Err(e) => {
+                eprintln!("VM Initialization Error: {}", e);
+                return VmExitResult::from_error(e);
+            }
+        };
+
+        vm.run()
+    }
+
+    /// Evaluate a single code source provided as a string.
+    pub fn eval_str(&self, src: &str) -> VmExitResult {
+        let code_source = CodeSource::from(src);
+
+        self.eval_sources(vec![code_source])
+    }
+
+    /// Get a reference to the reporter.
+    pub fn reporter(&self) -> &Reporter {
+        &self.reporter
+    }
+
+    /// Compile multiple code sources into program sources. Program sources contain 
+    /// the necessary information to be run by the VM.
+    pub fn compile(&self, sources: Vec<CodeSource>) -> Result<Vec<ProgramSource>, i32> {
         // parsing
         let mut parsed: Vec<ParsedCodeSource> = Vec::new();
         for source in sources {
@@ -29,20 +62,16 @@ impl LumaEngine {
         // analysis
         let mut analyzer = LumaAnalyzer::new(&self.reporter);
         analyzer.add_entries(&parsed);
-        let success = analyzer.analyze();
-        if let Err(code) = self.report_diagnostics(&parsed, (success as i32) - 1) {
-            return VmExitResult::from_code(code);
-        };
+        analyzer.analyze();
+        self.report_diagnostics(&parsed, i32::MIN)?;
 
         // codegen
         let mut codegen = LumaCodegen::new(&self.reporter);
         codegen.add_entries(&parsed);
-        let success = codegen.generate();
-        if let Err(code) = self.report_diagnostics(&parsed, (success as i32) - 1) {
-            return VmExitResult::from_code(code);
-        };
+        codegen.generate();
+        self.report_diagnostics(&parsed, i32::MIN + 1)?;
 
-        // vm
+        // collect bytecode
         let mut program_sources: Vec<ProgramSource> = Vec::new();
         for p in parsed {
             let code = p.code.into_inner();
@@ -54,32 +83,11 @@ impl LumaEngine {
             
             program_sources.push(ProgramSource::new(p.source.kind().to_owned(), bytecode));
         }
-        
-        let mut vm = match LumaVM::try_new(program_sources) {
-            Ok(vm) => vm,
-            Err(e) => {
-                eprintln!("VM Initialization Error: {}", e);
-                return VmExitResult::from_code(-1);
-            }
-        };
 
-        vm.run()
+        Ok(program_sources)
     }
 
-    pub fn eval_str(&self, _src: &str) -> DiagnosticResult<&Reporter> {
-        // let input = CodeInput::from(src);
-
-        // let ast = self.parse_ast(&input)?;
-        // let input = input.with_ast(ast);
-
-        Ok(&self.reporter)
-    }
-
-    pub fn reporter(&self) -> &Reporter {
-        &self.reporter
-    }
-
-    fn report_diagnostics(&self, sources: &Vec<ParsedCodeSource>, exit_code: i32) -> Result<i32, i32> {
+    fn report_diagnostics(&self, sources: &Vec<ParsedCodeSource>, exit_code: i32) -> Result<(), i32> {
         let errored = self.reporter.diagnostic_count(DiagnosticKind::Error) > 0;
         for source in sources {
             print!("{}", self.reporter.formatted_for(&source.source))
@@ -88,7 +96,7 @@ impl LumaEngine {
         if errored {
             Err(exit_code)
         } else {
-            Ok(exit_code)
+            Ok(())
         }
     }
 

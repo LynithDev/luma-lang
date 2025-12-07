@@ -1,7 +1,5 @@
 use std::{fmt::Debug, hash::Hash};
 
-use luma_core::bytecode::IndexRef;
-
 use crate::{VmError, VmResult};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -27,14 +25,14 @@ where T: Debug + Clone + PartialEq + Eq + Hash {
         }
     }
 
-    pub fn set(&mut self, index: usize, value: Option<T>) -> VmResult<IndexRef> {
+    pub fn set(&mut self, index: usize, value: Option<T>) -> VmResult<usize> {
         if index >= self.inner.len() {
             return Err(VmError::StackOverflow);
         }
 
         self.inner[index] = value;
 
-        Ok(IndexRef::new(index))
+        Ok(index)
     }
 
     pub fn clear_range(&mut self, start: usize, end: usize) -> VmResult<()> {
