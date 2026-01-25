@@ -1,0 +1,11 @@
+[package]
+name = "luma_diagnostic"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+luma_core = { workspace = true }
+
+thiserror = { workspace = true }
+annotate-snippets = { workspace = true }

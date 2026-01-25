@@ -1,0 +1,50 @@
+[workspace]
+members = [
+  "crates/*",
+]
+resolver = "3"
+
+[workspace.package]
+authors = ["LynithDev"]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+luma_compiler = { path = "crates/luma_compiler" }
+luma_core = { path = "crates/luma_core" }
+luma_diagnostic = { path = "crates/luma_diagnostic" }
+luma_vm = { path = "crates/luma_vm" }
+
+# utils
+strum = { version = "0.27", features = ["derive"] }
+annotate-snippets = { version = "0.12.10" }
+thiserror = { version = "2.0.17" }
+
+# dev dependencies
+pretty_assertions = { version = "1.4.1" }
+
+# Fastest possible build
+[profile.release-speed]
+codegen-units = 1
+incremental = false
+inherits = "release"
+lto = "fat"
+opt-level = 3
+panic = "abort"
+strip = true
+
+# Fast build for profiling
+[profile.release-profiling]
+inherits = "release"
+debug = true
+strip = false
+
+# Smallest possible binary
+[profile.release-size]
+codegen-units = 1
+incremental = false
+inherits = "release"
+lto = "fat"
+opt-level = "z"
+panic = "abort"
+strip = true

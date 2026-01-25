@@ -1,0 +1,8 @@
+[package]
+name = "luma_vm"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+luma_core = { workspace = true }

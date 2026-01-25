@@ -1,0 +1,15 @@
+struct Person {
+	pub name: str,
+	pub age: u8,
+};
+
+func get_name(person: Person): str {
+	return person.name;
+};
+
+var person = Person {
+	name: "Alice",
+	age: 30,
+};
+
+var name = get_name(person);

@@ -1,0 +1,16 @@
+[package]
+name = "luma_compiler"
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+
+[dependencies]
+luma_core = { workspace = true }
+luma_diagnostic = { workspace = true }
+
+# utils
+strum = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
