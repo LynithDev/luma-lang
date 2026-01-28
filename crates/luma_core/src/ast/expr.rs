@@ -1,11 +1,34 @@
 use strum::Display;
 
 use crate::{
-    Operator, Spanned,
-    ast::{Stmt, StmtKind, Symbol, SymbolKind},
+    Operator, Span, Spanned, ast::{Stmt, StmtKind, Symbol, SymbolKind, TypeKind}
 };
 
-pub type Expr = Spanned<ExprKind>;
+#[derive(Debug, Clone, PartialEq)]
+pub struct Expr {
+    pub item: ExprKind,
+    pub ty: Option<TypeKind>,
+    pub span: Span,
+}
+
+impl Expr {
+    pub fn spanned(span: Span, item: ExprKind) -> Self {
+        Self {
+            item,
+            ty: None,
+            span,
+        }
+    }
+
+    pub fn with_type(mut self, ty: TypeKind) -> Self {
+        self.ty = Some(ty);
+        self
+    }
+
+    pub fn set_type(&mut self, ty: TypeKind) {
+        self.ty = Some(ty);
+    }
+}
 
 #[derive(Display, Debug, Clone, PartialEq)]
 #[strum(serialize_all = "lowercase")]
@@ -88,6 +111,7 @@ pub enum LiteralExpr {
     Bool(bool),
     Char(char),
     String(String),
+    Unit,
 }
 
 #[derive(Debug, Clone, PartialEq)]

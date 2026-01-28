@@ -39,6 +39,11 @@ impl Lexer<'_> {
             states: Vec::new(),
         }
     }
+
+    pub fn tokenize(input: &CodeSource) -> Vec<Token> {
+        let state = LexerState::new(input);
+        state.process()
+    }
 }
 
 struct LexerState<'a> {

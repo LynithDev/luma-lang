@@ -14,7 +14,7 @@ impl AnalyzerStage for NameDeclaration {
     }
 }
 
-impl AstVisitor for NameDeclaration {
+impl AstVisitor<'_> for NameDeclaration {
     type Ctx = AnalyzerContext;
 
     fn visit_stmt(&mut self, ctx: &Self::Ctx, stmt: &mut Stmt) {

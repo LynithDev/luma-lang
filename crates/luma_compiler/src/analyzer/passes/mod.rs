@@ -6,12 +6,16 @@ pub use _01_name_declaration::NameDeclaration;
 pub use _02_name_resolution::NameResolution;
 pub use _03_type_inference::TypeInference;
 
+#[cfg(test)]
+pub mod tests;
+
 use crate::analyzer::AnalyzerStage;
 
 pub fn default_passes() -> Vec<Box<dyn AnalyzerStage>> {
     vec![
         Box::new(NameDeclaration),
         Box::new(NameResolution),
+        Box::new(TypeInference),
     ]
 }
 

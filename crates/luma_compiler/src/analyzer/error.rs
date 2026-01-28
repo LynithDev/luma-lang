@@ -1,3 +1,4 @@
+use luma_core::ast::TypeKind;
 use thiserror::Error;
 
 #[derive(Debug, Error, Clone, PartialEq)]
@@ -12,5 +13,13 @@ pub enum AnalyzerErrorKind {
     UnresolvedStructField {
         struct_name: String,
         field_name: String,
+    },
+
+    #[error("type inference could not infer the type")]
+    TypeInferenceFailure,
+    #[error("type mismatch: expected '{expected}', found '{found}'")]
+    TypeMismatch {
+        expected: TypeKind,
+        found: TypeKind,
     },
 }

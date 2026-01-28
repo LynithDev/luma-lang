@@ -1,7 +1,7 @@
 use crate::ast::{Ast, Expr, ExprKind, FuncParam, Stmt, StmtKind, StructFieldDecl, StructFieldExpr, Symbol, Type, TypeKind};
 
 #[allow(unused_variables)]
-pub trait AstVisitor {
+pub trait AstVisitor<'a> {
     type Ctx;
 
     fn visit_stmt(&mut self, ctx: &Self::Ctx, stmt: &mut Stmt) {}

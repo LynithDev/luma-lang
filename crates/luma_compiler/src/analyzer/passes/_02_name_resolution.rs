@@ -15,7 +15,7 @@ impl AnalyzerStage for NameResolution {
     }
 }
 
-impl AstVisitor for NameResolution {
+impl AstVisitor<'_> for NameResolution {
     type Ctx = AnalyzerContext;
 
     // here we resolve identifiers to their declared symbols

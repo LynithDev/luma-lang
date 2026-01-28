@@ -139,7 +139,7 @@ fn var_with_type_and_value() {
                             Type::new(Span::default(), TypeKind::Bool),
                         ]),
                     )),
-                    body: Spanned::spanned(
+                    body: Expr::spanned(
                         Span::default(),
                         ExprKind::Block(BlockExpr {
                             statements: vec![

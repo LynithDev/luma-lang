@@ -101,7 +101,11 @@ impl ParserContext<'_> {
 
                 Ok(Type::spanned(
                     span,
-                    TypeKind::Tuple(types)
+                    match types.len() {
+                        0 => TypeKind::Unit,
+                        // 1 => types.into_iter().next().unwrap().item,
+                        _ => TypeKind::Tuple(types),
+                    }
                 ))
             },
 

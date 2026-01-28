@@ -413,9 +413,7 @@ impl ParserContext<'_> {
             // empty tuple
             return Ok(Expr::spanned(
                 left_paren.span.merged(&token.span),
-                ExprKind::TupleLiteral(TupleExpr {
-                    elements: Vec::new(),
-                }),
+                ExprKind::Literal(LiteralExpr::Unit),
             ));
         }
 
