@@ -77,52 +77,50 @@ impl TypeInference {
                 Self::infer_expr(ctx, type_ctx, group_expr)
             },
             ExprKind::Binary(binary_expr) => {
-                Self::infer_binary(ctx, type_ctx, binary_expr)
+                let lty = Self::infer_expr(ctx, type_ctx, &mut binary_expr.left);
+                let rty = Self::infer_expr(ctx, type_ctx, &mut binary_expr.right);
+
+                match TypeKind::promote(&lty, &rty) {
+                    Some(ty) => ty,
+                    None => {
+                        // type mismatch
+                        ctx.error(LumaError::new(
+                            AnalyzerErrorKind::TypeMismatch { 
+                                expected: lty,
+                                found: rty
+                            },
+                            binary_expr.left.span.merged(&binary_expr.right.span),
+                        ));
+
+                        TypeKind::Unit
+                    }
+                }
             },
             ExprKind::Unary(unary_expr) => {
                 let val_ty = Self::infer_expr(ctx, type_ctx, &mut unary_expr.value);
 
-                // set the unary expr type
-                let ty = match unary_expr.operator.item {
+                match unary_expr.operator.item {
                     Operator::Subtract | Operator::Not => val_ty.clone(),
                     _ => val_ty.clone(),
-                };
-
-
-                expr.set_type(ty.clone());
-                ty
+                }
             },
+            ExprKind::Struct(struct_expr) => {
+                let ty = TypeKind::Named(struct_expr.symbol.name().to_string());
+
+                // infer types for each field
+                for field in &mut struct_expr.fields {
+                    let field_ty = Self::infer_expr(ctx, type_ctx, &mut field.value);
+                    field.value.set_type(field_ty);
+                }
+
+                ty
+            }
             
             _ => todo!("handle expression type inference for {:?}", expr.item),
         };
 
         expr.set_type(ty.clone());
         ty
-    }
-
-    fn infer_binary(
-        ctx: &AnalyzerContext, 
-        type_ctx: &TypeContext,
-        expr: &mut BinaryExpr, 
-    ) -> TypeKind {
-        let lty = Self::infer_expr(ctx, type_ctx, &mut expr.left);
-        let rty = Self::infer_expr(ctx, type_ctx, &mut expr.right);
-
-        match TypeKind::promote(&lty, &rty) {
-            Some(ty) => ty,
-            None => {
-                // type mismatch
-                ctx.error(LumaError::new(
-                    AnalyzerErrorKind::TypeMismatch { 
-                        expected: lty, 
-                        found: rty 
-                    },
-                    expr.left.span.merged(&expr.right.span),
-                ));
-
-                TypeKind::Unit
-            }
-        }
     }
 
     fn infer_literal(type_ctx: &TypeContext, lit: &LiteralExpr) -> Option<TypeKind> {

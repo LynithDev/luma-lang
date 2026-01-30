@@ -6,10 +6,10 @@ use luma_diagnostic::{CompilerResult, LumaError};
 
 use crate::{
     lexer::TokenKind,
-    parser::{context::ParserContext, error::ParserErrorKind},
+    parser::{parse::TokenParser, error::ParserErrorKind},
 };
 
-impl ParserContext<'_> {
+impl TokenParser<'_> {
     // MARK: Type
     /// Parses a type annotation (does not consume anything other than the type itself)
     pub(super) fn parse_type(&mut self) -> CompilerResult<Type> {

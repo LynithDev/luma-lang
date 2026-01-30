@@ -1,16 +1,16 @@
 #![allow(clippy::new_without_default)]
 
-pub mod lexer;
-pub mod parser;
+mod ctx;
 pub mod analyzer;
 pub mod codegen;
-mod ctx;
+pub mod lexer;
+pub mod parser;
 
-pub use lexer::Lexer;
-pub use parser::Parser;
 pub use analyzer::Analyzer;
 pub use codegen::Codegen;
 pub use ctx::CompilerContext;
+pub use lexer::Lexer;
+pub use parser::Parser;
 
 pub trait CompilerStage {
     type Input;

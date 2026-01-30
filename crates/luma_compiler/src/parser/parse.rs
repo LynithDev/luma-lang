@@ -1,28 +1,32 @@
 use luma_core::{Span, ast::*};
 use luma_diagnostic::{CompilerResult, LumaError};
 
-use crate::{lexer::{Token, TokenKind}, parser::error::ParserErrorKind};
+use crate::{lexer::{Token, TokenKind}, parser::{ctx::ParserContext, error::ParserErrorKind}};
 
-pub struct ParserContext<'a> {
-    ast: Vec<Stmt>,
-    tokens: &'a [Token],
-    index: usize,
+pub struct TokenParser<'a> {
+    pub(super) tokens: &'a [Token],
+    
+    pub(super) index: usize,
+    pub(super) ctx: ParserContext,
 }
 
-impl ParserContext<'_> {
-    pub(super) fn new<'a>(tokens: &'a [Token]) -> ParserContext<'a> {
-        ParserContext {
-            ast: Vec::new(),
+impl TokenParser<'_> {
+    pub(super) fn new<'a>(tokens: &'a [Token]) -> TokenParser<'a> {
+        TokenParser {
             tokens,
             index: 0,
+         
+            ctx: ParserContext::default(),
         }
     }
 
     /// The main parsing loop.
     pub(super) fn parse_tokens(mut self, errors: &mut Vec<LumaError>) -> Ast {
+        let mut statements: Vec<Stmt> = Vec::new();
+
         while !self.is_at_end() {
             match self.parse_statement(None) {
-                Ok(stmt) => self.ast.push(stmt),
+                Ok(stmt) => statements.push(stmt),
                 Err(err) => {
                     errors.push(err);
 
@@ -32,8 +36,8 @@ impl ParserContext<'_> {
         }
 
         Ast {
-            span: *Span::default().maybe_merge(&self.ast.last().map(|node| node.span)),
-            statements: self.ast,
+            span: *Span::default().maybe_merge(&statements.last().map(|node| node.span)),
+            statements,
         }
     }
 

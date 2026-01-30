@@ -2,11 +2,11 @@ use luma_core::{Operator, Spanned, ast::*};
 use luma_diagnostic::{CompilerResult, LumaError};
 
 use crate::{
-    lexer::{Token, TokenKind},
-    parser::{context::ParserContext, error::ParserErrorKind},
+    lexer::TokenKind,
+    parser::{error::ParserErrorKind, parse::TokenParser},
 };
 
-impl ParserContext<'_> {
+impl TokenParser<'_> {
     // MARK: Expression
     /// Parses an expression
     ///
@@ -317,7 +317,7 @@ impl ParserContext<'_> {
             expr = match &current.kind {
                 TokenKind::LeftParen => self.expr_finish_call(expr)?,
                 TokenKind::Dot => self.expr_get(expr)?,
-
+                TokenKind::LeftBrace if self.ctx.allow_struct_literal => self.expr_finish_struct(expr)?,
                 _ => break,
             };
         }
@@ -377,6 +377,50 @@ impl ParserContext<'_> {
         ))
     }
 
+    // MARK: Struct
+    /// Parses struct literal expressions
+    pub(super) fn expr_finish_struct(&mut self, expr: Expr) -> CompilerResult<Expr> {
+        let ExprKind::Ident(ident) = &expr.item else {
+            return Err(LumaError::new(
+                ParserErrorKind::InvalidStructLiteralTarget {
+                    found: expr.item.clone(),
+                },
+                expr.span,
+            ));
+        };
+
+        let mut fields = Vec::new();
+
+        self.consume(TokenKind::LeftBrace)?;
+
+        while !self.check(TokenKind::RightBrace) {
+
+            let field_name = self.consume(TokenKind::Ident)?;
+            self.consume(TokenKind::Colon)?;
+            let value = self.parse_expression()?;
+
+            fields.push(StructFieldExpr {
+                symbol: field_name.as_symbol(),
+                value,
+            });
+
+            if self.consume(TokenKind::Comma).is_err() {
+                break;
+            }
+            
+        }
+
+        let right_brace = self.consume(TokenKind::RightBrace)?;
+
+        Ok(Expr::spanned(
+            expr.span.merged(&right_brace.span),
+            ExprKind::Struct(StructExpr {
+                symbol: Spanned::spanned(expr.span, ident.symbol.clone()),
+                fields,
+            }),
+        ))
+    }
+
     // MARK: Primary
     /// Parses primary expressions
     ///
@@ -409,8 +453,8 @@ impl ParserContext<'_> {
     pub(super) fn expr_tuple_group(&mut self) -> CompilerResult<Expr> {
         let left_paren = self.consume(TokenKind::LeftParen)?;
 
+        // empty tuple
         if let Ok(token) = self.consume(TokenKind::RightParen) {
-            // empty tuple
             return Ok(Expr::spanned(
                 left_paren.span.merged(&token.span),
                 ExprKind::Literal(LiteralExpr::Unit),
@@ -419,56 +463,81 @@ impl ParserContext<'_> {
 
         let mut elements = Vec::new();
 
-        // push the first element (this'll be used for grouping if no comma follows)
-        elements.push(self.parse_expression()?);
 
-        // tuple
-        if self.consume(TokenKind::Comma).is_ok() {
-            while !self.check(TokenKind::RightParen) {
-                elements.push(self.parse_expression()?);
+        // force allow struct literals in this context
+        let original_allow_struct_literal = self.ctx.allow_struct_literal;
+        self.ctx.allow_struct_literal = true;
 
-                if self.consume(TokenKind::Comma).is_err() {
-                    break;
+        let result = {
+    
+            // push the first element (this'll be used for grouping if no comma follows)
+            let expr = self.parse_expression()?;
+            
+            elements.push(expr);
+
+            if self.consume(TokenKind::Comma).is_ok() {
+                
+                // tuple
+                while !self.check(TokenKind::RightParen) {
+                    elements.push(self.parse_expression()?);
+
+                    if self.consume(TokenKind::Comma).is_err() {
+                        break;
+                    }
                 }
+
+                self.consume(TokenKind::RightParen)?;
+
+                Ok(Expr::spanned(
+                    left_paren.span.merged(&elements.last().unwrap().span),
+                    ExprKind::TupleLiteral(TupleExpr { elements }),
+                ))
+
+            } else {
+
+                // grouping
+                self.consume(TokenKind::RightParen)?;
+    
+                let expr = elements.remove(0);
+    
+                Ok(Expr::spanned(
+                    left_paren.span.merged(&expr.span),
+                    ExprKind::Group(Box::new(expr)), 
+                ))
+
             }
 
-            self.consume(TokenKind::RightParen)?;
+        };
 
-            return Ok(Expr::spanned(
-                left_paren.span.merged(&elements.last().unwrap().span),
-                ExprKind::TupleLiteral(TupleExpr { elements }),
-            ));
-        }
-
-        // grouping
-        self.consume(TokenKind::RightParen)?;
-
-        let expr = elements.remove(0);
-
-        Ok(Expr::spanned(
-            left_paren.span.merged(&expr.span),
-            ExprKind::Group(Box::new(expr)), 
-        ))
+        self.ctx.allow_struct_literal = original_allow_struct_literal;
+        result
     }
 
     // MARK: Block
     /// Parses a block expression
     pub(super) fn expr_block(&mut self) -> CompilerResult<Expr> {
         let left_brace = self.consume(TokenKind::LeftBrace)?;
-        let mut statements: Vec<Stmt> = Vec::new();
+        let mut statements = Vec::new();
 
-        while self.current().kind != TokenKind::RightBrace && !self.is_at_end() {
+        while !self.check(TokenKind::RightBrace) && !self.is_at_end() {
             let stmt = self.parse_statement(Some(false))?;
 
-            // optional semicolon for last statement in block
-            let needs_semi =
-                !self.check_next(TokenKind::RightBrace) && !self.check_next(TokenKind::Semicolon);
+            // A semicolon is required unless:
+            // - this is the last thing before `}`
+            let needs_semi = !self.check(TokenKind::RightBrace);
 
-            if let Err(err) = self.consume(TokenKind::Semicolon)
-                && needs_semi
-            {
-                // only error if we actually need a semicolon
-                return Err(err);
+            if self.check(TokenKind::Semicolon) {
+                self.advance(); // consume it
+            } else if needs_semi {
+                let current = self.current();
+
+                return Err(LumaError::new(
+                    ParserErrorKind::ExpectedToken { 
+                        expected: TokenKind::Semicolon, 
+                        found: current.kind.clone(),
+                    },
+                    current.span,
+                ));
             }
 
             statements.push(stmt);
@@ -488,7 +557,12 @@ impl ParserContext<'_> {
         // consume main branch
         let if_token = self.consume(TokenKind::If)?;
 
+        let original_allow_struct_literal = self.ctx.allow_struct_literal;
+        self.ctx.allow_struct_literal = false;
+
         let condition = self.parse_expression()?;
+
+        self.ctx.allow_struct_literal = original_allow_struct_literal;
 
         let then_branch = self.expr_block()?;
 
@@ -599,54 +673,10 @@ impl ParserContext<'_> {
     pub(super) fn expr_ident(&mut self) -> CompilerResult<Expr> {
         let ident = self.consume(TokenKind::Ident)?;
 
-        if self.check(TokenKind::LeftBrace) {
-            return self.expr_finish_struct(ident);
-        }
-
         Ok(Expr::spanned(
             ident.span,
             ExprKind::Ident(IdentExpr {
                 symbol: SymbolKind::named(ident.lexeme),
-            }),
-        ))
-    }
-
-    // MARK: Struct
-    /// Parses struct literal expressions
-    pub(super) fn expr_finish_struct(&mut self, ident: Token) -> CompilerResult<Expr> {
-        // begin parsing fields
-        let mut fields = Vec::new();
-
-        self.consume(TokenKind::LeftBrace)?;
-
-        // parse fields
-        while !self.check(TokenKind::RightBrace) {
-            // field ident
-            let field_name_token = self.consume(TokenKind::Ident)?;
-
-            // field value
-            self.consume(TokenKind::Colon)?;
-
-            let field_value = self.parse_expression()?;
-
-            fields.push(StructFieldExpr {
-                symbol: field_name_token.as_symbol(),
-                value: field_value,
-            });
-
-            // this supports trailing commas
-            if self.consume(TokenKind::Comma).is_err() {
-                break;
-            }
-        }
-
-        let right_brace = self.consume(TokenKind::RightBrace)?;
-
-        Ok(Expr::spanned(
-            ident.span.merged(&right_brace.span),
-            ExprKind::Struct(StructExpr {
-                symbol: ident.as_symbol(),
-                fields,
             }),
         ))
     }

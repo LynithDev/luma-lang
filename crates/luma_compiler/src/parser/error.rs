@@ -1,3 +1,4 @@
+use luma_core::ast::ExprKind;
 use thiserror::Error;
 
 use crate::lexer::TokenKind;
@@ -39,6 +40,10 @@ pub enum ParserErrorKind {
     #[error("invalid suffix for literal: '{suffix}'")]
     InvalidLiteralSuffix {
         suffix: String,
+    },
+    #[error("invalid struct literal target, expected identifier found '{found}'")]
+    InvalidStructLiteralTarget {
+        found: ExprKind,
     },
     #[error("invalid visibility specifier '{ident}'")]
     InvalidVisibility {

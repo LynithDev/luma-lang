@@ -2,12 +2,13 @@ use luma_core::ast::*;
 use luma_diagnostic::LumaError;
 
 use crate::{
-    CompilerContext, CompilerStage, lexer::Token, parser::{context::ParserContext, error::ParserErrorKind}
+    CompilerContext, CompilerStage, lexer::Token, parser::{parse::TokenParser, error::ParserErrorKind}
 };
 
 pub mod error;
 
-mod context;
+mod ctx;
+mod parse;
 mod parse_expr;
 mod parse_stmt;
 mod parse_util;
@@ -16,21 +17,21 @@ mod parse_util;
 mod tests;
 
 pub struct Parser<'tokens> {
-    contexts: Vec<ParserContext<'tokens>>,
+    parsers: Vec<TokenParser<'tokens>>,
 }
 
 impl Parser<'_> {
     pub fn new<'tokens>() -> Parser<'tokens> {
         Parser {
-            contexts: Vec::new(),
+            parsers: Vec::new(),
         }
     }
 
     pub fn parse(tokens: &[Token]) -> (Ast, Vec<LumaError>) {
         let mut errors = Vec::new();
         
-        let context = ParserContext::new(tokens);
-        let ast = context.parse_tokens(&mut errors);
+        let parser = TokenParser::new(tokens);
+        let ast = parser.parse_tokens(&mut errors);
         (ast, errors)
     }
 }
@@ -47,13 +48,13 @@ impl<'tokens> CompilerStage for Parser<'tokens> {
     }
 
     fn feed(&mut self, input: Self::Input) {
-        self.contexts.push(ParserContext::new(input));
+        self.parsers.push(TokenParser::new(input));
     }
     
     fn process(self, ctx: &CompilerContext) -> Self::ProcessedOutput {
         let mut errors = ctx.errors.borrow_mut();
         
-        self.contexts.into_iter()
+        self.parsers.into_iter()
             .map(|ctx| {
                 ctx.parse_tokens(&mut errors)
             })

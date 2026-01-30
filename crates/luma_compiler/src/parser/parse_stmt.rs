@@ -3,10 +3,10 @@ use luma_diagnostic::{CompilerResult, LumaError};
 
 use crate::{
     lexer::TokenKind,
-    parser::{context::ParserContext, error::ParserErrorKind},
+    parser::{parse::TokenParser, error::ParserErrorKind},
 };
 
-impl ParserContext<'_> {
+impl TokenParser<'_> {
     pub fn parse_statement(&mut self, semi: Option<bool>) -> CompilerResult<Stmt> {
         let stmt = self.stmt_declaration()?;
 
