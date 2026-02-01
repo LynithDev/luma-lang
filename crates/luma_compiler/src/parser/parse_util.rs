@@ -61,7 +61,10 @@ impl TokenParser<'_> {
                     "char" => TypeKind::Char,
                     "str" => TypeKind::String,
 
-                    other => TypeKind::Named(other.to_string()),
+                    other => TypeKind::Named {
+                        name: other.to_string(),
+                        def_id: None,
+                    },
                 };
 
                 Ok(Type::spanned(

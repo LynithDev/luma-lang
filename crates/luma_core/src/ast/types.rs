@@ -28,7 +28,10 @@ pub enum TypeKind {
     Ptr(Box<Type>),
     // Array(Box<Type>, Option<Spanned<usize>>),
     // Func(Vec<Type>, Box<Type>),
-    Named(String),
+    Named {
+        name: String,
+        def_id: Option<usize>,
+    },
 }
 
 impl From<Type> for TypeKind {
@@ -81,7 +84,7 @@ impl TypeKind {
 
     #[must_use]
     pub const fn is_named(&self) -> bool {
-        matches!(self, TypeKind::Named(_))
+        matches!(self, TypeKind::Named { .. })
     }
 
     #[must_use]

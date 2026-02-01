@@ -6,6 +6,8 @@ use crate::{CompilerContext, CompilerStage};
 mod ctx;
 pub use ctx::*;
 
+pub mod scopes;
+pub mod registry;
 pub mod symbols;
 pub mod passes;
 pub mod error;

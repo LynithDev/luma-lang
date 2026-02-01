@@ -8,6 +8,7 @@ use crate::{
 pub struct Expr {
     pub item: ExprKind,
     pub ty: Option<TypeKind>,
+    pub scope_id: Option<usize>,
     pub span: Span,
 }
 
@@ -16,17 +17,17 @@ impl Expr {
         Self {
             item,
             ty: None,
+            scope_id: None,
             span,
         }
     }
 
-    pub fn with_type(mut self, ty: TypeKind) -> Self {
-        self.ty = Some(ty);
-        self
-    }
-
     pub fn set_type(&mut self, ty: TypeKind) {
         self.ty = Some(ty);
+    }
+
+    pub fn set_scope(&mut self, scope_id: usize) {
+        self.scope_id = Some(scope_id);
     }
 }
 

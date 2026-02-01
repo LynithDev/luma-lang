@@ -1,8 +1,27 @@
 use strum::Display;
 
-use crate::{Spanned, Visibility, ast::{Expr, Symbol, Type}};
+use crate::{Span, Spanned, Visibility, ast::{Expr, Symbol, Type}};
 
-pub type Stmt = Spanned<StmtKind>;
+#[derive(Debug, Clone, PartialEq)]
+pub struct Stmt {
+    pub item: StmtKind,
+    pub scope_id: Option<usize>,
+    pub span: Span,
+}
+
+impl Stmt {
+    pub fn spanned(span: Span, item: StmtKind) -> Self {
+        Stmt { 
+            item,
+            scope_id: None,
+            span
+        }
+    }
+
+    pub fn set_scope_id(&mut self, scope_id: usize) {
+        self.scope_id = Some(scope_id);
+    }
+}
 
 #[derive(Display, Debug, Clone, PartialEq)]
 #[strum(serialize_all = "lowercase")]

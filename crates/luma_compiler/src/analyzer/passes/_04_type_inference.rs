@@ -105,15 +105,16 @@ impl TypeInference {
                 }
             },
             ExprKind::Struct(struct_expr) => {
-                let ty = TypeKind::Named(struct_expr.symbol.name().to_string());
+                // let ty = TypeKind::Named(struct_expr.symbol.name().to_string());
 
-                // infer types for each field
-                for field in &mut struct_expr.fields {
-                    let field_ty = Self::infer_expr(ctx, type_ctx, &mut field.value);
-                    field.value.set_type(field_ty);
-                }
+                // // infer types for each field
+                // for field in &mut struct_expr.fields {
+                //     let field_ty = Self::infer_expr(ctx, type_ctx, &mut field.value);
+                //     field.value.set_type(field_ty);
+                // }
 
-                ty
+                // ty
+                todo!("handle struct expression type inference")
             }
             
             _ => todo!("handle expression type inference for {:?}", expr.item),

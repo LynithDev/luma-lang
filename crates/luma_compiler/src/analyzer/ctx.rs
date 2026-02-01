@@ -2,18 +2,20 @@ use std::cell::RefCell;
 
 use luma_diagnostic::LumaError;
 
-use crate::{analyzer::symbols::SymbolTable};
+use crate::analyzer::{scopes::ScopeManager, symbols::SymbolTable};
 
 pub struct AnalyzerContext {
-    pub symbols: RefCell<SymbolTable>,
     pub errors: RefCell<Vec<LumaError>>,
+    pub scopes: RefCell<ScopeManager>,
+    pub symbols: RefCell<SymbolTable>,
 }
 
 impl AnalyzerContext {
     pub fn new() -> Self {
         AnalyzerContext {
-            symbols: RefCell::new(SymbolTable::new()),
             errors: RefCell::new(Vec::new()),
+            scopes: RefCell::new(ScopeManager::new()),
+            symbols: RefCell::new(SymbolTable::new()),
         }
     }
 
