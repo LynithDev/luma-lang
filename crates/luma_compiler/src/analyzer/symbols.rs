@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
+use crate::analyzer::scopes::{ScopeId, ScopeManager};
+
 #[derive(Debug)]
 pub struct SymbolTable {
-    /// list of all declared symbols
     symbols: Vec<SymbolEntry>,
-    /// stores mapping from (namespace, name) to symbol index
-    lookup_map: HashMap<(SymbolNamespace, String), usize>,
-    /// stack of scopes, each scope is a list of symbol ids
-    scope_stack: Vec<usize>,
+    /// (namespace + name) -> symbol id
+    lookup_map: HashMap<(SymbolNamespace, ScopeId, String), usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,10 +21,10 @@ pub enum SymbolNamespace {
 
 #[derive(Debug)]
 pub struct SymbolEntry {
-    name: String,
-    /// index to previous shadowed symbol in the same namespace
-    shadowed: Option<usize>,
-    namespace: SymbolNamespace,
+    pub name: String,
+    pub namespace: SymbolNamespace,
+    pub scope_id: ScopeId,
+    pub shadowed: Option<usize>,
 }
 
 impl SymbolTable {
@@ -33,21 +32,56 @@ impl SymbolTable {
         SymbolTable {
             symbols: Vec::new(),
             lookup_map: HashMap::new(),
-            scope_stack: Vec::new(),
+        }
+    }
+
+    pub fn declare(&mut self, scope_id: ScopeId, namespace: SymbolNamespace, name: String) -> usize {
+        let shadowed = self.lookup_map.get(&(namespace, scope_id, name.clone())).cloned();
+
+        let id = self.symbols.len();
+        self.symbols.push(SymbolEntry {
+            name: name.clone(),
+            namespace,
+            scope_id,
+            shadowed,
+        });
+
+        self.lookup_map.insert((namespace, scope_id, name), id);
+
+        id
+    }
+
+    pub fn lookup(
+        &self,
+        scopes: &ScopeManager,
+        namespace: SymbolNamespace, 
+        mut scope: ScopeId,
+        name: &str,
+    ) -> Option<usize> {
+        loop {
+            if let Some(id) = self.lookup_map.get(&(namespace, scope, name.to_string())) {
+                return Some(*id);
+            }
+
+            match scopes.parent(scope) {
+                Some(parent) => scope = parent,
+                None => return None,
+            }
         }
     }
 
     pub fn enter_scope(&mut self) {
-        self.scope_stack.push(self.symbols.len());
+        // no-op
     }
 
-    pub fn exit_scope(&mut self) {
-        let Some(start) = self.scope_stack.pop() else {
-            panic!("attempted to exit scope when no scope is active.");
-        };
+    pub fn exit_scope(&mut self, scope: usize) {
+        for i in (0..self.symbols.len()).rev() {
+            let sym = &self.symbols[i];
+            if sym.scope_id != scope {
+                continue;
+            }
 
-        for sym in self.symbols[start..].iter().rev() {
-            let key = (sym.namespace, sym.name.clone());
+            let key = (sym.namespace, sym.scope_id, sym.name.clone());
 
             if let Some(prev) = sym.shadowed {
                 self.lookup_map.insert(key, prev);
@@ -57,48 +91,7 @@ impl SymbolTable {
         }
     }
 
-    pub fn scoped(&mut self, f: impl FnOnce(&mut Self)) {
-        self.enter_scope();
-        f(self);
-        self.exit_scope();
-    }
-
-    pub fn declare(&mut self, namespace: SymbolNamespace, name: String) -> usize {
-        let shadowed = self.lookup_map.get(&(namespace, name.clone())).cloned();
-
-        let id = self.symbols.len();
-
-        self.symbols.push(SymbolEntry {
-            name: name.clone(),
-            shadowed,
-            namespace,
-        });
-
-        self.lookup_map.insert((namespace, name), id);
-
-        id
-    }
-
-    pub fn recache(&mut self, index: usize) {
-        let Some(symbol) = self.get_symbol_by_index(index) else {
-            panic!("attempted to redeclare non-existent symbol id {}", index);
-        };
-        
-        let key = (symbol.namespace, symbol.name.clone());
-        
-        self.lookup_map.insert(key, index);
-
-        if let Some(scope_stack) = self.scope_stack.last_mut() {
-            *scope_stack -= 1;
-        }
-    }
-
-    /// Looks up a symbol by its namespace and name, returning its symbol ID 
-    pub fn lookup(&self, namespace: SymbolNamespace, name: &str) -> Option<usize> {
-        self.lookup_map.get(&(namespace, name.to_string())).cloned()
-    }
-
-    pub fn get_symbol_by_index(&self, index: usize) -> Option<&SymbolEntry> {
-        self.symbols.get(index)
+    pub fn get_symbol(&self, id: usize) -> Option<&SymbolEntry> {
+        self.symbols.get(id)
     }
 }

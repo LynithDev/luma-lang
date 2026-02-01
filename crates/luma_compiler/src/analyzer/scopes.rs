@@ -1,11 +1,13 @@
+pub type ScopeId = usize;
+
 pub struct ScopeManager {
     scopes: Vec<Scope>,
 
-    current: usize,
+    current: ScopeId,
 }
 
 pub struct Scope {
-    pub parent: Option<usize>,
+    pub parent: Option<ScopeId>,
 }
 
 impl ScopeManager {
@@ -33,5 +35,9 @@ impl ScopeManager {
 
     pub fn current_scope(&self) -> usize {
         self.current
+    }
+
+    pub fn parent(&self, scope: ScopeId) -> Option<ScopeId> {
+        self.scopes[scope].parent
     }
 }

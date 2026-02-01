@@ -6,8 +6,8 @@ var Test = Test {
     field: "hello",
 };
 
-if Test.field {
-    10
-} else {
-    5
-};
+// if Test.field {
+//     10
+// } else {
+//     5
+// };

@@ -11,7 +11,6 @@ impl AnalyzerStage for ScopeIdentification {
 
     fn analyze(&mut self, ctx: &AnalyzerContext, input: &mut Ast) {
         self.traverse(ctx, input);
-        println!("{:#?}", input);
     }
 }
 

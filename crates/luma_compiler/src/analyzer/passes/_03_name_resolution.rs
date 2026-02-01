@@ -23,11 +23,14 @@ impl AstVisitor<'_> for NameResolution {
         match &mut expr.item {
             ExprKind::Ident(ident_expr) => {
                 let symbol = &mut ident_expr.symbol;
+                let scope_manager = ctx.scopes.borrow();
 
                 // lookup the symbol in value namespace, 
                 // as identifiers refer to variables
                 let Some(resolved_id) = ctx.symbols.borrow_mut().lookup(
+                    &scope_manager,
                     SymbolNamespace::Value, 
+                    scope_manager.current_scope(),
                     symbol.name()
                 ) else {
                     ctx.error(LumaError::new(
@@ -43,11 +46,14 @@ impl AstVisitor<'_> for NameResolution {
             }
             ExprKind::Struct(struct_expr) => {
                 let symbol = &mut struct_expr.symbol;
+                let scope_manager = ctx.scopes.borrow();
 
                 // lookup the symbol in type namespace, 
                 // as identifiers refer to types
                 let Some(resolved_id) = ctx.symbols.borrow_mut().lookup(
-                    SymbolNamespace::Type, 
+                    &scope_manager,
+                    SymbolNamespace::Type,
+                    scope_manager.current_scope(), 
                     symbol.name()
                 ) else {
                     ctx.error(LumaError::new(
@@ -77,8 +83,12 @@ impl AstVisitor<'_> for NameResolution {
             return;
         };
 
+        let scope_manager = ctx.scopes.borrow();
+
         let Some(resolved_field_id) = ctx.symbols.borrow_mut().lookup(
-            SymbolNamespace::StructField(resolved_struct_id), 
+            &scope_manager,
+            SymbolNamespace::StructField(resolved_struct_id),
+            scope_manager.current_scope(),
             field_symbol.name()
         ) else {
             ctx.error(LumaError::new(
@@ -94,73 +104,13 @@ impl AstVisitor<'_> for NameResolution {
         field_symbol.set_id(resolved_field_id);
     }
 
-    // --- scope repopulation ---
-    // we repopulate the lookup maps here, no declarations should happen
-
-    fn visit_stmt(&mut self, ctx: &Self::Ctx, stmt: &mut Stmt) {
-        let symbol: &mut SymbolKind = match &mut stmt.item {
-            StmtKind::Var(var_decl) => {
-                &mut var_decl.symbol.item
-            },
-            StmtKind::Struct(struct_decl) => {
-                &mut struct_decl.symbol.item
-            }
-            StmtKind::Func(func_decl) => {
-                &mut func_decl.symbol.item
-            }
-            _ => {
-                return;
-            }
-        };
-        
-        let Some(symbol_id) = symbol.id() else {
-            ctx.error(LumaError::new(
-                AnalyzerErrorKind::UnidentifiedSymbol(symbol.name().to_string()),
-                stmt.span,
-            ));
-            return;
-        };
-
-        // repopulate the lookup map for this symbol
-        ctx.symbols.borrow_mut().recache(symbol_id);
-    }
-
-    fn visit_func_param(&mut self, ctx: &Self::Ctx, param: &mut FuncParam) {
-        let symbol = &mut param.symbol.item;
-        
-        let Some(symbol_id) = symbol.id() else {
-            ctx.error(LumaError::new(
-                AnalyzerErrorKind::UnidentifiedSymbol(param.symbol.name().to_string()),
-                param.symbol.span,
-            ));
-            return;
-        };
-
-        // repopulate the lookup map for this symbol
-        ctx.symbols.borrow_mut().recache(symbol_id);
-    }
-
-    fn visit_struct_field_decl(&mut self, ctx: &Self::Ctx, _struct_symbol: &Symbol, field: &mut StructFieldDecl) {
-        let symbol = &mut field.symbol.item;
-        
-        let Some(symbol_id) = symbol.id() else {
-            ctx.error(LumaError::new(
-                AnalyzerErrorKind::UnidentifiedSymbol(symbol.name().to_string()),
-                field.symbol.span,
-            ));
-            return;
-        };
-
-        // repopulate the lookup map for this symbol
-        ctx.symbols.borrow_mut().recache(symbol_id);
-    }
-
 
     fn enter_scope(&mut self, ctx: &Self::Ctx) {
         ctx.symbols.borrow_mut().enter_scope();
     }
 
     fn exit_scope(&mut self, ctx: &Self::Ctx) {
-        ctx.symbols.borrow_mut().exit_scope();
+        let scope_id = ctx.scopes.borrow().current_scope();
+        ctx.symbols.borrow_mut().exit_scope(scope_id);
     }
 }
