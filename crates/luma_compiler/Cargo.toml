@@ -11,6 +11,7 @@ luma_diagnostic = { workspace = true }
 # utils
 strum = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

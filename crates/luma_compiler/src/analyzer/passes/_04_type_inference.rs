@@ -104,7 +104,7 @@ impl TypeInference {
                     _ => val_ty.clone(),
                 }
             },
-            ExprKind::Struct(struct_expr) => {
+            // ExprKind::Struct(struct_expr) => {
                 // let ty = TypeKind::Named(struct_expr.symbol.name().to_string());
 
                 // // infer types for each field
@@ -114,10 +114,13 @@ impl TypeInference {
                 // }
 
                 // ty
-                todo!("handle struct expression type inference")
-            }
+            //     todo!("handle struct expression type inference")
+            // }
             
-            _ => todo!("handle expression type inference for {:?}", expr.item),
+            _ => {
+                tracing::warn!("handle expression type inference for {:?}", expr.item);
+                expr.ty.clone().unwrap_or(TypeKind::Unit)
+            },
         };
 
         expr.set_type(ty.clone());
