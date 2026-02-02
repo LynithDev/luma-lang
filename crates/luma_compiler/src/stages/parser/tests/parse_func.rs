@@ -2,7 +2,7 @@ use crate::{Operator, VisibilityKind, ast::*};
 use luma_core::{MaybeSpanned, Span, Spanned};
 use pretty_assertions::assert_eq;
 
-use crate::{Parser, create_tokens};
+use crate::{ParserStage, create_tokens};
 
 #[test]
 fn var_with_type_and_value() {
@@ -15,7 +15,7 @@ fn var_with_type_and_value() {
 
      */
 
-    let (ast, _) = Parser::parse(&create_tokens![
+    let (ast, _) = ParserStage::parse(&create_tokens![
         // func test(
         Func,
         Ident => "test",

@@ -4,24 +4,24 @@ use crate::ast::{Ast, Expr, ExprKind, FuncParam, Stmt, StmtKind, StructFieldDecl
 pub trait AstVisitor<'a> {
     type Ctx;
 
-    fn visit_stmt(&mut self, ctx: &Self::Ctx, stmt: &mut Stmt) {}
-    fn visit_expr(&mut self, ctx: &Self::Ctx, expr: &mut Expr) {}
+    fn visit_stmt(&mut self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {}
+    fn visit_expr(&mut self, ctx: &mut Self::Ctx, expr: &mut Expr) {}
 
-    fn visit_func_param(&mut self, ctx: &Self::Ctx, param: &mut FuncParam) {}
-    fn visit_struct_field_decl(&mut self, ctx: &Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldDecl) {}
-    fn visit_struct_field_expr(&mut self, ctx: &Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldExpr) {}
-    fn visit_type(&mut self, ctx: &Self::Ctx, ty: &mut Type) {}
+    fn visit_func_param(&mut self, ctx: &mut Self::Ctx, param: &mut FuncParam) {}
+    fn visit_struct_field_decl(&mut self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldDecl) {}
+    fn visit_struct_field_expr(&mut self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldExpr) {}
+    fn visit_type(&mut self, ctx: &mut Self::Ctx, ty: &mut Type) {}
     
-    fn enter_scope(&mut self, ctx: &Self::Ctx) {}
-    fn exit_scope(&mut self, ctx: &Self::Ctx) {} 
+    fn enter_scope(&mut self, ctx: &mut Self::Ctx) {}
+    fn exit_scope(&mut self, ctx: &mut Self::Ctx) {} 
 
-    fn traverse(&mut self, ctx: &Self::Ctx, ast: &mut Ast) {
+    fn traverse(&mut self, ctx: &mut Self::Ctx, ast: &mut Ast) {
         for stmt in &mut ast.statements {
             self.walk_stmt(ctx, stmt);
         }
     }
 
-    fn walk_expr(&mut self, ctx: &Self::Ctx, expr: &mut Expr) {
+    fn walk_expr(&mut self, ctx: &mut Self::Ctx, expr: &mut Expr) {
         self.visit_expr(ctx, expr);
 
         match &mut expr.item {
@@ -84,7 +84,7 @@ pub trait AstVisitor<'a> {
         }
     }
 
-    fn walk_stmt(&mut self, ctx: &Self::Ctx, stmt: &mut Stmt) {
+    fn walk_stmt(&mut self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
         self.visit_stmt(ctx, stmt);
 
         match &mut stmt.item {
@@ -123,7 +123,7 @@ pub trait AstVisitor<'a> {
         }
     }
 
-    fn walk_func_param(&mut self, ctx: &Self::Ctx, param: &mut FuncParam) {
+    fn walk_func_param(&mut self, ctx: &mut Self::Ctx, param: &mut FuncParam) {
         self.visit_func_param(ctx, param);
         self.walk_type(ctx, &mut param.ty);
 
@@ -132,7 +132,7 @@ pub trait AstVisitor<'a> {
         }
     }
 
-    fn walk_type(&mut self, ctx: &Self::Ctx, ty: &mut Type) {
+    fn walk_type(&mut self, ctx: &mut Self::Ctx, ty: &mut Type) {
         self.visit_type(ctx, ty);
 
         match &mut ty.item {

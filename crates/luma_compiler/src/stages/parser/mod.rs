@@ -2,7 +2,7 @@ use crate::ast::*;
 use luma_diagnostic::LumaError;
 
 use crate::{
-    CompilerContext, CompilerStage, stages::{lexer::Token, parser::{parse::TokenParser, error::ParserErrorKind}}
+    CompilerContext, CompilerStage, stages::{lexer::Token, parser::parse::TokenParser}
 };
 
 pub mod error;
@@ -16,15 +16,11 @@ mod parse_util;
 #[cfg(test)]
 mod tests;
 
-pub struct Parser<'tokens> {
-    parsers: Vec<TokenParser<'tokens>>,
-}
+pub struct ParserStage;
 
-impl Parser<'_> {
-    pub fn new<'tokens>() -> Parser<'tokens> {
-        Parser {
-            parsers: Vec::new(),
-        }
+impl ParserStage {
+    pub fn new() -> ParserStage {
+        ParserStage
     }
 
     pub fn parse(tokens: &[Token]) -> (Ast, Vec<LumaError>) {
@@ -36,27 +32,21 @@ impl Parser<'_> {
     }
 }
 
-impl<'tokens> CompilerStage for Parser<'tokens> {
-    type Input = &'tokens [Token];
+impl<'stage> CompilerStage<'stage> for ParserStage {
+    type Input = &'stage [Vec<Token>];
 
-    type ProcessedOutput = Vec<Ast>;
+    type Output = Vec<Ast>;
 
-    type ErrorKind = ParserErrorKind;
-
-    fn name() -> String {
-        String::from("parser")
-    }
-
-    fn feed(&mut self, input: Self::Input) {
-        self.parsers.push(TokenParser::new(input));
+    fn name() -> &'static str {
+        "parser"
     }
     
-    fn process(self, ctx: &CompilerContext) -> Self::ProcessedOutput {
+    fn process(self, ctx: &CompilerContext, input: Self::Input) -> Self::Output {
         let mut errors = ctx.errors.borrow_mut();
         
-        self.parsers.into_iter()
-            .map(|ctx| {
-                ctx.parse_tokens(&mut errors)
+        input.iter()
+            .map(|tokens| {
+                TokenParser::new(tokens).parse_tokens(&mut errors)
             })
             .collect()
     }

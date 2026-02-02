@@ -7,55 +7,44 @@ pub use tokens::*;
 
 use crate::{CompilerContext, CompilerStage};
 
-pub struct Lexer<'a> {
-    states: Vec<LexerState<'a>>,
-}
+pub struct LexerStage;
 
-impl<'chars> CompilerStage for Lexer<'chars> {
-    type Input = &'chars CodeSource;
+impl<'stage> CompilerStage<'stage> for LexerStage {
+    type Input = &'stage [CodeSource];
+    type Output = Vec<TokenList>;
 
-    type ProcessedOutput = Vec<Vec<Token>>;
-
-    type ErrorKind = ();
-
-    fn name() -> String {
-        String::from("lexer")
+    fn name() -> &'static str {
+        "lexer"
     }
 
-    fn feed(&mut self, input: Self::Input) {
-        self.states.push(LexerState::new(input));
-    }
-
-    fn process(self, _ctx: &CompilerContext) -> Self::ProcessedOutput {
-        self.states.into_iter()
-            .map(|state| state.process())
+    fn process(self, _ctx: &CompilerContext, input: Self::Input) -> Self::Output {
+        input.iter()
+            .map(Self::tokenize)
             .collect()
     }
 }
 
-impl Lexer<'_> {
+impl LexerStage {
     pub fn new() -> Self {
-        Self {
-            states: Vec::new(),
-        }
+        Self
     }
 
-    pub fn tokenize(input: &CodeSource) -> Vec<Token> {
-        let state = LexerState::new(input);
+    pub fn tokenize(input: &CodeSource) -> TokenList {
+        let state = Tokenizer::new(input);
         state.process()
     }
 }
 
-struct LexerState<'a> {
+struct Tokenizer<'a> {
     chars: Chars<'a>,
-    tokens: Vec<Token>,
+    tokens: TokenList,
 
     cursor: usize,
     span_start: usize,
     lexeme: String,
 }
 
-impl<'a> LexerState<'a> {
+impl<'a> Tokenizer<'a> {
     pub fn new(input: &'a CodeSource) -> Self {
         Self {
             chars: input.content.chars(),

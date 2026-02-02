@@ -2,6 +2,8 @@ use crate::{Operator, ast::{Symbol, SymbolKind}};
 use luma_core::Span;
 use strum::Display;
 
+pub type TokenList = Vec<Token>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub lexeme: String,

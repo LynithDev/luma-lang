@@ -1,7 +1,7 @@
 use crate::ast::*;
 use luma_core::{CodeSource, Span};
 
-use crate::{Analyzer, CompilerContext, CompilerStage, Lexer, Parser};
+use crate::{AnalyzerStage, CompilerContext, CompilerStage, LexerStage, ParserStage};
 
 pub mod _03_type_inference;
 
@@ -23,24 +23,20 @@ pub(crate) use macros::*;
 pub fn analyze_source(src: &str) -> Option<Ast> {
     let ctx = CompilerContext::new();
 
-    let mut lexer = Lexer::new();
-    let mut parser = Parser::new();
-    let mut analyzer = Analyzer::default();
+    let lexer = LexerStage::new();
+    let parser = ParserStage::new();
+    let analyzer = AnalyzerStage::default();
 
     let binding = CodeSource::from(src);
-    lexer.feed(&binding);
-
-    let mut tokens = lexer.process(&ctx);
+    let mut tokens = lexer.process(&ctx, &[binding]);
 
     for tokens in &mut tokens {
         for token in &mut *tokens {
             token.span = Span::default();
         }
-
-        parser.feed(tokens);
     }
 
-    let asts = parser.process(&ctx);
+    let asts = parser.process(&ctx, &tokens);
 
     if !ctx.errors.borrow().is_empty() {
         println!("Errors encountered during compilation:");
@@ -51,11 +47,7 @@ pub fn analyze_source(src: &str) -> Option<Ast> {
         return None;
     }
 
-    for ast in asts {
-        analyzer.feed(ast);
-    }
-
-    let asts = analyzer.process(&ctx);
+    let asts = analyzer.process(&ctx, asts);
 
     if !ctx.errors.borrow().is_empty() {
         println!("Errors encountered during compilation:");

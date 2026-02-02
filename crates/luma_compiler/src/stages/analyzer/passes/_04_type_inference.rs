@@ -1,16 +1,16 @@
 use crate::{Operator, ast::*};
 use luma_diagnostic::LumaError;
 
-use crate::stages::analyzer::{AnalyzerContext, AnalyzerStage, error::AnalyzerErrorKind};
+use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, error::AnalyzerErrorKind};
 
 pub struct TypeInference;
 
-impl AnalyzerStage for TypeInference {
+impl AnalyzerPass for TypeInference {
     fn name(&self) -> String {
         String::from("type_inference")
     }
 
-    fn analyze(&mut self, ctx: &AnalyzerContext, input: &mut Ast) {
+    fn analyze(&mut self, ctx: &mut AnalyzerContext, input: &mut Ast) {
         self.traverse(
             ctx,
             input,
@@ -25,7 +25,7 @@ struct TypeContext {
 impl AstVisitor<'_> for TypeInference {
     type Ctx = AnalyzerContext;
 
-    fn visit_stmt(&mut self, ctx: &Self::Ctx, stmt: &mut Stmt) {
+    fn visit_stmt(&mut self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
         match &mut stmt.item {
             StmtKind::Var(var_decl) => {
                 let type_ctx = TypeContext {

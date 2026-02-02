@@ -1,47 +1,39 @@
-use crate::{CompilerContext, ast::*};
-
-use crate::{CompilerStage, stages::codegen::error::CodegenErrorKind};
+use crate::{CompilerContext, CompilerStage, ast::*, bytecode::Bytecode};
 
 pub mod error;
 
-pub struct Codegen {
-    asts: Vec<Ast>,
-}
+pub(super) mod ctx;
 
-impl Codegen {
+mod generator;
+pub use generator::BytecodeGen;
+use luma_diagnostic::CompilerResult;
+
+pub struct CodegenStage;
+
+impl CodegenStage {
     pub fn new() -> Self {
-        Self { 
-            asts: Vec::new() 
+        Self
+    }
+}
+
+impl CompilerStage<'_> for CodegenStage {
+    type Input = Vec<Ast>;
+
+    type Output = CompilerResult<Vec<Bytecode>>;
+
+    fn name() -> &'static str {
+        "codegen"
+    }
+
+    fn process(self, _ctx: &CompilerContext, input: Self::Input) -> Self::Output {
+        let mut bytecodes = Vec::new();
+
+        for ast in input {
+            let bytecode = BytecodeGen::generate(ast)?;
+        
+            bytecodes.push(bytecode);
         }
-    }
-}
 
-impl CompilerStage for Codegen {
-    type Input = Ast;
-
-    type ProcessedOutput = ();
-
-    type ErrorKind = CodegenErrorKind;
-
-    fn name() -> String {
-        String::from("codegen")
-    }
-
-    fn feed(&mut self, input: Self::Input) {
-        self.asts.push(input);
-    }
-
-    fn process(self, ctx: &CompilerContext) -> Self::ProcessedOutput {
-        
-        
-
-    }
-}
-
-impl AstVisitor<'_> for Codegen {
-    type Ctx = CompilerContext;
-
-    fn visit_stmt(&mut self, ctx: &Self::Ctx, stmt: &mut Stmt) {
-        
+        Ok(bytecodes)
     }
 }

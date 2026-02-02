@@ -1,4 +1,4 @@
-use luma_compiler::{Analyzer, CompilerContext, CompilerStage, Lexer, Parser};
+use luma_compiler::{AnalyzerStage, CompilerContext, CompilerStage, LexerStage, ParserStage};
 use luma_core::CodeSource;
 
 fn main() {
@@ -8,31 +8,19 @@ fn main() {
         CodeSource::from(include_str!("../../../examples/sample.luma")),
     ];
     
-    // initialize the compiler context and stages.
+    // 0. initialize the compiler context and stages.
     let ctx = CompilerContext::new();
-    let mut lexer = Lexer::new();
-    let mut parser = Parser::new();
-    let mut analyzer = Analyzer::default();
+    let lexer = LexerStage::new();
+    let parser = ParserStage::new();
+    let analyzer = AnalyzerStage::default();
     
-
-    // We iterate through each source code and input it into the lexer.
-    // We process all of the sources into tokens.
-    for source in &sources {
-        lexer.feed(source);
-    }
-
-    let tokens = lexer.process(&ctx);
-
+    // 1. tokenize the sources
+    let tokens = lexer.process(&ctx, &sources);
     
-    // Feed the tokens into the parser.
-    // We process all of the tokens into ASTs.
-    for tokens in &tokens {
-        parser.feed(tokens);
-    }
+    // 2. process all of the tokens into ASTs.
+    let asts = parser.process(&ctx, &tokens);
 
-    let asts = parser.process(&ctx);
-
-    // We check for errors
+    // check for errors
     if !ctx.errors.borrow().is_empty() {
         println!("Errors encountered during compilation:");
         for error in ctx.errors.borrow().iter() {
@@ -41,15 +29,10 @@ fn main() {
         return;
     }
 
+    // 3. analyze the ASTs
+    let asts = analyzer.process(&ctx, asts);
 
-    // Feed the ASTs into the analyzer and anaylze them
-    for ast in asts {
-        analyzer.feed(ast);
-    }
-
-    let asts = analyzer.process(&ctx);
-
-    // We check for errors
+    // check for errors
     if !ctx.errors.borrow().is_empty() {
         println!("Errors encountered during compilation:");
         for error in ctx.errors.borrow().iter() {

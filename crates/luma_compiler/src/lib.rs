@@ -4,19 +4,17 @@ mod ctx;
 pub use ctx::CompilerContext;
 
 pub mod stages;
-pub use stages::{analyzer::Analyzer, codegen::Codegen, lexer::Lexer, parser::Parser};
+pub use stages::{analyzer::AnalyzerStage, codegen::CodegenStage, lexer::LexerStage, parser::ParserStage};
 
 mod representation;
 pub use representation::*;
 
-pub trait CompilerStage {
+pub trait CompilerStage<'stage> {
     type Input;
-    type ProcessedOutput;
-    type ErrorKind;
+    type Output;
 
-    fn name() -> String;
+    fn name() -> &'static str;
     
-    fn feed(&mut self, input: Self::Input);
-    fn process(self, ctx: &CompilerContext) -> Self::ProcessedOutput;
+    fn process(self, ctx: &CompilerContext, input: Self::Input) -> Self::Output;
 }
 

@@ -1,16 +1,16 @@
 use crate::ast::*;
 use luma_diagnostic::LumaError;
 
-use crate::stages::analyzer::{AnalyzerContext, AnalyzerStage, error::AnalyzerErrorKind, symbols::SymbolNamespace};
+use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, error::AnalyzerErrorKind, symbols::SymbolNamespace};
 
 pub struct NameResolution;
 
-impl AnalyzerStage for NameResolution {
+impl AnalyzerPass for NameResolution {
     fn name(&self) -> String {
         String::from("name_resolution")
     }
 
-    fn analyze(&mut self, ctx: &AnalyzerContext, input: &mut Ast) {
+    fn analyze(&mut self, ctx: &mut AnalyzerContext, input: &mut Ast) {
         self.traverse(ctx, input);
     }
 }
@@ -19,7 +19,7 @@ impl AstVisitor<'_> for NameResolution {
     type Ctx = AnalyzerContext;
 
     // here we resolve identifiers to their declared symbols
-    fn visit_expr(&mut self, ctx: &Self::Ctx, expr: &mut Expr) {
+    fn visit_expr(&mut self, ctx: &mut Self::Ctx, expr: &mut Expr) {
         match &mut expr.item {
             ExprKind::Ident(ident_expr) => {
                 let symbol = &mut ident_expr.symbol;
@@ -70,7 +70,7 @@ impl AstVisitor<'_> for NameResolution {
         }
     }
 
-    fn visit_struct_field_expr(&mut self, ctx: &Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldExpr) {
+    fn visit_struct_field_expr(&mut self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldExpr) {
         let field_symbol = &mut field.symbol.item;
 
         // lookup the symbol in type namespace, 
@@ -105,11 +105,11 @@ impl AstVisitor<'_> for NameResolution {
     }
 
 
-    fn enter_scope(&mut self, ctx: &Self::Ctx) {
+    fn enter_scope(&mut self, ctx: &mut Self::Ctx) {
         ctx.symbols.borrow_mut().enter_scope();
     }
 
-    fn exit_scope(&mut self, ctx: &Self::Ctx) {
+    fn exit_scope(&mut self, ctx: &mut Self::Ctx) {
         let scope_id = ctx.scopes.borrow().current_scope();
         ctx.symbols.borrow_mut().exit_scope(scope_id);
     }

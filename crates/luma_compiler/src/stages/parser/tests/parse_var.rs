@@ -2,7 +2,7 @@ use crate::{Visibility, VisibilityKind, ast::*};
 use luma_core::{MaybeSpanned, Span};
 use pretty_assertions::assert_eq;
 
-use crate::{Parser, create_tokens};
+use crate::{ParserStage, create_tokens};
 
 #[test]
 fn var_with_type_and_value() {
@@ -10,7 +10,7 @@ fn var_with_type_and_value() {
     // var x: u32 = 42;
     // var y = 2.5;
 
-    let (ast, _) = Parser::parse(&create_tokens![
+    let (ast, _) = ParserStage::parse(&create_tokens![
         Var,
         Ident => "x",
         Colon,
@@ -65,7 +65,7 @@ fn pub_var_visibility() {
     // code:
     // pub(module) var a = 5;
     
-    let (ast, _) = Parser::parse(&create_tokens![
+    let (ast, _) = ParserStage::parse(&create_tokens![
         Pub,
         LeftParen,
         Module,

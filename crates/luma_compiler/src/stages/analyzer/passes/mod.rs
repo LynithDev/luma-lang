@@ -11,9 +11,9 @@ pub use _04_type_inference::TypeInference;
 #[cfg(test)]
 pub mod tests;
 
-use crate::stages::analyzer::AnalyzerStage;
+use crate::stages::analyzer::AnalyzerPass;
 
-pub fn default_passes() -> Vec<Box<dyn AnalyzerStage>> {
+pub fn default_passes() -> Vec<Box<dyn AnalyzerPass>> {
     vec![
         Box::new(ScopeIdentification),
         Box::new(NameDeclaration),
