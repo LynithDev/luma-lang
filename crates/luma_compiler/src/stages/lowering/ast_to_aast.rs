@@ -8,22 +8,28 @@ pub struct AstLoweringStage;
 
 impl CompilerStage<'_> for AstLoweringStage {
     type Input = Vec<Ast>;
-    type Output = CompilerResult<Vec<AnnotatedAst>>;
+    type Output = Vec<AnnotatedAst>;
 
     fn name() -> &'static str {
         "ast_to_aast"
     }
 
-    fn process(self, _ctx: &CompilerContext, inputs: Self::Input) -> Self::Output {
+    fn process(self, ctx: &CompilerContext, inputs: Self::Input) -> Self::Output {
         let mut aasts = Vec::<AnnotatedAst>::new();
 
         for ast in inputs {
-            let aast = AnnotatedAst::try_from(ast)?;
+            let aast = match AnnotatedAst::try_from(ast) {
+                Ok(aast) => aast,
+                Err(err) => {
+                    ctx.errors.borrow_mut().push(err);
+                    return Vec::new();
+                }
+            };
 
             aasts.push(aast);
         }
 
-        Ok(aasts)
+        aasts
     }
 }
 

@@ -1,9 +1,17 @@
-use crate::bytecode::Opcode;
+use crate::bytecode::{BytecodeValue, Opcode};
 
-#[derive(Debug, Clone, PartialEq)]
+pub mod scope;
+mod env;
+mod builder;
+
+pub use env::*;
+pub use builder::*;
+
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct CodeChunk {
     pub instructions: Vec<Opcode>,
     pub max_locals: usize,
+    pub constants: Vec<BytecodeValue>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

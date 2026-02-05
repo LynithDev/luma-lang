@@ -25,10 +25,6 @@ impl<'stage> CompilerStage<'stage> for LexerStage {
 }
 
 impl LexerStage {
-    pub fn new() -> Self {
-        Self
-    }
-
     pub fn tokenize(input: &CodeSource) -> TokenList {
         let state = Tokenizer::new(input);
         state.process()

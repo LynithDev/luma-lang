@@ -19,10 +19,6 @@ mod tests;
 pub struct ParserStage;
 
 impl ParserStage {
-    pub fn new() -> ParserStage {
-        ParserStage
-    }
-
     pub fn parse(tokens: &[Token]) -> (Ast, Vec<LumaError>) {
         let mut errors = Vec::new();
         

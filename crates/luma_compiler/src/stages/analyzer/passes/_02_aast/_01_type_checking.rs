@@ -10,7 +10,7 @@ impl AnalyzerPass<AnnotatedAst> for TypeChecking {
     }
 
     fn analyze(&self, ctx: &mut AnalyzerContext, input: &mut AnnotatedAst) {
-        self.traverse(ctx, input);
+        let _ = self.traverse(ctx, input);
     }
 }
 

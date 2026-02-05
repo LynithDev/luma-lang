@@ -23,8 +23,8 @@ pub(crate) use macros::*;
 pub fn analyze_source(src: &str) -> Option<Ast> {
     let ctx = CompilerContext::new();
 
-    let lexer = LexerStage::new();
-    let parser = ParserStage::new();
+    let lexer = LexerStage;
+    let parser = ParserStage;
     let analyzer = AnalyzerStage::default();
 
     let binding = CodeSource::from(src);

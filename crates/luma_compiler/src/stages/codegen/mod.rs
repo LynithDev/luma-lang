@@ -1,12 +1,8 @@
-use crate::{CompilerContext, CompilerStage, aast::*, bytecode::Bytecode};
-use luma_diagnostic::CompilerResult;
-
-pub use generator::BytecodeGen;
+use crate::{CompilerContext, CompilerStage, aast::*, bytecode::ModuleBytecode, stages::codegen::bytecode_gen::BytecodeGen};
 
 pub mod error;
-pub mod chunks;
-pub(super) mod ctx;
-mod generator;
+pub mod chunk;
+mod bytecode_gen;
 
 pub struct CodegenStage;
 
@@ -19,21 +15,27 @@ impl CodegenStage {
 impl CompilerStage<'_> for CodegenStage {
     type Input = Vec<AnnotatedAst>;
 
-    type Output = CompilerResult<Vec<Bytecode>>;
+    type Output = Vec<ModuleBytecode>;
 
     fn name() -> &'static str {
         "codegen"
     }
 
-    fn process(self, _ctx: &CompilerContext, input: Self::Input) -> Self::Output {
+    fn process(self, ctx: &CompilerContext, input: Self::Input) -> Self::Output {
         let mut bytecodes = Vec::new();
 
         for ast in input {
-            let bytecode = BytecodeGen::generate(ast)?;
+            let bytecode = match BytecodeGen::generate(ast) {
+                Ok(bc) => bc,
+                Err(err) => {
+                    ctx.errors.borrow_mut().push(err);
+                    return Vec::new();
+                }
+            };
         
             bytecodes.push(bytecode);
         }
 
-        Ok(bytecodes)
+        bytecodes
     }
 }
