@@ -1,6 +1,10 @@
 mod opcode;
 pub use opcode::Opcode;
 
+mod value;
+pub use value::BytecodeValue;
+
+#[derive(Debug)]
 pub struct Bytecode {
     pub instructions: Vec<Opcode>,
 }

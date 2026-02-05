@@ -11,14 +11,14 @@ pub use walker::*;
 use luma_core::Span;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Ast {
-    pub statements: Vec<Stmt>,
+pub struct AnnotatedAst {
+    pub statements: Vec<AnnotStmt>,
     pub span: Span,
 }
 
-impl Ast {
+impl AnnotatedAst {
     #[must_use]
-    pub fn new(span: Span, statements: Vec<Stmt>) -> Self {
+    pub fn new(span: Span, statements: Vec<AnnotStmt>) -> Self {
         Self { span, statements }
     }
 }

@@ -382,7 +382,7 @@ impl TokenParser<'_> {
     /// Parses struct literal expressions
     pub(super) fn expr_finish_struct(&mut self, expr: Expr) -> CompilerResult<Expr> {
         let ExprKind::Ident(ident) = &expr.item else {
-            return Err(LumaError::new(
+            return Err(LumaError::spanned(
                 ParserErrorKind::InvalidStructLiteralTarget {
                     found: expr.item.clone(),
                 },
@@ -440,7 +440,7 @@ impl TokenParser<'_> {
             TokenKind::If => self.expr_if(),
             TokenKind::Ident => self.expr_ident(),
 
-            _ => Err(LumaError::new(
+            _ => Err(LumaError::spanned(
                 ParserErrorKind::UnexpectedToken {
                     found: current.kind.clone(),
                 },
@@ -532,7 +532,7 @@ impl TokenParser<'_> {
             } else if needs_semi {
                 let current = self.current();
 
-                return Err(LumaError::new(
+                return Err(LumaError::spanned(
                     ParserErrorKind::ExpectedToken { 
                         expected: TokenKind::Semicolon, 
                         found: current.kind.clone(),
@@ -602,7 +602,7 @@ impl TokenParser<'_> {
         let kind = match &current.kind {
             TokenKind::CharLiteral => ExprKind::Literal(LiteralExpr::Char(
                 current.lexeme.clone().chars().next().ok_or_else(|| {
-                    LumaError::new(
+                    LumaError::spanned(
                         ParserErrorKind::InvalidCharLiteral {
                             lexeme: current.lexeme.clone(),
                         },
@@ -613,7 +613,7 @@ impl TokenParser<'_> {
 
             TokenKind::FloatLiteral => {
                 let value = current.lexeme.parse::<f64>().map_err(|err| {
-                    LumaError::new(
+                    LumaError::spanned(
                         ParserErrorKind::InvalidFloatLiteral {
                             lexeme: current.lexeme.clone(),
                             source: err,
@@ -627,7 +627,7 @@ impl TokenParser<'_> {
 
             TokenKind::IntLiteral => {
                 let value = current.lexeme.parse::<u64>().map_err(|err| {
-                    LumaError::new(
+                    LumaError::spanned(
                         ParserErrorKind::InvalidIntegerLiteral {
                             lexeme: current.lexeme.clone(),
                             source: err,
@@ -644,7 +644,7 @@ impl TokenParser<'_> {
                     "true" => true,
                     "false" => false,
                     _ => {
-                        return Err(LumaError::new(
+                        return Err(LumaError::spanned(
                             ParserErrorKind::InvalidBooleanLiteral {
                                 lexeme: current.lexeme.clone(),
                             },

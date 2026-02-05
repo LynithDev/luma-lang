@@ -5,12 +5,12 @@ use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, error::AnalyzerErro
 
 pub struct NameResolution;
 
-impl AnalyzerPass for NameResolution {
+impl AnalyzerPass<Ast> for NameResolution {
     fn name(&self) -> String {
         String::from("name_resolution")
     }
 
-    fn analyze(&mut self, ctx: &mut AnalyzerContext, input: &mut Ast) {
+    fn analyze(&self, ctx: &mut AnalyzerContext, input: &mut Ast) {
         self.traverse(ctx, input);
     }
 }
@@ -19,7 +19,7 @@ impl AstVisitor<'_> for NameResolution {
     type Ctx = AnalyzerContext;
 
     // here we resolve identifiers to their declared symbols
-    fn visit_expr(&mut self, ctx: &mut Self::Ctx, expr: &mut Expr) {
+    fn visit_expr(&self, ctx: &mut Self::Ctx, expr: &mut Expr) {
         match &mut expr.item {
             ExprKind::Ident(ident_expr) => {
                 let symbol = &mut ident_expr.symbol;
@@ -33,7 +33,7 @@ impl AstVisitor<'_> for NameResolution {
                     scope_manager.current_scope(),
                     symbol.name()
                 ) else {
-                    ctx.error(LumaError::new(
+                    ctx.error(LumaError::spanned(
                         AnalyzerErrorKind::UnresolvedIdentifier(symbol.name().to_string()), 
                         expr.span,
                     ));
@@ -56,7 +56,7 @@ impl AstVisitor<'_> for NameResolution {
                     scope_manager.current_scope(), 
                     symbol.name()
                 ) else {
-                    ctx.error(LumaError::new(
+                    ctx.error(LumaError::spanned(
                         AnalyzerErrorKind::UnresolvedType(symbol.name().to_string()), 
                         expr.span,
                     ));
@@ -70,13 +70,13 @@ impl AstVisitor<'_> for NameResolution {
         }
     }
 
-    fn visit_struct_field_expr(&mut self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldExpr) {
+    fn visit_struct_field_expr(&self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldExpr) {
         let field_symbol = &mut field.symbol.item;
 
         // lookup the symbol in type namespace, 
         // as identifiers refer to types
         let Some(resolved_struct_id) = struct_symbol.id() else {
-            ctx.error(LumaError::new(
+            ctx.error(LumaError::spanned(
                 AnalyzerErrorKind::UnresolvedType(struct_symbol.name().to_string()), 
                 struct_symbol.span,
             ));
@@ -91,7 +91,7 @@ impl AstVisitor<'_> for NameResolution {
             scope_manager.current_scope(),
             field_symbol.name()
         ) else {
-            ctx.error(LumaError::new(
+            ctx.error(LumaError::spanned(
                 AnalyzerErrorKind::UnresolvedStructField {
                     struct_name: struct_symbol.name().to_string(), 
                     field_name: field_symbol.name().to_string()
@@ -105,11 +105,11 @@ impl AstVisitor<'_> for NameResolution {
     }
 
 
-    fn enter_scope(&mut self, ctx: &mut Self::Ctx) {
+    fn enter_scope(&self, ctx: &mut Self::Ctx) {
         ctx.symbols.borrow_mut().enter_scope();
     }
 
-    fn exit_scope(&mut self, ctx: &mut Self::Ctx) {
+    fn exit_scope(&self, ctx: &mut Self::Ctx) {
         let scope_id = ctx.scopes.borrow().current_scope();
         ctx.symbols.borrow_mut().exit_scope(scope_id);
     }

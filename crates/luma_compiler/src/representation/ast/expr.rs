@@ -1,7 +1,7 @@
 use luma_core::{Span, Spanned};
 use strum::Display;
 
-use crate::{Operator, ast::*};
+use crate::{Operator, TypeKind, ast::*};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expr {

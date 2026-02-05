@@ -1,3 +1,4 @@
+#[derive(strum::Display, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Opcode {
     // ##########################
@@ -41,7 +42,7 @@ pub enum Opcode {
     // ###########################
 
     /// load constant from constant pool
-    Const(u16),
+    LoadConst(u16),
     
     // ##########################
     // ###  stack operations  ###

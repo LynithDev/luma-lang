@@ -1,12 +1,12 @@
-use crate::{CompilerContext, CompilerStage, ast::*, bytecode::Bytecode};
+use crate::{CompilerContext, CompilerStage, aast::*, bytecode::Bytecode};
+use luma_diagnostic::CompilerResult;
+
+pub use generator::BytecodeGen;
 
 pub mod error;
-
+pub mod chunks;
 pub(super) mod ctx;
-
 mod generator;
-pub use generator::BytecodeGen;
-use luma_diagnostic::CompilerResult;
 
 pub struct CodegenStage;
 
@@ -17,7 +17,7 @@ impl CodegenStage {
 }
 
 impl CompilerStage<'_> for CodegenStage {
-    type Input = Vec<Ast>;
+    type Input = Vec<AnnotatedAst>;
 
     type Output = CompilerResult<Vec<Bytecode>>;
 

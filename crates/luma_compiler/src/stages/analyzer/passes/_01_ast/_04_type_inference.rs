@@ -1,16 +1,16 @@
-use crate::{Operator, ast::*};
+use crate::{Operator, Type, TypeKind, ast::*};
 use luma_diagnostic::LumaError;
 
 use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, error::AnalyzerErrorKind};
 
 pub struct TypeInference;
 
-impl AnalyzerPass for TypeInference {
+impl AnalyzerPass<Ast> for TypeInference {
     fn name(&self) -> String {
         String::from("type_inference")
     }
 
-    fn analyze(&mut self, ctx: &mut AnalyzerContext, input: &mut Ast) {
+    fn analyze(&self, ctx: &mut AnalyzerContext, input: &mut Ast) {
         self.traverse(
             ctx,
             input,
@@ -25,7 +25,7 @@ struct TypeContext {
 impl AstVisitor<'_> for TypeInference {
     type Ctx = AnalyzerContext;
 
-    fn visit_stmt(&mut self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
+    fn visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
         match &mut stmt.item {
             StmtKind::Var(var_decl) => {
                 let type_ctx = TypeContext {
@@ -64,7 +64,7 @@ impl TypeInference {
                     None => {
                         // type inference failure
                         // report error and return unit type as fallback
-                        ctx.error(LumaError::new(
+                        ctx.error(LumaError::spanned(
                             AnalyzerErrorKind::TypeInferenceFailure, 
                             expr.span,
                         ));
@@ -84,7 +84,7 @@ impl TypeInference {
                     Some(ty) => ty,
                     None => {
                         // type mismatch
-                        ctx.error(LumaError::new(
+                        ctx.error(LumaError::spanned(
                             AnalyzerErrorKind::TypeMismatch { 
                                 expected: lty,
                                 found: rty

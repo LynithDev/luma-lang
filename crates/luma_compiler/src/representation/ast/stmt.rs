@@ -2,7 +2,7 @@ use strum::Display;
 
 use luma_core::{Span, Spanned};
 
-use crate::{Visibility, ast::*};
+use crate::{Type, Visibility, ast::*};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stmt {

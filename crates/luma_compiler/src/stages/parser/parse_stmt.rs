@@ -1,4 +1,4 @@
-use crate::{Visibility, ast::*};
+use crate::{Type, Visibility, ast::*};
 use luma_core::Spanned;
 use luma_diagnostic::{CompilerResult, LumaError};
 
@@ -159,7 +159,7 @@ impl TokenParser<'_> {
                 expr
             }
             _ => {
-                return Err(LumaError::new(
+                return Err(LumaError::spanned(
                     ParserErrorKind::MissingFunctionBody,
                     current.span,
                 ));

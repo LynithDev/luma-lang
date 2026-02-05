@@ -1,13 +1,1 @@
-struct Test {
-    field: str,
-};
-
-var Test = Test {
-    field: "hello",
-};
-
-// if Test.field {
-//     10
-// } else {
-//     5
-// };
+var test = 3529282222;

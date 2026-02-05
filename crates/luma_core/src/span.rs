@@ -1,5 +1,6 @@
 use std::{fmt::{Debug, Display}, ops::{Add, Deref, DerefMut}};
 
+// MARK: Span
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     pub start: usize,
@@ -92,6 +93,7 @@ impl From<std::ops::Range<usize>> for Span {
 }
 
 
+// MARK: Spanned
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spanned<T> {
     pub item: T,
@@ -103,6 +105,26 @@ impl<T> Spanned<T> {
     #[allow(clippy::self_named_constructors)]
     pub fn spanned<S: Into<Span>>(span: S, item: T) -> Self {
         Self { span: span.into(), item }
+    }
+
+    pub fn try_map_inner<I>(self) -> Result<Spanned<I>, I::Error>
+    where
+        I: TryFrom<T>,
+    {
+        Ok(Spanned {
+            item: I::try_from(self.item)?,
+            span: self.span,
+        })
+    }
+
+    pub fn map_inner<I>(self) -> Spanned<I>
+    where
+        I: From<T>,
+    {
+        Spanned {
+            item: I::from(self.item),
+            span: self.span,
+        }
     }
 }
 
@@ -120,7 +142,7 @@ impl<T> DerefMut for Spanned<T> {
     }
 }
 
-
+// MARK: MaybeSpanned
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MaybeSpanned<T> {
     pub item: T,
@@ -164,5 +186,25 @@ impl<T> MaybeSpanned<T> {
     #[must_use]
     pub fn unspanned(item: T) -> Self {
         Self::new(None, item)
+    }
+
+    pub fn try_map_inner<I>(self) -> Result<MaybeSpanned<I>, I::Error>
+    where
+        I: TryFrom<T>,
+    {
+        Ok(MaybeSpanned {
+            item: I::try_from(self.item)?,
+            span: self.span,
+        })
+    }
+
+    pub fn map_inner<I>(self) -> MaybeSpanned<I>
+    where
+        I: From<T>,
+    {
+        MaybeSpanned {
+            item: I::from(self.item),
+            span: self.span,
+        }
     }
 }

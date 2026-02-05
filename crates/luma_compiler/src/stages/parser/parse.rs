@@ -97,7 +97,7 @@ impl TokenParser<'_> {
         let current = self.current();
 
         if current.kind != expected {
-            return Err(LumaError::new(
+            return Err(LumaError::spanned(
                 ParserErrorKind::ExpectedToken {
                     expected,
                     found: current.kind.clone(),

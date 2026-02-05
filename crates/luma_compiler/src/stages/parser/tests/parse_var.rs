@@ -1,4 +1,4 @@
-use crate::{Visibility, VisibilityKind, ast::*};
+use crate::{Type, TypeKind, Visibility, VisibilityKind, ast::*};
 use luma_core::{MaybeSpanned, Span};
 use pretty_assertions::assert_eq;
 

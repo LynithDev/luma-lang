@@ -1,4 +1,4 @@
-use crate::{Operator, VisibilityKind, ast::*};
+use crate::{Operator, Type, TypeKind, VisibilityKind, ast::*};
 use luma_core::{MaybeSpanned, Span, Spanned};
 use pretty_assertions::assert_eq;
 

@@ -1,4 +1,6 @@
 #![allow(clippy::new_without_default)]
+#![feature(iterator_try_collect)]
+
 
 mod ctx;
 pub use ctx::CompilerContext;

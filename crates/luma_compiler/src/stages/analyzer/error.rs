@@ -1,4 +1,4 @@
-use crate::ast::TypeKind;
+use crate::TypeKind;
 use thiserror::Error;
 
 #[derive(Debug, Error, Clone, PartialEq)]

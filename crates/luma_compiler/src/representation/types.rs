@@ -1,11 +1,10 @@
-use strum::Display;
+use std::fmt::Display;
 
 use luma_core::MaybeSpanned;
 
 pub type Type = MaybeSpanned<TypeKind>;
 
-#[derive(Display, Debug, Clone, PartialEq, Eq)]
-#[strum(serialize_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeKind {
     // primitive
     UInt8,
@@ -21,10 +20,10 @@ pub enum TypeKind {
     Bool,
     Char,
     String,
+    
+    // special
     Tuple(Vec<Type>),
     Unit,
-
-    // special
     Ptr(Box<Type>),
     // Array(Box<Type>, Option<Spanned<usize>>),
     // Func(Vec<Type>, Box<Type>),
@@ -32,6 +31,33 @@ pub enum TypeKind {
         name: String,
         def_id: Option<usize>,
     },
+}
+
+impl Display for TypeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bool => write!(f, "bool"),
+            Self::Char => write!(f, "char"),
+            Self::String => write!(f, "string"),
+            Self::Unit => write!(f, "()"),
+            Self::Ptr(inner) => write!(f, "*{}", inner.item),
+            Self::Tuple(elements) => {
+                let elements = elements.iter().map(|ty| ty.to_string()).collect::<Vec<_>>().join(", ");
+                write!(f, "({})", elements)
+            },
+            Self::Named { name, .. } => write!(f, "named@{}", name),
+            Self::UInt8 => write!(f, "u8"),
+            Self::UInt16 => write!(f, "u16"),
+            Self::UInt32 => write!(f, "u32"),
+            Self::UInt64 => write!(f, "u64"),
+            Self::Int8 => write!(f, "i8"),
+            Self::Int16 => write!(f, "i16"),
+            Self::Int32 => write!(f, "i32"),
+            Self::Int64 => write!(f, "i64"),
+            Self::Float32 => write!(f, "f32"),
+            Self::Float64 => write!(f, "f64"),
+        }
+    }
 }
 
 impl From<Type> for TypeKind {

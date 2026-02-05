@@ -1,6 +1,6 @@
-use crate::ast::*;
+use crate::{TypeKind, ast::*};
 
-use crate::stages::analyzer::passes::tests::{analyze_source, extract_stmt};
+use crate::stages::analyzer::passes::_01_ast::tests::{analyze_source, extract_stmt};
 
 #[test]
 pub fn basic_var_inference() {

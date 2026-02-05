@@ -1,0 +1,75 @@
+use strum::Display;
+
+use luma_core::{Span, Spanned};
+
+use crate::{Type, Visibility, aast::*, stages::analyzer::scopes::ScopeId};
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnnotStmt {
+    pub item: AnnotStmtKind,
+    pub scope_id: ScopeId,
+    pub span: Span,
+}
+
+impl AnnotStmt {
+    pub fn new(span: Span, item: AnnotStmtKind, scope_id: ScopeId) -> Self {
+        AnnotStmt { 
+            item,
+            scope_id,
+            span
+        }
+    }
+}
+
+#[derive(Display, Debug, Clone, PartialEq)]
+#[strum(serialize_all = "lowercase")]
+pub enum AnnotStmtKind {
+    Expr(AnnotExpr),
+    Func(FuncDeclAnnotStmt),
+    Return(ReturnAnnotStmt),
+    Struct(StructDeclAnnotStmt),
+    Var(VarDeclAnnotStmt),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FuncDeclAnnotStmt {
+    pub visibility: Visibility,
+    pub symbol: AnnotSymbol,
+    pub parameters: Vec<Spanned<AnnotFuncParam>>,
+    pub body: AnnotExpr,
+    pub return_type: Type,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnnotFuncParam {
+    pub symbol: AnnotSymbol,
+    pub ty: Type,
+    pub default_value: Option<AnnotExpr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReturnAnnotStmt {
+    pub value: Option<AnnotExpr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructDeclAnnotStmt {
+    pub visibility: Visibility,
+    pub symbol: AnnotSymbol,
+    pub fields: Vec<Spanned<StructFieldAnnotDecl>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructFieldAnnotDecl {
+    pub visibility: Visibility,
+    pub symbol: AnnotSymbol,
+    pub ty: Type,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VarDeclAnnotStmt {
+    pub visibility: Visibility,
+    pub symbol: AnnotSymbol,
+    pub ty: Type,
+    pub initializer: AnnotExpr,
+}

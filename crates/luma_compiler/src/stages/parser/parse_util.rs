@@ -1,12 +1,9 @@
-use crate::{
-    Visibility, VisibilityKind,
-    ast::{Type, TypeKind},
-};
+use crate::{Type, TypeKind, Visibility, VisibilityKind};
 use luma_diagnostic::{CompilerResult, LumaError};
 
 use crate::stages::{
     lexer::TokenKind,
-    parser::{parse::TokenParser, error::ParserErrorKind},
+    parser::{error::ParserErrorKind, parse::TokenParser},
 };
 
 impl TokenParser<'_> {
@@ -22,7 +19,7 @@ impl TokenParser<'_> {
                 let type_str = token.lexeme.as_str();
 
                 if type_str.is_empty() {
-                    return Err(LumaError::new(
+                    return Err(LumaError::spanned(
                         ParserErrorKind::InvalidType {
                             type_name: type_str.to_string(),
                         },
@@ -67,10 +64,7 @@ impl TokenParser<'_> {
                     },
                 };
 
-                Ok(Type::spanned(
-                    token.span,
-                    kind, 
-                ))
+                Ok(Type::spanned(token.span, kind))
             }
 
             TokenKind::Asterisk => {
@@ -108,18 +102,16 @@ impl TokenParser<'_> {
                         0 => TypeKind::Unit,
                         // 1 => types.into_iter().next().unwrap().item,
                         _ => TypeKind::Tuple(types),
-                    }
-                ))
-            },
-
-            _ => {
-                Err(LumaError::new(
-                    ParserErrorKind::InvalidType {
-                        type_name: current.lexeme.clone(),
                     },
-                    current.span,
                 ))
             }
+
+            _ => Err(LumaError::spanned(
+                ParserErrorKind::InvalidType {
+                    type_name: current.lexeme.clone(),
+                },
+                current.span,
+            )),
         }
     }
 
@@ -139,7 +131,7 @@ impl TokenParser<'_> {
                 TokenKind::Module => VisibilityKind::Module,
                 TokenKind::This => VisibilityKind::Private,
                 _ => {
-                    return Err(LumaError::new(
+                    return Err(LumaError::spanned(
                         ParserErrorKind::InvalidVisibility {
                             ident: vis_token.lexeme.clone(),
                         },
@@ -152,16 +144,10 @@ impl TokenParser<'_> {
 
             self.consume(TokenKind::RightParen)?;
 
-            return Ok(Visibility::spanned(
-                vis_token.span,
-                visibility_kind, 
-            ));
+            return Ok(Visibility::spanned(vis_token.span, visibility_kind));
         }
 
         // it's just 'pub'
-        Ok(Visibility::spanned(
-            pub_token.span,
-            VisibilityKind::Public, 
-        ))
+        Ok(Visibility::spanned(pub_token.span, VisibilityKind::Public))
     }
 }
