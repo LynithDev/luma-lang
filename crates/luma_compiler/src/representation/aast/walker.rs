@@ -152,7 +152,7 @@ pub trait AnnotAstVisitor<'a> {
     }
 
     fn walk_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) -> CompilerResult<()> {
-        match &mut ty.item {
+        match &mut ty.kind {
             TypeKind::Ptr(ty) => {
                 self.walk_type(ctx, ty)?;
             },

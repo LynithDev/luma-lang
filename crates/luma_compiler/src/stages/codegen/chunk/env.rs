@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use luma_diagnostic::{CompilerResult, LumaError};
+use luma_diagnostic::{CompilerResult, error};
 
 use crate::{
     bytecode::*,
@@ -28,7 +28,7 @@ impl ChunkBuilderEnv {
         let slot_index = self.local_slots.len();
 
         if slot_index >= LocalSlot::MAX as usize {
-            return Err(LumaError::new(CodegenErrorKind::TooManyLocals));
+            return Err(error!(CodegenErrorKind::TooManyLocals));
         }
 
         let slot_index = slot_index as LocalSlot;
@@ -45,7 +45,7 @@ impl ChunkBuilderEnv {
         self.local_slots
             .get(symbol_id)
             .copied()
-            .ok_or_else(|| LumaError::new(CodegenErrorKind::UndefinedLocal(*symbol_id)))
+            .ok_or_else(|| error!(CodegenErrorKind::UndefinedLocal(*symbol_id)))
     }
 
     /// Adds a constant (if it doesn't already exist) to the constant pool
@@ -58,7 +58,7 @@ impl ChunkBuilderEnv {
         let index = self.chunk.constants.len();
 
         if index >= ConstSlot::MAX as usize {
-            return Err(LumaError::new(CodegenErrorKind::TooManyLocals));
+            return Err(error!(CodegenErrorKind::TooManyLocals));
         }
 
         let index = index as ConstSlot;
@@ -81,7 +81,7 @@ impl ChunkBuilderEnv {
     /// Updates an opcode at a specific index
     pub fn patch_instr(&mut self, index: usize, opcode: Opcode) -> CompilerResult<()> {
         if index >= self.chunk.instructions.len() {
-            return Err(LumaError::new(CodegenErrorKind::InvalidPatchPosition(
+            return Err(error!(CodegenErrorKind::InvalidPatchPosition(
                 index,
             )));
         }

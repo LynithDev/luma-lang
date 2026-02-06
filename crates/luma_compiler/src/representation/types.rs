@@ -1,8 +1,40 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
-use luma_core::MaybeSpanned;
+use luma_core::Span;
 
-pub type Type = MaybeSpanned<TypeKind>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Type {
+    pub kind: TypeKind,
+    pub span: Option<Span>,
+}
+
+impl Type {
+    #[must_use]
+    pub const fn new(span: Option<Span>, kind: TypeKind) -> Self {
+        Self { kind, span }
+    }
+
+    #[must_use]
+    pub const fn spanned(span: Span, kind: TypeKind) -> Self {
+        Self {
+            kind,
+            span: Some(span),
+        }
+    }
+
+    #[must_use]
+    pub const fn unspanned(kind: TypeKind) -> Self {
+        Self { kind, span: None }
+    }
+}
+
+impl Deref for Type {
+    type Target = TypeKind;
+
+    fn deref(&self) -> &Self::Target {
+        &self.kind
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeKind {
@@ -40,7 +72,7 @@ impl Display for TypeKind {
             Self::Char => write!(f, "char"),
             Self::String => write!(f, "string"),
             Self::Unit => write!(f, "()"),
-            Self::Ptr(inner) => write!(f, "*{}", inner.item),
+            Self::Ptr(inner) => write!(f, "*{}", inner.kind),
             Self::Tuple(elements) => {
                 let elements = elements.iter().map(|ty| ty.to_string()).collect::<Vec<_>>().join(", ");
                 write!(f, "({})", elements)
@@ -62,7 +94,7 @@ impl Display for TypeKind {
 
 impl From<Type> for TypeKind {
     fn from(val: Type) -> Self {
-        val.item
+        val.kind
     }
 }
 

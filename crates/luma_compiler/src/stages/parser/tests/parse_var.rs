@@ -1,58 +1,43 @@
-use crate::{Type, TypeKind, Visibility, VisibilityKind, ast::*};
-use luma_core::{MaybeSpanned, Span};
+use crate::{Type, TypeKind, Visibility, VisibilityKind, ast::*, stages::parser::tests::parse_ast};
+use luma_core::Span;
 use pretty_assertions::assert_eq;
-
-use crate::{ParserStage, create_tokens};
 
 #[test]
 fn var_with_type_and_value() {
-    // code:
-    // var x: u32 = 42;
-    // var y = 2.5;
+    let src = r#"
+        var x: u32 = 42;
+        var y = 2.5;
+    "#;
 
-    let (ast, _) = ParserStage::parse(&create_tokens![
-        Var,
-        Ident => "x",
-        Colon,
-        Ident => "u32",
-        Equal,
-        IntLiteral => "42",
-        Semicolon,
-
-        Var,
-        Ident => "y",
-        Equal,
-        FloatLiteral => "2.5",
-        Semicolon,
-    ]);
+    let ast = parse_ast(src);
 
     assert_eq!(
         ast,
         Ast::new(
-            Span::default(),
+            Span::void(),
             vec![
-                Stmt::spanned(
-                    Span::default(),
+                Stmt::new(
+                    Span::void(),
                     StmtKind::Var(VarDeclStmt {
-                        symbol: Symbol::spanned(Span::default(), SymbolKind::named("x".to_string())),
-                        ty: Some(Type::spanned(Span::default(), TypeKind::UInt32)),
-                        initializer: Expr::spanned(
-                            Span::default(),
+                        symbol: Symbol::new(Span::void(), SymbolKind::named("x".to_string())),
+                        ty: Some(Type::spanned(Span::void(), TypeKind::UInt32)),
+                        initializer: Expr::new(
+                            Span::void(),
                             ExprKind::Literal(LiteralExpr::Int(42)),
                         ),
-                        visibility: MaybeSpanned::unspanned(VisibilityKind::default()),
+                        visibility: Visibility::unspanned(VisibilityKind::default()),
                     }),
                 ),
-                Stmt::spanned(
-                    Span::default(),
+                Stmt::new(
+                    Span::void(),
                     StmtKind::Var(VarDeclStmt {
-                        symbol: Symbol::spanned(Span::default(), SymbolKind::named("y".to_string())),
+                        symbol: Symbol::new(Span::void(), SymbolKind::named("y".to_string())),
                         ty: None,
-                        initializer: Expr::spanned(
-                            Span::default(),
+                        initializer: Expr::new(
+                            Span::void(),
                             ExprKind::Literal(LiteralExpr::Float(2.5)),
                         ),
-                        visibility: MaybeSpanned::unspanned(VisibilityKind::default()),
+                        visibility: Visibility::unspanned(VisibilityKind::default()),
                     }),
                 ),
             ],
@@ -62,37 +47,28 @@ fn var_with_type_and_value() {
 
 #[test]
 fn pub_var_visibility() {
-    // code:
-    // pub(module) var a = 5;
-    
-    let (ast, _) = ParserStage::parse(&create_tokens![
-        Pub,
-        LeftParen,
-        Module,
-        RightParen,
-        Var,
-        Ident => "a",
-        Equal,
-        IntLiteral => "5",
-        Semicolon,
-    ]);
+    let src = r#"
+        pub(module) var a = 5;
+    "#;
 
+    let ast = parse_ast(src);
+    
     assert_eq!(
         ast,
         Ast::new(
-            Span::default(),
+            Span::void(),
             vec![
-                Stmt::spanned(
-                    Span::default(),
+                Stmt::new(
+                    Span::void(),
                     StmtKind::Var(VarDeclStmt {
-                        symbol: Symbol::spanned(Span::default(), SymbolKind::named("a".to_string())),
+                        symbol: Symbol::new(Span::void(), SymbolKind::named("a".to_string())),
                         ty: None,
-                        initializer: Expr::spanned(
-                            Span::default(),
+                        initializer: Expr::new(
+                            Span::void(),
                             ExprKind::Literal(LiteralExpr::Int(5)),
                         ),
                         visibility: Visibility::spanned(
-                            Span::default(),
+                            Span::void(),
                             VisibilityKind::Module,
                         ),
                     }),

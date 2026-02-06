@@ -30,7 +30,7 @@ pub fn basic_var_inference() {
 
     // checking variable type
     assert!(matches!(
-        var_ty.as_ref().expect("variable type should be inferred").item,
+        var_ty.as_ref().expect("variable type should be inferred").kind,
         TypeKind::Int32
     ));
 
@@ -64,7 +64,7 @@ pub fn basic_var_inference() {
 
     // checking variable type
     assert!(matches!(
-        var_ty.as_ref().expect("variable type should be inferred").item,
+        var_ty.as_ref().expect("variable type should be inferred").kind,
         TypeKind::Float32
     ));
 }

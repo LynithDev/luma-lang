@@ -1,10 +1,9 @@
 use crate::{Type, Visibility, ast::*};
-use luma_core::Spanned;
-use luma_diagnostic::{CompilerResult, LumaError};
+use luma_diagnostic::{CompilerResult, error};
 
 use crate::stages::{
     lexer::TokenKind,
-    parser::{parse::TokenParser, error::ParserErrorKind},
+    parser::{error::ParserErrorKind, parse::TokenParser},
 };
 
 impl TokenParser<'_> {
@@ -45,7 +44,7 @@ impl TokenParser<'_> {
         // check for explicit type annotation
         let ty: Option<Type> = if self.consume(TokenKind::Colon).is_ok() {
             let ty = self.parse_type()?;
-            span.maybe_merge(&ty.span);
+            span.maybe_merge(ty.span.as_ref());
 
             Some(ty)
         } else {
@@ -58,7 +57,7 @@ impl TokenParser<'_> {
         let initializer = self.parse_expression()?;
         span.merge(&initializer.span);
 
-        Ok(Stmt::spanned(
+        Ok(Stmt::new(
             span,
             StmtKind::Var(VarDeclStmt {
                 visibility,
@@ -101,7 +100,7 @@ impl TokenParser<'_> {
             self.consume(TokenKind::Colon)?;
 
             let ty = self.parse_type()?;
-            param_span.maybe_merge(&ty.span);
+            param_span.maybe_merge(ty.span.as_ref());
 
             // param value initializer
             let default_value = if self.consume(TokenKind::Equal).is_ok() {
@@ -113,14 +112,12 @@ impl TokenParser<'_> {
             };
 
             // register param
-            parameters.push(Spanned::spanned(
-                param_span,
-                FuncParam {
-                    symbol: param_ident.as_symbol(),
-                    ty,
-                    default_value,
-                },
-            ));
+            parameters.push(FuncParam {
+                symbol: param_ident.as_symbol(),
+                ty,
+                default_value,
+                span: param_span,
+            });
 
             // check for comma separation
             if !self.check(TokenKind::RightParen) {
@@ -133,7 +130,7 @@ impl TokenParser<'_> {
         // return type
         let return_type = if self.consume(TokenKind::Colon).is_ok() {
             let ty = self.parse_type()?;
-            span.maybe_merge(&ty.span);
+            span.maybe_merge(ty.span.as_ref());
 
             Some(ty)
         } else {
@@ -159,14 +156,11 @@ impl TokenParser<'_> {
                 expr
             }
             _ => {
-                return Err(LumaError::spanned(
-                    ParserErrorKind::MissingFunctionBody,
-                    current.span,
-                ));
+                return Err(error!(ParserErrorKind::MissingFunctionBody, current.span,));
             }
         };
 
-        Ok(Stmt::spanned(
+        Ok(Stmt::new(
             span,
             StmtKind::Func(FuncDeclStmt {
                 visibility,
@@ -210,17 +204,15 @@ impl TokenParser<'_> {
             self.consume(TokenKind::Colon)?;
 
             let field_type = self.parse_type()?;
-            field_span.maybe_merge(&field_type.span);
+            field_span.maybe_merge(field_type.span.as_ref());
 
-            fields.push(Spanned::spanned(
-                field_span,
-                StructFieldDecl {
-                    visibility: field_visibility,
-                    symbol: field_ident.as_symbol(),
-                    ty: field_type,
-                },
-            ));
-            
+            fields.push(StructFieldDecl {
+                visibility: field_visibility,
+                symbol: field_ident.as_symbol(),
+                ty: field_type,
+                span: field_span,
+            });
+
             span.merge(&field_span);
 
             // comma
@@ -231,7 +223,7 @@ impl TokenParser<'_> {
 
         self.consume(TokenKind::RightBrace)?;
 
-        Ok(Stmt::spanned(
+        Ok(Stmt::new(
             span,
             StmtKind::Struct(StructDeclStmt {
                 visibility,
@@ -266,10 +258,7 @@ impl TokenParser<'_> {
             None
         };
 
-        Ok(Stmt::spanned(
-            span,
-            StmtKind::Return(ReturnStmt { value }), 
-        ))
+        Ok(Stmt::new(span, StmtKind::Return(ReturnStmt { value })))
     }
 
     // MARK: Expression
@@ -277,9 +266,6 @@ impl TokenParser<'_> {
     pub(super) fn stmt_expr(&mut self) -> CompilerResult<Stmt> {
         let expr = self.parse_expression()?;
 
-        Ok(Stmt::spanned(
-            expr.span,
-            StmtKind::Expr(expr), 
-        ))
+        Ok(Stmt::new(expr.span, StmtKind::Expr(expr)))
     }
 }

@@ -1,54 +1,15 @@
 #![feature(error_generic_member_access)]
+#![feature(cfg_select)]
 
-use std::backtrace::{Backtrace, BacktraceStatus};
+cfg_select! {
+    feature = "pretty" => {
+        mod pretty_print;
+        pub use pretty_print::Printer;
+    }
+}
 
-use luma_core::Span;
+mod error;
+pub use error::{LumaError, ErrorSource};
 
 pub type CompilerResult<T> = Result<T, LumaError>;
 
-#[derive(thiserror::Error, Debug)]
-pub struct LumaError {
-    pub kind: Box<dyn std::error::Error>,
-    pub span: Option<Span>,
- 
-    #[backtrace]
-    pub backtrace: Backtrace,
-}
-
-impl LumaError {
-    #[must_use]
-    #[inline(always)]
-    pub fn spanned<E: std::error::Error + 'static>(kind: E, span: Span) -> Self{
-        Self {
-            kind: Box::new(kind),
-            span: Some(span),
-            backtrace: Backtrace::capture(),
-        }
-    }
-
-    #[must_use]
-    #[inline(always)]
-    pub fn new<E: std::error::Error + 'static>(kind: E) -> Self {
-        Self {
-            kind: Box::new(kind),
-            span: None,
-            backtrace: Backtrace::capture(),
-        }
-    }
-}
-
-impl std::fmt::Display for LumaError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(span) = &self.span {
-            write!(f, "{} at {}", self.kind, span)?;
-        } else {
-            write!(f, "{}", self.kind)?;
-        }
-        
-        if self.backtrace.status() == BacktraceStatus::Captured {
-            write!(f, "\nBacktrace:\n{}", self.backtrace)?;
-        }
-
-        Ok(())
-    }
-}

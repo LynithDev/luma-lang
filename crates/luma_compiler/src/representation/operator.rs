@@ -1,7 +1,22 @@
 use std::{fmt::Display, str::FromStr};
 
+use luma_core::Span;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Operator {
+pub struct Operator {
+    pub kind: OperatorKind,
+    pub span: Span,
+}
+
+impl Operator {
+    #[must_use]
+    pub const fn new(span: Span, kind: OperatorKind) -> Self {
+        Self { kind, span }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OperatorKind {
     // other
     Assign,
     Not,
@@ -48,10 +63,10 @@ pub enum Operator {
     ShiftRightAssign,
 }
 
-impl Operator {
+impl OperatorKind {
     #[must_use]
     pub const fn is_prefix(&self) -> bool {
-        matches!(self, Operator::Not | Operator::Subtract)
+        matches!(self, OperatorKind::Not | OperatorKind::Subtract)
     }
 
     #[must_use]
@@ -63,29 +78,29 @@ impl Operator {
     pub const fn is_arithmetic(&self) -> bool {
         matches!(
             self,
-            Operator::Add
-                | Operator::Subtract
-                | Operator::Multiply
-                | Operator::Divide
-                | Operator::Modulo
+            OperatorKind::Add
+                | OperatorKind::Subtract
+                | OperatorKind::Multiply
+                | OperatorKind::Divide
+                | OperatorKind::Modulo
         )
     }
 
     #[must_use]
     pub const fn is_logic(&self) -> bool {
-        matches!(self, Operator::And | Operator::Or)
+        matches!(self, OperatorKind::And | OperatorKind::Or)
     }
 
     #[must_use]
     pub const fn is_comparison(&self) -> bool {
         matches!(
             self,
-            Operator::Equal
-                | Operator::NotEqual
-                | Operator::LessThan
-                | Operator::GreaterThan
-                | Operator::LessThanOrEqual
-                | Operator::GreaterThanOrEqual
+            OperatorKind::Equal
+                | OperatorKind::NotEqual
+                | OperatorKind::LessThan
+                | OperatorKind::GreaterThan
+                | OperatorKind::LessThanOrEqual
+                | OperatorKind::GreaterThanOrEqual
         )
     }
 
@@ -93,11 +108,11 @@ impl Operator {
     pub const fn is_bitwise(&self) -> bool {
         matches!(
             self,
-            Operator::BitwiseAnd
-                | Operator::BitwiseOr
-                | Operator::BitwiseXor
-                | Operator::ShiftLeft
-                | Operator::ShiftRight
+            OperatorKind::BitwiseAnd
+                | OperatorKind::BitwiseOr
+                | OperatorKind::BitwiseXor
+                | OperatorKind::ShiftLeft
+                | OperatorKind::ShiftRight
         )
     }
 
@@ -105,127 +120,127 @@ impl Operator {
     pub const fn is_assignment(&self) -> bool {
         matches!(
             self,
-            Operator::Assign
-                | Operator::AddAssign
-                | Operator::SubtractAssign
-                | Operator::MultiplyAssign
-                | Operator::DivideAssign
-                | Operator::ModuloAssign
+            OperatorKind::Assign
+                | OperatorKind::AddAssign
+                | OperatorKind::SubtractAssign
+                | OperatorKind::MultiplyAssign
+                | OperatorKind::DivideAssign
+                | OperatorKind::ModuloAssign
                 
-                | Operator::AndAssign
-                | Operator::OrAssign
+                | OperatorKind::AndAssign
+                | OperatorKind::OrAssign
 
-                | Operator::BitwiseAndAssign
-                | Operator::BitwiseOrAssign
-                | Operator::BitwiseXorAssign
-                | Operator::ShiftLeftAssign
-                | Operator::ShiftRightAssign
+                | OperatorKind::BitwiseAndAssign
+                | OperatorKind::BitwiseOrAssign
+                | OperatorKind::BitwiseXorAssign
+                | OperatorKind::ShiftLeftAssign
+                | OperatorKind::ShiftRightAssign
         )
     }
 }
 
-impl FromStr for Operator {
+impl FromStr for OperatorKind {
     type Err = ();
     
     fn from_str(op: &str) -> Result<Self, Self::Err> {
         match op {
             // others
-            "=" => Ok(Operator::Assign),
-            "!" => Ok(Operator::Not),
+            "=" => Ok(OperatorKind::Assign),
+            "!" => Ok(OperatorKind::Not),
 
             // arithmetic
-            "+" => Ok(Operator::Add),
-            "-" => Ok(Operator::Subtract),
-            "*" => Ok(Operator::Multiply),
-            "/" => Ok(Operator::Divide),
-            "%" => Ok(Operator::Modulo),
+            "+" => Ok(OperatorKind::Add),
+            "-" => Ok(OperatorKind::Subtract),
+            "*" => Ok(OperatorKind::Multiply),
+            "/" => Ok(OperatorKind::Divide),
+            "%" => Ok(OperatorKind::Modulo),
 
-            "+= " => Ok(Operator::AddAssign),
-            "-= " => Ok(Operator::SubtractAssign),
-            "*= " => Ok(Operator::MultiplyAssign),
-            "/= " => Ok(Operator::DivideAssign),
-            "%= " => Ok(Operator::ModuloAssign),
+            "+= " => Ok(OperatorKind::AddAssign),
+            "-= " => Ok(OperatorKind::SubtractAssign),
+            "*= " => Ok(OperatorKind::MultiplyAssign),
+            "/= " => Ok(OperatorKind::DivideAssign),
+            "%= " => Ok(OperatorKind::ModuloAssign),
 
             // logic
-            "&&" => Ok(Operator::And),
-            "||" => Ok(Operator::Or),
+            "&&" => Ok(OperatorKind::And),
+            "||" => Ok(OperatorKind::Or),
 
-            "&&= " => Ok(Operator::AndAssign),
-            "||= " => Ok(Operator::OrAssign),
+            "&&= " => Ok(OperatorKind::AndAssign),
+            "||= " => Ok(OperatorKind::OrAssign),
 
             // comparison
-            "==" => Ok(Operator::Equal),
-            "!=" => Ok(Operator::NotEqual),
-            "<" => Ok(Operator::LessThan),
-            ">" => Ok(Operator::GreaterThan),
-            "<=" => Ok(Operator::LessThanOrEqual),
-            ">=" => Ok(Operator::GreaterThanOrEqual),
+            "==" => Ok(OperatorKind::Equal),
+            "!=" => Ok(OperatorKind::NotEqual),
+            "<" => Ok(OperatorKind::LessThan),
+            ">" => Ok(OperatorKind::GreaterThan),
+            "<=" => Ok(OperatorKind::LessThanOrEqual),
+            ">=" => Ok(OperatorKind::GreaterThanOrEqual),
             
             // bitwise
-            "&" => Ok(Operator::BitwiseAnd),
-            "|" => Ok(Operator::BitwiseOr),
-            "^" => Ok(Operator::BitwiseXor),
-            "<<" => Ok(Operator::ShiftLeft),
-            ">>" => Ok(Operator::ShiftRight),
+            "&" => Ok(OperatorKind::BitwiseAnd),
+            "|" => Ok(OperatorKind::BitwiseOr),
+            "^" => Ok(OperatorKind::BitwiseXor),
+            "<<" => Ok(OperatorKind::ShiftLeft),
+            ">>" => Ok(OperatorKind::ShiftRight),
             
-            "&= " => Ok(Operator::BitwiseAndAssign),
-            "|= " => Ok(Operator::BitwiseOrAssign),
-            "^= " => Ok(Operator::BitwiseXorAssign),
-            "<<= " => Ok(Operator::ShiftLeftAssign),
-            ">>= " => Ok(Operator::ShiftRightAssign),
+            "&= " => Ok(OperatorKind::BitwiseAndAssign),
+            "|= " => Ok(OperatorKind::BitwiseOrAssign),
+            "^= " => Ok(OperatorKind::BitwiseXorAssign),
+            "<<= " => Ok(OperatorKind::ShiftLeftAssign),
+            ">>= " => Ok(OperatorKind::ShiftRightAssign),
 
             _ => Err(()),
         }
     }
 }
 
-impl Display for Operator {
+impl Display for OperatorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // others
-            Operator::Assign => write!(f, "="),
-            Operator::Not => write!(f, "!"),
+            OperatorKind::Assign => write!(f, "="),
+            OperatorKind::Not => write!(f, "!"),
 
             // arithmetic
-            Operator::Add => write!(f, "+"),
-            Operator::Subtract => write!(f, "-"),
-            Operator::Multiply => write!(f, "*"),
-            Operator::Divide => write!(f, "/"),
-            Operator::Modulo => write!(f, "%"),
+            OperatorKind::Add => write!(f, "+"),
+            OperatorKind::Subtract => write!(f, "-"),
+            OperatorKind::Multiply => write!(f, "*"),
+            OperatorKind::Divide => write!(f, "/"),
+            OperatorKind::Modulo => write!(f, "%"),
 
-            Operator::AddAssign => write!(f, "+="),
-            Operator::SubtractAssign => write!(f, "-="),
-            Operator::MultiplyAssign => write!(f, "*="),
-            Operator::DivideAssign => write!(f, "/="),
-            Operator::ModuloAssign => write!(f, "%="),
+            OperatorKind::AddAssign => write!(f, "+="),
+            OperatorKind::SubtractAssign => write!(f, "-="),
+            OperatorKind::MultiplyAssign => write!(f, "*="),
+            OperatorKind::DivideAssign => write!(f, "/="),
+            OperatorKind::ModuloAssign => write!(f, "%="),
 
             // logic
-            Operator::And => write!(f, "&&"),
-            Operator::Or => write!(f, "||"),
+            OperatorKind::And => write!(f, "&&"),
+            OperatorKind::Or => write!(f, "||"),
 
-            Operator::AndAssign => write!(f, "&&="),
-            Operator::OrAssign => write!(f, "||="),
+            OperatorKind::AndAssign => write!(f, "&&="),
+            OperatorKind::OrAssign => write!(f, "||="),
             
             // comparison
-            Operator::Equal => write!(f, "=="),
-            Operator::NotEqual => write!(f, "!="),
-            Operator::LessThan => write!(f, "<"),
-            Operator::GreaterThan => write!(f, ">"),
-            Operator::LessThanOrEqual => write!(f, "<="),
-            Operator::GreaterThanOrEqual => write!(f, ">="),
+            OperatorKind::Equal => write!(f, "=="),
+            OperatorKind::NotEqual => write!(f, "!="),
+            OperatorKind::LessThan => write!(f, "<"),
+            OperatorKind::GreaterThan => write!(f, ">"),
+            OperatorKind::LessThanOrEqual => write!(f, "<="),
+            OperatorKind::GreaterThanOrEqual => write!(f, ">="),
             
             // bitwise
-            Operator::BitwiseAnd => write!(f, "&"),
-            Operator::BitwiseOr => write!(f, "|"),
-            Operator::BitwiseXor => write!(f, "^"),
-            Operator::ShiftLeft => write!(f, "<<"),
-            Operator::ShiftRight => write!(f, ">>"),
+            OperatorKind::BitwiseAnd => write!(f, "&"),
+            OperatorKind::BitwiseOr => write!(f, "|"),
+            OperatorKind::BitwiseXor => write!(f, "^"),
+            OperatorKind::ShiftLeft => write!(f, "<<"),
+            OperatorKind::ShiftRight => write!(f, ">>"),
 
-            Operator::BitwiseAndAssign => write!(f, "&="),
-            Operator::BitwiseOrAssign => write!(f, "|="),
-            Operator::BitwiseXorAssign => write!(f, "^="),
-            Operator::ShiftLeftAssign => write!(f, "<<="),
-            Operator::ShiftRightAssign => write!(f, ">>="),
+            OperatorKind::BitwiseAndAssign => write!(f, "&="),
+            OperatorKind::BitwiseOrAssign => write!(f, "|="),
+            OperatorKind::BitwiseXorAssign => write!(f, "^="),
+            OperatorKind::ShiftLeftAssign => write!(f, "<<="),
+            OperatorKind::ShiftRightAssign => write!(f, ">>="),
         }
     }
 }

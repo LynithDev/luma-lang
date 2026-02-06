@@ -1,8 +1,34 @@
+use std::ops::{Deref, DerefMut};
+
+use luma_core::Span;
 use strum::Display;
 
-use luma_core::Spanned;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Symbol {
+    pub kind: SymbolKind,
+    pub span: Span,
+}
 
-pub type Symbol = Spanned<SymbolKind>;
+impl Symbol {
+    #[must_use]
+    pub const fn new(span: Span, kind: SymbolKind) -> Self {
+        Self { kind, span }
+    }
+}
+
+impl Deref for Symbol {
+    type Target = SymbolKind;
+
+    fn deref(&self) -> &Self::Target {
+        &self.kind
+    }
+}
+
+impl DerefMut for Symbol {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.kind
+    }
+}
 
 #[derive(Display, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolKind {

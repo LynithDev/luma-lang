@@ -18,9 +18,9 @@ impl AstVisitor<'_> for NameDeclaration {
 
     fn visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
         let (namespace, symbol) = match &mut stmt.item {
-            StmtKind::Var(var_decl) => (SymbolNamespace::Value, &mut var_decl.symbol.item),
-            StmtKind::Func(func_decl) => (SymbolNamespace::Value, &mut func_decl.symbol.item),
-            StmtKind::Struct(struct_decl) => (SymbolNamespace::Type, &mut struct_decl.symbol.item),
+            StmtKind::Var(var_decl) => (SymbolNamespace::Value, &mut var_decl.symbol.kind),
+            StmtKind::Func(func_decl) => (SymbolNamespace::Value, &mut func_decl.symbol.kind),
+            StmtKind::Struct(struct_decl) => (SymbolNamespace::Type, &mut struct_decl.symbol.kind),
             _ => return,
         };
 
@@ -34,7 +34,7 @@ impl AstVisitor<'_> for NameDeclaration {
     }
 
     fn visit_func_param(&self, ctx: &mut Self::Ctx, param: &mut FuncParam) {
-        let symbol = &mut param.symbol.item;
+        let symbol = &mut param.symbol.kind;
         
         let current_scope = ctx.scopes.borrow().current_scope();
         let symbol_id = ctx.symbols.borrow_mut().declare(
@@ -52,10 +52,10 @@ impl AstVisitor<'_> for NameDeclaration {
         struct_symbol: &Symbol,
         field: &mut StructFieldDecl,
     ) {
-        let symbol = &mut field.symbol.item;
+        let symbol = &mut field.symbol.kind;
 
         // this should never occur, as we should only visit fields of declared structs
-        let struct_id = struct_symbol.id().unwrap();
+        let struct_id = struct_symbol.kind.id().unwrap();
         
         let current_scope = ctx.scopes.borrow().current_scope();
         let symbol_id = ctx.symbols.borrow_mut().declare(

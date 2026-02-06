@@ -1,6 +1,20 @@
-use luma_core::MaybeSpanned;
+use luma_core::Span;
 
-pub type Visibility = MaybeSpanned<VisibilityKind>;
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Visibility {
+    pub kind: VisibilityKind,
+    pub span: Option<Span>,
+}
+
+impl Visibility {
+    pub fn unspanned(kind: VisibilityKind) -> Self {
+        Self { kind, span: None }
+    }
+
+    pub fn spanned(span: Span, kind: VisibilityKind) -> Self {
+        Self { kind, span: Some(span) }
+    }
+}
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VisibilityKind {

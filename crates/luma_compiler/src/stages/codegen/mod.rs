@@ -28,7 +28,7 @@ impl CompilerStage<'_> for CodegenStage {
             let bytecode = match BytecodeGen::generate(ast) {
                 Ok(bc) => bc,
                 Err(err) => {
-                    ctx.errors.borrow_mut().push(err);
+                    ctx.add_error(err);
                     return Vec::new();
                 }
             };

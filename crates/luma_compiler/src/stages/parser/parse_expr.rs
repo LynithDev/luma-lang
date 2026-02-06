@@ -1,6 +1,5 @@
-use crate::{Operator, ast::*};
-use luma_core::Spanned;
-use luma_diagnostic::{CompilerResult, LumaError};
+use crate::{Operator, OperatorKind, ast::*};
+use luma_diagnostic::{CompilerResult, error};
 
 use crate::stages::{
     lexer::TokenKind,
@@ -27,7 +26,7 @@ impl TokenParser<'_> {
             // check for assignment operator
             let token = self.current();
 
-            let Ok(operator) = Operator::try_from(token.kind) else {
+            let Ok(operator) = OperatorKind::try_from(token.kind) else {
                 break;
             };
 
@@ -40,11 +39,11 @@ impl TokenParser<'_> {
 
             let value = self.expr_assign()?;
 
-            expr = Expr::spanned(
+            expr = Expr::new(
                 expr.span.merged(&value.span),
                 ExprKind::Assign(AssignExpr {
                     target: Box::new(expr),
-                    operator: Spanned::spanned(token.span, operator),
+                    operator: Operator::new(token.span, operator),
                     value: Box::new(value),
                 }),
             );
@@ -72,15 +71,15 @@ impl TokenParser<'_> {
             };
 
             // we unwrap here because we just matched the token kind, aka it should be valid
-            let operator = Operator::try_from(operator).unwrap();
+            let operator = OperatorKind::try_from(operator).unwrap();
 
             let right = self.expr_and()?;
 
-            expr = Expr::spanned(
+            expr = Expr::new(
                 expr.span.merged(&right.span),
                 ExprKind::Binary(BinaryExpr {
                     left: Box::new(expr),
-                    operator: Spanned::spanned(current.span, operator),
+                    operator: Operator::new(current.span, operator),
                     right: Box::new(right),
                 }),
             );
@@ -108,15 +107,15 @@ impl TokenParser<'_> {
             };
 
             // we unwrap here because we just matched the token kind, aka it should be valid
-            let operator = Operator::try_from(operator).unwrap();
+            let operator = OperatorKind::try_from(operator).unwrap();
 
             let right = self.expr_equality()?;
 
-            expr = Expr::spanned(
+            expr = Expr::new(
                 expr.span.merged(&right.span),
                 ExprKind::Binary(BinaryExpr {
                     left: Box::new(expr),
-                    operator: Spanned::spanned(current.span, operator),
+                    operator: Operator::new(current.span, operator),
                     right: Box::new(right),
                 }),
             );
@@ -144,15 +143,15 @@ impl TokenParser<'_> {
             };
 
             // we unwrap here because we just matched the token kind, aka it should be valid
-            let operator = Operator::try_from(operator).unwrap();
+            let operator = OperatorKind::try_from(operator).unwrap();
 
             let right = self.expr_comparison()?;
 
-            expr = Expr::spanned(
+            expr = Expr::new(
                 expr.span.merged(&right.span),
                 ExprKind::Binary(BinaryExpr {
                     left: Box::new(expr),
-                    operator: Spanned::spanned(current.span, operator),
+                    operator: Operator::new(current.span, operator),
                     right: Box::new(right),
                 }),
             );
@@ -183,15 +182,15 @@ impl TokenParser<'_> {
             };
 
             // we unwrap here because we just matched the token kind, aka it should be valid
-            let operator = Operator::try_from(operator).unwrap();
+            let operator = OperatorKind::try_from(operator).unwrap();
 
             let right = self.expr_term()?;
 
-            expr = Expr::spanned(
+            expr = Expr::new(
                 expr.span.merged(&right.span),
                 ExprKind::Binary(BinaryExpr {
                     left: Box::new(expr),
-                    operator: Spanned::spanned(current.span, operator),
+                    operator: Operator::new(current.span, operator),
                     right: Box::new(right),
                 }),
             );
@@ -219,15 +218,15 @@ impl TokenParser<'_> {
             };
 
             // we unwrap here because we just matched the token kind, aka it should be valid
-            let operator = Operator::try_from(operator).unwrap();
+            let operator = OperatorKind::try_from(operator).unwrap();
 
             let right = self.expr_factor()?;
 
-            expr = Expr::spanned(
+            expr = Expr::new(
                 expr.span.merged(&right.span),
                 ExprKind::Binary(BinaryExpr {
                     left: Box::new(expr),
-                    operator: Spanned::spanned(current.span, operator),
+                    operator: Operator::new(current.span, operator),
                     right: Box::new(right),
                 }),
             );
@@ -255,15 +254,15 @@ impl TokenParser<'_> {
             };
 
             // we unwrap here because we just matched the token kind, aka it should be valid
-            let operator = Operator::try_from(operator).unwrap();
+            let operator = OperatorKind::try_from(operator).unwrap();
 
             let right = self.expr_unary()?;
 
-            expr = Expr::spanned(
+            expr = Expr::new(
                 expr.span.merged(&right.span),
                 ExprKind::Binary(BinaryExpr {
                     left: Box::new(expr),
-                    operator: Spanned::spanned(current.span, operator),
+                    operator: Operator::new(current.span, operator),
                     right: Box::new(right),
                 }),
             );
@@ -284,13 +283,13 @@ impl TokenParser<'_> {
                 self.advance();
 
                 // we unwrap here because we just matched the token kind, aka it should be valid
-                let operator = Operator::try_from(current.kind).unwrap();
+                let operator = OperatorKind::try_from(current.kind).unwrap();
                 let value = self.expr_unary()?; // recurse into unary, not call
 
-                Ok(Expr::spanned(
+                Ok(Expr::new(
                     current.span.merged(&value.span),
                     ExprKind::Unary(UnaryExpr {
-                        operator: Spanned::spanned(current.span, operator),
+                        operator: Operator::new(current.span, operator),
                         value: Box::new(value),
                     }),
                 ))
@@ -350,7 +349,7 @@ impl TokenParser<'_> {
 
             let right_paren = self.consume(TokenKind::RightParen)?;
 
-            expr = Expr::spanned(
+            expr = Expr::new(
                 expr.span.merged(&right_paren.span),
                 ExprKind::Call(CallExpr {
                     callee: Box::new(expr),
@@ -369,7 +368,7 @@ impl TokenParser<'_> {
 
         let property = self.consume(TokenKind::Ident)?;
 
-        Ok(Expr::spanned(
+        Ok(Expr::new(
             dot_token.span.merged(&property.span),
             ExprKind::Get(GetExpr {
                 object: Box::new(object),
@@ -382,7 +381,7 @@ impl TokenParser<'_> {
     /// Parses struct literal expressions
     pub(super) fn expr_finish_struct(&mut self, expr: Expr) -> CompilerResult<Expr> {
         let ExprKind::Ident(ident) = &expr.item else {
-            return Err(LumaError::spanned(
+            return Err(error!(
                 ParserErrorKind::InvalidStructLiteralTarget {
                     found: expr.item.clone(),
                 },
@@ -413,10 +412,10 @@ impl TokenParser<'_> {
 
         let right_brace = self.consume(TokenKind::RightBrace)?;
 
-        Ok(Expr::spanned(
+        Ok(Expr::new(
             expr.span.merged(&right_brace.span),
             ExprKind::Struct(StructExpr {
-                symbol: Spanned::spanned(expr.span, ident.symbol.clone()),
+                symbol: Symbol::new(expr.span, ident.symbol.clone()),
                 fields,
             }),
         ))
@@ -440,7 +439,7 @@ impl TokenParser<'_> {
             TokenKind::If => self.expr_if(),
             TokenKind::Ident => self.expr_ident(),
 
-            _ => Err(LumaError::spanned(
+            _ => Err(error!(
                 ParserErrorKind::UnexpectedToken {
                     found: current.kind.clone(),
                 },
@@ -456,7 +455,7 @@ impl TokenParser<'_> {
 
         // empty tuple
         if let Ok(token) = self.consume(TokenKind::RightParen) {
-            return Ok(Expr::spanned(
+            return Ok(Expr::new(
                 left_paren.span.merged(&token.span),
                 ExprKind::Literal(LiteralExpr::Unit),
             ));
@@ -489,7 +488,7 @@ impl TokenParser<'_> {
 
                 self.consume(TokenKind::RightParen)?;
 
-                Ok(Expr::spanned(
+                Ok(Expr::new(
                     left_paren.span.merged(&elements.last().unwrap().span),
                     ExprKind::TupleLiteral(TupleExpr { elements }),
                 ))
@@ -501,7 +500,7 @@ impl TokenParser<'_> {
     
                 let expr = elements.remove(0);
     
-                Ok(Expr::spanned(
+                Ok(Expr::new(
                     left_paren.span.merged(&expr.span),
                     ExprKind::Group(Box::new(expr)), 
                 ))
@@ -532,7 +531,7 @@ impl TokenParser<'_> {
             } else if needs_semi {
                 let current = self.current();
 
-                return Err(LumaError::spanned(
+                return Err(error!(
                     ParserErrorKind::ExpectedToken { 
                         expected: TokenKind::Semicolon, 
                         found: current.kind.clone(),
@@ -546,7 +545,7 @@ impl TokenParser<'_> {
 
         let right_brace = self.consume(TokenKind::RightBrace)?;
 
-        Ok(Expr::spanned(
+        Ok(Expr::new(
             left_brace.span.merged(&right_brace.span),
             ExprKind::Block(BlockExpr { statements }),
         ))
@@ -584,7 +583,7 @@ impl TokenParser<'_> {
             span.merge(&else_branch.span);
         }
 
-        Ok(Expr::spanned(
+        Ok(Expr::new(
             span,
             ExprKind::If(IfExpr {
                 condition: Box::new(condition),
@@ -602,7 +601,7 @@ impl TokenParser<'_> {
         let kind = match &current.kind {
             TokenKind::CharLiteral => ExprKind::Literal(LiteralExpr::Char(
                 current.lexeme.clone().chars().next().ok_or_else(|| {
-                    LumaError::spanned(
+                    error!(
                         ParserErrorKind::InvalidCharLiteral {
                             lexeme: current.lexeme.clone(),
                         },
@@ -613,7 +612,7 @@ impl TokenParser<'_> {
 
             TokenKind::FloatLiteral => {
                 let value = current.lexeme.parse::<f64>().map_err(|err| {
-                    LumaError::spanned(
+                    error!(
                         ParserErrorKind::InvalidFloatLiteral {
                             lexeme: current.lexeme.clone(),
                             source: err,
@@ -627,7 +626,7 @@ impl TokenParser<'_> {
 
             TokenKind::IntLiteral => {
                 let value = current.lexeme.parse::<u64>().map_err(|err| {
-                    LumaError::spanned(
+                    error!(
                         ParserErrorKind::InvalidIntegerLiteral {
                             lexeme: current.lexeme.clone(),
                             source: err,
@@ -644,7 +643,7 @@ impl TokenParser<'_> {
                     "true" => true,
                     "false" => false,
                     _ => {
-                        return Err(LumaError::spanned(
+                        return Err(error!(
                             ParserErrorKind::InvalidBooleanLiteral {
                                 lexeme: current.lexeme.clone(),
                             },
@@ -666,7 +665,7 @@ impl TokenParser<'_> {
         // consume the token we just processed
         self.advance();
 
-        Ok(Expr::spanned(current.span, kind))
+        Ok(Expr::new(current.span, kind))
     }
 
     // MARK: Ident
@@ -674,7 +673,7 @@ impl TokenParser<'_> {
     pub(super) fn expr_ident(&mut self) -> CompilerResult<Expr> {
         let ident = self.consume(TokenKind::Ident)?;
 
-        Ok(Expr::spanned(
+        Ok(Expr::new(
             ident.span,
             ExprKind::Ident(IdentExpr {
                 symbol: SymbolKind::named(ident.lexeme),

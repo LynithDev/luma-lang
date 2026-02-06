@@ -1,5 +1,5 @@
-use crate::{Operator, Type, TypeKind, ast::*};
-use luma_diagnostic::LumaError;
+use crate::{OperatorKind, Type, TypeKind, ast::*};
+use luma_diagnostic::error;
 
 use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, error::AnalyzerErrorKind};
 
@@ -64,7 +64,7 @@ impl TypeInference {
                     None => {
                         // type inference failure
                         // report error and return unit type as fallback
-                        ctx.error(LumaError::spanned(
+                        ctx.error(error!(
                             AnalyzerErrorKind::TypeInferenceFailure, 
                             expr.span,
                         ));
@@ -84,7 +84,7 @@ impl TypeInference {
                     Some(ty) => ty,
                     None => {
                         // type mismatch
-                        ctx.error(LumaError::spanned(
+                        ctx.error(error!(
                             AnalyzerErrorKind::TypeMismatch { 
                                 expected: lty,
                                 found: rty
@@ -99,8 +99,8 @@ impl TypeInference {
             ExprKind::Unary(unary_expr) => {
                 let val_ty = Self::infer_expr(ctx, type_ctx, &mut unary_expr.value);
 
-                match unary_expr.operator.item {
-                    Operator::Subtract | Operator::Not => val_ty.clone(),
+                match unary_expr.operator.kind {
+                    OperatorKind::Subtract | OperatorKind::Not => val_ty.clone(),
                     _ => val_ty.clone(),
                 }
             },

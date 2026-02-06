@@ -1,5 +1,4 @@
 use crate::ast::*;
-use luma_diagnostic::LumaError;
 
 use crate::{
     CompilerContext, CompilerStage, stages::{lexer::Token, parser::parse::TokenParser}
@@ -18,16 +17,6 @@ mod tests;
 
 pub struct ParserStage;
 
-impl ParserStage {
-    pub fn parse(tokens: &[Token]) -> (Ast, Vec<LumaError>) {
-        let mut errors = Vec::new();
-        
-        let parser = TokenParser::new(tokens);
-        let ast = parser.parse_tokens(&mut errors);
-        (ast, errors)
-    }
-}
-
 impl<'stage> CompilerStage<'stage> for ParserStage {
     type Input = &'stage [Vec<Token>];
 
@@ -38,7 +27,7 @@ impl<'stage> CompilerStage<'stage> for ParserStage {
     }
     
     fn process(self, ctx: &CompilerContext, input: Self::Input) -> Self::Output {
-        let mut errors = ctx.errors.borrow_mut();
+        let mut errors = ctx.get_errors_mut();
         
         input.iter()
             .map(|tokens| {

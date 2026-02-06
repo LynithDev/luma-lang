@@ -1,5 +1,5 @@
 mod span;
-mod source;
+mod sources;
 
-pub use span::{Span, Spanned, MaybeSpanned};
-pub use source::CodeSource;
+pub use span::Span;
+pub use sources::{manager::SourceManager, CodeSource, CodeSourceId};

@@ -1,5 +1,5 @@
 use crate::{Type, TypeKind, Visibility, VisibilityKind};
-use luma_diagnostic::{CompilerResult, LumaError};
+use luma_diagnostic::{CompilerResult, error};
 
 use crate::stages::{
     lexer::TokenKind,
@@ -19,7 +19,7 @@ impl TokenParser<'_> {
                 let type_str = token.lexeme.as_str();
 
                 if type_str.is_empty() {
-                    return Err(LumaError::spanned(
+                    return Err(error!(
                         ParserErrorKind::InvalidType {
                             type_name: type_str.to_string(),
                         },
@@ -73,7 +73,7 @@ impl TokenParser<'_> {
                 let inner_type = self.parse_type()?;
 
                 Ok(Type::spanned(
-                    token.span.maybe_merged(&inner_type.span),
+                    token.span.maybe_merged(inner_type.span.as_ref()),
                     TypeKind::Ptr(Box::new(inner_type)),
                 ))
             }
@@ -85,7 +85,7 @@ impl TokenParser<'_> {
 
                 while !self.check(TokenKind::RightParen) {
                     let ty = self.parse_type()?;
-                    span.maybe_merge(&ty.span);
+                    span.maybe_merge(ty.span.as_ref());
                     types.push(ty);
 
                     if self.consume(TokenKind::Comma).is_err() {
@@ -106,7 +106,7 @@ impl TokenParser<'_> {
                 ))
             }
 
-            _ => Err(LumaError::spanned(
+            _ => Err(error!(
                 ParserErrorKind::InvalidType {
                     type_name: current.lexeme.clone(),
                 },
@@ -131,7 +131,7 @@ impl TokenParser<'_> {
                 TokenKind::Module => VisibilityKind::Module,
                 TokenKind::This => VisibilityKind::Private,
                 _ => {
-                    return Err(LumaError::spanned(
+                    return Err(error!(
                         ParserErrorKind::InvalidVisibility {
                             ident: vis_token.lexeme.clone(),
                         },

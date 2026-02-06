@@ -135,7 +135,7 @@ pub trait AstVisitor<'a> {
     fn walk_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) {
         self.visit_type(ctx, ty);
 
-        match &mut ty.item {
+        match &mut ty.kind {
             TypeKind::Ptr(ty) => {
                 self.walk_type(ctx, ty);
             },

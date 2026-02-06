@@ -7,14 +7,16 @@ fn main() {
     ];
 
     let compiler = LumaCompiler::new();
-    let success = compiler.compile(&sources);
+    let result = compiler.compile(sources);
 
-    if success {
-        println!("Compilation succeeded!");
-    } else {
-        println!("Compilation failed with errors during '{}':", compiler.current_stage());
-        for error in compiler.errors().iter() {
-            println!("{}", error);
+    if !result.errors.is_empty() {
+        eprintln!("Compilation failed with the following errors:");
+        
+        for error in result.errors {
+            eprintln!("- {}", error);
         }
+
+    } else {
+        println!("Compilation succeeded without errors.");
     }
 }

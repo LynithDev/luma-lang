@@ -6,6 +6,10 @@ authors = { workspace = true }
 
 [dependencies]
 luma_core = { workspace = true }
-
 thiserror = { workspace = true }
-annotate-snippets = { workspace = true }
+
+annotate-snippets = { workspace = true, optional = true }
+
+[features]
+default = ["pretty"]
+pretty = ["dep:annotate-snippets"]

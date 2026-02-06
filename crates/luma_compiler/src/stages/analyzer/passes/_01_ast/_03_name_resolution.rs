@@ -1,5 +1,6 @@
+use luma_diagnostic::error;
+
 use crate::ast::*;
-use luma_diagnostic::LumaError;
 
 use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, error::AnalyzerErrorKind, symbols::SymbolNamespace};
 
@@ -33,7 +34,7 @@ impl AstVisitor<'_> for NameResolution {
                     scope_manager.current_scope(),
                     symbol.name()
                 ) else {
-                    ctx.error(LumaError::spanned(
+                    ctx.error(error!(
                         AnalyzerErrorKind::UnresolvedIdentifier(symbol.name().to_string()), 
                         expr.span,
                     ));
@@ -54,9 +55,9 @@ impl AstVisitor<'_> for NameResolution {
                     &scope_manager,
                     SymbolNamespace::Type,
                     scope_manager.current_scope(), 
-                    symbol.name()
+                    symbol.kind.name()
                 ) else {
-                    ctx.error(LumaError::spanned(
+                    ctx.error(error!(
                         AnalyzerErrorKind::UnresolvedType(symbol.name().to_string()), 
                         expr.span,
                     ));
@@ -71,12 +72,12 @@ impl AstVisitor<'_> for NameResolution {
     }
 
     fn visit_struct_field_expr(&self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldExpr) {
-        let field_symbol = &mut field.symbol.item;
+        let field_symbol = &mut field.symbol.kind;
 
         // lookup the symbol in type namespace, 
         // as identifiers refer to types
         let Some(resolved_struct_id) = struct_symbol.id() else {
-            ctx.error(LumaError::spanned(
+            ctx.error(error!(
                 AnalyzerErrorKind::UnresolvedType(struct_symbol.name().to_string()), 
                 struct_symbol.span,
             ));
@@ -91,7 +92,7 @@ impl AstVisitor<'_> for NameResolution {
             scope_manager.current_scope(),
             field_symbol.name()
         ) else {
-            ctx.error(LumaError::spanned(
+            ctx.error(error!(
                 AnalyzerErrorKind::UnresolvedStructField {
                     struct_name: struct_symbol.name().to_string(), 
                     field_name: field_symbol.name().to_string()

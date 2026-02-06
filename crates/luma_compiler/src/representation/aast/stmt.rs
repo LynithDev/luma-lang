@@ -1,6 +1,6 @@
 use strum::Display;
 
-use luma_core::{Span, Spanned};
+use luma_core::Span;
 
 use crate::{Type, Visibility, aast::*, stages::analyzer::scopes::ScopeId};
 
@@ -35,7 +35,7 @@ pub enum AnnotStmtKind {
 pub struct FuncDeclAnnotStmt {
     pub visibility: Visibility,
     pub symbol: AnnotSymbol,
-    pub parameters: Vec<Spanned<AnnotFuncParam>>,
+    pub parameters: Vec<AnnotFuncParam>,
     pub body: AnnotExpr,
     pub return_type: Type,
 }
@@ -45,6 +45,7 @@ pub struct AnnotFuncParam {
     pub symbol: AnnotSymbol,
     pub ty: Type,
     pub default_value: Option<AnnotExpr>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,7 +57,7 @@ pub struct ReturnAnnotStmt {
 pub struct StructDeclAnnotStmt {
     pub visibility: Visibility,
     pub symbol: AnnotSymbol,
-    pub fields: Vec<Spanned<StructFieldAnnotDecl>>,
+    pub fields: Vec<StructFieldAnnotDecl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,6 +65,7 @@ pub struct StructFieldAnnotDecl {
     pub visibility: Visibility,
     pub symbol: AnnotSymbol,
     pub ty: Type,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]

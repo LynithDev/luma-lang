@@ -1,4 +1,4 @@
-use luma_core::{Span, Spanned};
+use luma_core::Span;
 use strum::Display;
 
 use crate::{Operator, TypeKind, ast::*};
@@ -12,7 +12,7 @@ pub struct Expr {
 }
 
 impl Expr {
-    pub fn spanned(span: Span, item: ExprKind) -> Self {
+    pub fn new(span: Span, item: ExprKind) -> Self {
         Self {
             item,
             ty: None,
@@ -50,14 +50,14 @@ pub enum ExprKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssignExpr {
     pub target: Box<Expr>,
-    pub operator: Spanned<Operator>,
+    pub operator: Operator,
     pub value: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryExpr {
     pub left: Box<Expr>,
-    pub operator: Spanned<Operator>,
+    pub operator: Operator,
     pub right: Box<Expr>,
 }
 
@@ -133,6 +133,6 @@ pub struct TupleExpr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnaryExpr {
-    pub operator: Spanned<Operator>,
+    pub operator: Operator,
     pub value: Box<Expr>,
 }

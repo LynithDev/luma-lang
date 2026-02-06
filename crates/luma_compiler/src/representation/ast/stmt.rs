@@ -1,6 +1,6 @@
 use strum::Display;
 
-use luma_core::{Span, Spanned};
+use luma_core::Span;
 
 use crate::{Type, Visibility, ast::*};
 
@@ -12,7 +12,7 @@ pub struct Stmt {
 }
 
 impl Stmt {
-    pub fn spanned(span: Span, item: StmtKind) -> Self {
+    pub fn new(span: Span, item: StmtKind) -> Self {
         Stmt { 
             item,
             scope_id: None,
@@ -39,7 +39,7 @@ pub enum StmtKind {
 pub struct FuncDeclStmt {
     pub visibility: Visibility,
     pub symbol: Symbol,
-    pub parameters: Vec<Spanned<FuncParam>>,
+    pub parameters: Vec<FuncParam>,
     pub body: Expr,
     pub return_type: Option<Type>,
 }
@@ -49,6 +49,7 @@ pub struct FuncParam {
     pub symbol: Symbol,
     pub ty: Type,
     pub default_value: Option<Expr>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -60,7 +61,7 @@ pub struct ReturnStmt {
 pub struct StructDeclStmt {
     pub visibility: Visibility,
     pub symbol: Symbol,
-    pub fields: Vec<Spanned<StructFieldDecl>>,
+    pub fields: Vec<StructFieldDecl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,6 +69,7 @@ pub struct StructFieldDecl {
     pub visibility: Visibility,
     pub symbol: Symbol,
     pub ty: Type,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -2,48 +2,51 @@ mod tokens;
 
 use std::str::Chars;
 
-use luma_core::{CodeSource, Span};
+use luma_core::{CodeSourceId, Span};
+use luma_diagnostic::error;
 pub use tokens::*;
 
-use crate::{CompilerContext, CompilerStage};
+use crate::{CompilerContext, CompilerStage, error::CompilerErrorKind};
 
 pub struct LexerStage;
 
-impl<'stage> CompilerStage<'stage> for LexerStage {
-    type Input = &'stage [CodeSource];
+impl CompilerStage<'_> for LexerStage {
+    type Input = Vec<CodeSourceId>;
     type Output = Vec<TokenList>;
 
     fn name() -> &'static str {
         "lexer"
     }
 
-    fn process(self, _ctx: &CompilerContext, input: Self::Input) -> Self::Output {
-        input.iter()
-            .map(Self::tokenize)
+    fn process(self, ctx: &CompilerContext, input: Self::Input) -> Self::Output {
+        input.into_iter()
+            .map(|id| {
+                let Some(source) = ctx.sources.get_source(id) else {
+                    ctx.add_error(error!(CompilerErrorKind::InvalidSourceId { id }));
+                    return Vec::new();
+                };
+
+                Tokenizer::new(&source.content, id).process()
+            })
             .collect()
     }
 }
 
-impl LexerStage {
-    pub fn tokenize(input: &CodeSource) -> TokenList {
-        let state = Tokenizer::new(input);
-        state.process()
-    }
-}
-
 struct Tokenizer<'a> {
+    source_id: CodeSourceId,
     chars: Chars<'a>,
     tokens: TokenList,
 
-    cursor: usize,
-    span_start: usize,
+    cursor: u32,
+    span_start: u32,
     lexeme: String,
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(input: &'a CodeSource) -> Self {
+    pub fn new(content: &'a str, id: CodeSourceId) -> Self {
         Self {
-            chars: input.content.chars(),
+            source_id: id,
+            chars: content.chars(),
             tokens: Vec::new(),
 
             cursor: 0,
@@ -74,7 +77,7 @@ impl<'a> Tokenizer<'a> {
 
             // now we add the token
             let token = Token {
-                span: Span::new(self.span_start, self.cursor),
+                span: Span::new(self.source_id, self.span_start, self.cursor),
                 kind: token_kind,
                 lexeme: self.lexeme.clone(),
             };
@@ -378,7 +381,7 @@ impl<'a> Tokenizer<'a> {
         let next = self.chars.next();
 
         if let Some(c) = next {
-            self.cursor += c.len_utf8();
+            self.cursor += c.len_utf8() as u32;
             self.lexeme.push(c);
         }
 

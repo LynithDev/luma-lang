@@ -74,9 +74,7 @@ impl<Input> CompilerStage<'_> for AnalyzerStage<Input> {
             }
         }
 
-        ctx.errors
-            .borrow_mut()
-            .append(&mut self.ctx.errors.borrow_mut());
+        ctx.get_errors_mut().append(&mut self.ctx.errors.borrow_mut());
 
         asts
     }

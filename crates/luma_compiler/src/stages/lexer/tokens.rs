@@ -1,4 +1,4 @@
-use crate::{Operator, ast::{Symbol, SymbolKind}};
+use crate::{OperatorKind, ast::{Symbol, SymbolKind}};
 use luma_core::Span;
 use strum::Display;
 
@@ -14,50 +14,11 @@ pub struct Token {
 impl Token {
     #[must_use]
     pub fn as_symbol(&self) -> Symbol {
-        Symbol::spanned(
-            self.span,
-            SymbolKind::named(self.lexeme.clone()),
-        )
-    }
-
-    #[must_use]
-    pub fn new(kind: TokenKind, lexeme: String) -> Self {
-        Self {
-            span: Span::default(),
-            kind,
-            lexeme,
+        Symbol {
+            span: self.span,
+            kind: SymbolKind::named(self.lexeme.clone()),
         }
     }
-}
-
-#[macro_export]
-macro_rules! create_tokens {
-    (
-        $(
-            $kind:tt $(=> $lexeme:expr)?
-        ),* $(,)?
-    ) => {{
-        use $crate::stages::lexer::{Token, TokenKind};
-
-        vec![
-            $(
-                Token::new(
-                    TokenKind::$kind,
-                    create_tokens!(@lexeme TokenKind::$kind $(, $lexeme)?)
-                )
-            ),*
-        ]
-    }};
-
-    // explicit lexeme
-    (@lexeme $kind:expr, $lexeme:expr) => {
-        $lexeme.to_string()
-    };
-
-    // implicit lexeme via Display
-    (@lexeme $kind:expr) => {
-        $kind.to_string()
-    };
 }
 
 #[derive(Display, Debug, Clone, PartialEq, Eq)]
@@ -298,55 +259,55 @@ impl TokenKind {
     }
 }
 
-impl TryFrom<TokenKind> for Operator {
+impl TryFrom<TokenKind> for OperatorKind {
     type Error = ();
 
     fn try_from(value: TokenKind) -> Result<Self, Self::Error> {
         match value {
             // others
-            TokenKind::Equal => Ok(Operator::Assign),
-            TokenKind::Bang => Ok(Operator::Not),
+            TokenKind::Equal => Ok(OperatorKind::Assign),
+            TokenKind::Bang => Ok(OperatorKind::Not),
 
             // arithmetic
-            TokenKind::Plus => Ok(Operator::Add),
-            TokenKind::Minus => Ok(Operator::Subtract),
-            TokenKind::Asterisk => Ok(Operator::Multiply),
-            TokenKind::Slash => Ok(Operator::Divide),
-            TokenKind::Percent => Ok(Operator::Modulo),
+            TokenKind::Plus => Ok(OperatorKind::Add),
+            TokenKind::Minus => Ok(OperatorKind::Subtract),
+            TokenKind::Asterisk => Ok(OperatorKind::Multiply),
+            TokenKind::Slash => Ok(OperatorKind::Divide),
+            TokenKind::Percent => Ok(OperatorKind::Modulo),
 
-            TokenKind::PlusEqual => Ok(Operator::AddAssign),
-            TokenKind::MinusEqual => Ok(Operator::SubtractAssign),
-            TokenKind::AsteriskEqual => Ok(Operator::MultiplyAssign),
-            TokenKind::SlashEqual => Ok(Operator::DivideAssign),
-            TokenKind::PercentEqual => Ok(Operator::ModuloAssign),
+            TokenKind::PlusEqual => Ok(OperatorKind::AddAssign),
+            TokenKind::MinusEqual => Ok(OperatorKind::SubtractAssign),
+            TokenKind::AsteriskEqual => Ok(OperatorKind::MultiplyAssign),
+            TokenKind::SlashEqual => Ok(OperatorKind::DivideAssign),
+            TokenKind::PercentEqual => Ok(OperatorKind::ModuloAssign),
 
             // logic
-            TokenKind::AmpersandAmpersand => Ok(Operator::And),
-            TokenKind::PipePipe => Ok(Operator::Or),
+            TokenKind::AmpersandAmpersand => Ok(OperatorKind::And),
+            TokenKind::PipePipe => Ok(OperatorKind::Or),
 
-            TokenKind::AmpersandAmpersandEqual => Ok(Operator::AndAssign),
-            TokenKind::PipePipeEqual => Ok(Operator::OrAssign),
+            TokenKind::AmpersandAmpersandEqual => Ok(OperatorKind::AndAssign),
+            TokenKind::PipePipeEqual => Ok(OperatorKind::OrAssign),
 
             // comparison
-            TokenKind::EqualEqual => Ok(Operator::Equal),
-            TokenKind::BangEqual => Ok(Operator::NotEqual),
-            TokenKind::Less => Ok(Operator::LessThan),
-            TokenKind::Greater => Ok(Operator::GreaterThan),
-            TokenKind::LessEqual => Ok(Operator::LessThanOrEqual),
-            TokenKind::GreaterEqual => Ok(Operator::GreaterThanOrEqual),
+            TokenKind::EqualEqual => Ok(OperatorKind::Equal),
+            TokenKind::BangEqual => Ok(OperatorKind::NotEqual),
+            TokenKind::Less => Ok(OperatorKind::LessThan),
+            TokenKind::Greater => Ok(OperatorKind::GreaterThan),
+            TokenKind::LessEqual => Ok(OperatorKind::LessThanOrEqual),
+            TokenKind::GreaterEqual => Ok(OperatorKind::GreaterThanOrEqual),
 
             // bitwise
-            TokenKind::Ampersand => Ok(Operator::BitwiseAnd),
-            TokenKind::Pipe => Ok(Operator::BitwiseOr),
-            TokenKind::Caret => Ok(Operator::BitwiseXor),
-            TokenKind::LessThanLessThan => Ok(Operator::ShiftLeft),
-            TokenKind::GreaterThanGreaterThan => Ok(Operator::ShiftRight),
+            TokenKind::Ampersand => Ok(OperatorKind::BitwiseAnd),
+            TokenKind::Pipe => Ok(OperatorKind::BitwiseOr),
+            TokenKind::Caret => Ok(OperatorKind::BitwiseXor),
+            TokenKind::LessThanLessThan => Ok(OperatorKind::ShiftLeft),
+            TokenKind::GreaterThanGreaterThan => Ok(OperatorKind::ShiftRight),
 
-            TokenKind::AmpersandEqual => Ok(Operator::BitwiseAndAssign),
-            TokenKind::PipeEqual => Ok(Operator::BitwiseOrAssign),
-            TokenKind::CaretEqual => Ok(Operator::BitwiseXorAssign),
-            TokenKind::LessThanLessThanEqual => Ok(Operator::ShiftLeftAssign),
-            TokenKind::GreaterThanGreaterThanEqual => Ok(Operator::ShiftRightAssign),
+            TokenKind::AmpersandEqual => Ok(OperatorKind::BitwiseAndAssign),
+            TokenKind::PipeEqual => Ok(OperatorKind::BitwiseOrAssign),
+            TokenKind::CaretEqual => Ok(OperatorKind::BitwiseXorAssign),
+            TokenKind::LessThanLessThanEqual => Ok(OperatorKind::ShiftLeftAssign),
+            TokenKind::GreaterThanGreaterThanEqual => Ok(OperatorKind::ShiftRightAssign),
 
             _ => Err(()),
         }

@@ -1,209 +1,145 @@
-use crate::{Operator, Type, TypeKind, VisibilityKind, ast::*};
-use luma_core::{MaybeSpanned, Span, Spanned};
+use crate::{CompilerContext, Operator, OperatorKind, Type, TypeKind, Visibility, VisibilityKind, ast::*, compiler::run_stage};
+use luma_core::Span;
 use pretty_assertions::assert_eq;
 
-use crate::{ParserStage, create_tokens};
+use crate::{LexerStage, ParserStage};
 
 #[test]
 fn var_with_type_and_value() {
-    /*
+    let src = r#"
+        
+        func test(a: u32, b: f32, c: bool = false): (u32, f32, bool) {
+            var x = a + 10;
+            (x, b, c)
+        };
 
-    func test(a: u32, b: f32, c: bool = false): (u32, f32, bool) {
-        var x = a + 10;
-        (x, b, c)
-    };
+    "#;
 
-     */
+    let mut ctx = CompilerContext::new();
+    ctx.sources.add_source(src.into());
 
-    let (ast, _) = ParserStage::parse(&create_tokens![
-        // func test(
-        Func,
-        Ident => "test",
-        LeftParen,
+    let tokens = run_stage(&ctx, LexerStage, vec![0.into()]).expect("lexing failed");
+    let asts = run_stage(&ctx, ParserStage, &tokens).expect("parsing failed");
 
-        // a: u32,
-        Ident => "a",
-        Colon,
-        Ident => "u32",
-        Comma,
-
-        // b: f32,
-        Ident => "b",
-        Colon,
-        Ident => "f32",
-        Comma,
-
-        // c: bool = false
-        Ident => "c",
-        Colon,
-        Ident => "bool",
-        Equal,
-        BoolLiteral => "false",
-
-        // )
-        RightParen,
-
-        // : (u32, f32, bool)
-        Colon,
-        LeftParen,
-        Ident => "u32",
-        Comma,
-        Ident => "f32",
-        Comma,
-        Ident => "bool",
-        RightParen,
-
-        // {
-        LeftBrace,
-
-        // var x = a + 10;
-        Var,
-        Ident => "x",
-        Equal,
-        Ident => "a",
-        Plus,
-        IntLiteral => "10",
-        Semicolon,
-
-        // (x, b, c)
-        LeftParen,
-        Ident => "x",
-        Comma,
-        Ident => "b",
-        Comma,
-        Ident => "c",
-        RightParen,
-
-        // };
-        RightBrace,
-        Semicolon,
-    ]);
+    let ast = asts.into_iter().next().expect("expected at least one AST");
 
     assert_eq!(
         ast,
         Ast::new(
-            Span::default(),
-            vec![Stmt::spanned(
-                Span::default(),
+            Span::void(),
+            vec![Stmt::new(
+                Span::void(),
                 StmtKind::Func(FuncDeclStmt {
-                    visibility: MaybeSpanned::unspanned(VisibilityKind::Private),
-                    symbol: Symbol::spanned(
-                        Span::default(),
+                    visibility: Visibility::unspanned(VisibilityKind::Private),
+                    symbol: Symbol::new(
+                        Span::void(),
                         SymbolKind::named(String::from("test")),
                     ),
 
                     // (a: u32, b: f32, c: bool = false)
                     parameters: vec![
-                        Spanned::spanned(
-                            Span::default(),
-                            FuncParam {
-                                symbol: Symbol::spanned(
-                                    Span::default(),
-                                    SymbolKind::named(String::from("a")),
-                                ),
-                                ty: Type::new(Span::default(), TypeKind::UInt32),
-                                default_value: None,
-                            },
-                        ),
-                        Spanned::spanned(
-                            Span::default(),
-                            FuncParam {
-                                symbol: Symbol::spanned(
-                                    Span::default(),
-                                    SymbolKind::named(String::from("b")),
-                                ),
-                                ty: Type::new(Span::default(), TypeKind::Float32),
-                                default_value: None,
-                            },
-                        ),
-                        Spanned::spanned(
-                            Span::default(),
-                            FuncParam {
-                                symbol: Symbol::spanned(
-                                    Span::default(),
-                                    SymbolKind::named(String::from("c")),
-                                ),
-                                ty: Type::new(Span::default(), TypeKind::Bool),
-                                default_value: Some(Expr::spanned(
-                                    Span::default(),
-                                    ExprKind::Literal(LiteralExpr::Bool(false)),
-                                )),
-                            },
-                        ),
+                        FuncParam {
+                            symbol: Symbol::new(
+                                Span::void(),
+                                SymbolKind::named(String::from("a")),
+                            ),
+                            ty: Type::spanned(Span::void(), TypeKind::UInt32),
+                            default_value: None,
+                            span: Span::void(),
+                        },
+                        FuncParam {
+                            symbol: Symbol::new(
+                                Span::void(),
+                                SymbolKind::named(String::from("b")),
+                            ),
+                            ty: Type::spanned(Span::void(), TypeKind::Float32),
+                            default_value: None,
+                            span: Span::void(),
+                        },
+                        FuncParam {
+                            symbol: Symbol::new(
+                                Span::void(),
+                                SymbolKind::named(String::from("c")),
+                            ),
+                            ty: Type::spanned(Span::void(), TypeKind::Bool),
+                            default_value: Some(Expr::new(
+                                Span::void(),
+                                ExprKind::Literal(LiteralExpr::Bool(false)),
+                            )),
+                            span: Span::void(),
+                        },
                     ],
-                    return_type: Some(Type::new(
+                    return_type: Some(Type::spanned(
                         // (u32, f32, bool)
-                        Span::default(),
+                        Span::void(),
                         TypeKind::Tuple(vec![
-                            Type::new(Span::default(), TypeKind::UInt32),
-                            Type::new(Span::default(), TypeKind::Float32),
-                            Type::new(Span::default(), TypeKind::Bool),
+                            Type::spanned(Span::void(), TypeKind::UInt32),
+                            Type::spanned(Span::void(), TypeKind::Float32),
+                            Type::spanned(Span::void(), TypeKind::Bool),
                         ]),
                     )),
-                    body: Expr::spanned(
-                        Span::default(),
+                    body: Expr::new(
+                        Span::void(),
                         ExprKind::Block(BlockExpr {
                             statements: vec![
                                 // var x = a + 10;
-                                Stmt::spanned(
-                                    Span::default(),
+                                Stmt::new(
+                                    Span::void(),
                                     StmtKind::Var(VarDeclStmt {
-                                        symbol: Symbol::spanned(
-                                            Span::default(),
+                                        symbol: Symbol::new(
+                                            Span::void(),
                                             SymbolKind::named(String::from("x")),
                                         ),
                                         ty: None,
-                                        initializer: Expr::spanned(
-                                            Span::default(),
+                                        initializer: Expr::new(
+                                            Span::void(),
                                             ExprKind::Binary(BinaryExpr {
-                                                left: Box::new(Expr::spanned(
-                                                    Span::default(),
+                                                left: Box::new(Expr::new(
+                                                    Span::void(),
                                                     ExprKind::Ident(IdentExpr {
                                                         symbol: SymbolKind::named(String::from(
                                                             "a"
                                                         ))
                                                     }),
                                                 )),
-                                                operator: Spanned::spanned(
-                                                    Span::default(),
-                                                    Operator::Add,
+                                                operator: Operator::new(
+                                                    Span::void(),
+                                                    OperatorKind::Add,
                                                 ),
-                                                right: Box::new(Expr::spanned(
-                                                    Span::default(),
+                                                right: Box::new(Expr::new(
+                                                    Span::void(),
                                                     ExprKind::Literal(LiteralExpr::Int(10)),
                                                 )),
                                             }),
                                         ),
-                                        visibility: MaybeSpanned::unspanned(
-                                            VisibilityKind::default()
-                                        ),
+                                        visibility: Visibility::unspanned(VisibilityKind::Private),
                                     }),
                                 ),
                                 // (x, b, c)
-                                Stmt::spanned(
-                                    Span::default(),
-                                    StmtKind::Expr(Expr::spanned(
-                                        Span::default(),
+                                Stmt::new(
+                                    Span::void(),
+                                    StmtKind::Expr(Expr::new(
+                                        Span::void(),
                                         ExprKind::TupleLiteral(TupleExpr {
                                             elements: vec![
-                                                Expr::spanned(
-                                                    Span::default(),
+                                                Expr::new(
+                                                    Span::void(),
                                                     ExprKind::Ident(IdentExpr {
                                                         symbol: SymbolKind::named(String::from(
                                                             "x"
                                                         ))
                                                     }),
                                                 ),
-                                                Expr::spanned(
-                                                    Span::default(),
+                                                Expr::new(
+                                                    Span::void(),
                                                     ExprKind::Ident(IdentExpr {
                                                         symbol: SymbolKind::named(String::from(
                                                             "b"
                                                         ))
                                                     }),
                                                 ),
-                                                Expr::spanned(
-                                                    Span::default(),
+                                                Expr::new(
+                                                    Span::void(),
                                                     ExprKind::Ident(IdentExpr {
                                                         symbol: SymbolKind::named(String::from(
                                                             "c"
