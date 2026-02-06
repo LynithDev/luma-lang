@@ -1,7 +1,9 @@
+use luma_core::{Span, Spanned};
 use luma_diagnostic::{CompilerResult, LumaError};
 
 use crate::{
-    CompilerContext, CompilerStage, TypeKind, aast::*, ast::*, stages::lowering::error::LoweringErrorKind
+    CompilerContext, CompilerStage, TypeKind, aast::*, ast::*,
+    stages::lowering::error::LoweringErrorKind,
 };
 
 pub struct AstLoweringStage;
@@ -18,7 +20,7 @@ impl CompilerStage<'_> for AstLoweringStage {
         let mut aasts = Vec::<AnnotatedAst>::new();
 
         for ast in inputs {
-            let aast = match AnnotatedAst::try_from(ast) {
+            let aast = match annotate_ast(ast) {
                 Ok(aast) => aast,
                 Err(err) => {
                     ctx.errors.borrow_mut().push(err);
@@ -33,288 +35,251 @@ impl CompilerStage<'_> for AstLoweringStage {
     }
 }
 
-impl TryFrom<Ast> for AnnotatedAst {
-    type Error = LumaError;
-
-    fn try_from(value: Ast) -> Result<Self, Self::Error> {
-        Ok(Self {
-            statements: value
-                .statements
-                .into_iter()
-                .map(|stmt| stmt.try_into())
-                .try_collect()?,
-            span: value.span,
-        })
-    }
+fn annotate_ast(ast: Ast) -> CompilerResult<AnnotatedAst> {
+    Ok(AnnotatedAst {
+        statements: ast
+            .statements
+            .into_iter()
+            .map(annotate_stmt)
+            .try_collect()?,
+        span: ast.span,
+    })
 }
 
-impl TryFrom<Symbol> for AnnotSymbol {
-    type Error = LumaError;
-
-    fn try_from(value: Symbol) -> Result<Self, Self::Error> {
-        Ok(Self {
-            name: value.name().to_string(),
-            id: value
-                .id()
-                .ok_or(LumaError::new(LoweringErrorKind::MissingSymbolId))?,
-            span: value.span,
-        })
-    }
+fn annotate_symbol(symbol: Symbol) -> CompilerResult<AnnotSymbol> {
+    Ok(AnnotSymbol {
+        name: symbol.name().to_string(),
+        id: symbol.id().ok_or(LumaError::spanned(
+            LoweringErrorKind::MissingSymbolId,
+            symbol.span,
+        ))?,
+        span: symbol.span,
+    })
 }
 
-impl TryFrom<Stmt> for AnnotStmt {
-    type Error = LumaError;
-
-    fn try_from(value: Stmt) -> Result<Self, Self::Error> {
-        Ok(AnnotStmt {
-            item: match value.item {
-                StmtKind::Expr(expr) => AnnotStmtKind::Expr(expr.try_into()?),
-                StmtKind::Func(func_decl_stmt) => AnnotStmtKind::Func(func_decl_stmt.try_into()?),
-                StmtKind::Return(return_stmt) => AnnotStmtKind::Return(return_stmt.try_into()?),
-                StmtKind::Struct(struct_decl_stmt) => {
-                    AnnotStmtKind::Struct(struct_decl_stmt.try_into()?)
-                }
-                StmtKind::Var(var_decl_stmt) => AnnotStmtKind::Var(var_decl_stmt.try_into()?),
-            },
-            scope_id: value
-                .scope_id
-                .ok_or(LumaError::new(LoweringErrorKind::MissingScopeId))?,
-            span: value.span,
-        })
-    }
+fn annotate_stmt(stmt: Stmt) -> CompilerResult<AnnotStmt> {
+    Ok(AnnotStmt {
+        item: match stmt.item {
+            StmtKind::Expr(expr) => AnnotStmtKind::Expr(annotate_expr(expr)?),
+            StmtKind::Func(func_decl_stmt) => AnnotStmtKind::Func(annotate_func_decl(func_decl_stmt)?),
+            StmtKind::Return(return_stmt) => AnnotStmtKind::Return(annotate_return_stmt(return_stmt)?),
+            StmtKind::Struct(struct_decl_stmt) => {
+                AnnotStmtKind::Struct(annotate_struct_decl(struct_decl_stmt)?)
+            }
+            StmtKind::Var(var_decl_stmt) => AnnotStmtKind::Var(annotate_var_decl(var_decl_stmt)?),
+        },
+        scope_id: stmt.scope_id.ok_or(LumaError::spanned(
+            LoweringErrorKind::MissingScopeId,
+            stmt.span,
+        ))?,
+        span: stmt.span,
+    })
 }
 
-impl TryFrom<FuncDeclStmt> for FuncDeclAnnotStmt {
-    type Error = LumaError;
+fn annotate_func_decl(func_decl: FuncDeclStmt) -> CompilerResult<FuncDeclAnnotStmt> {
+    Ok(FuncDeclAnnotStmt {
+        visibility: func_decl.visibility,
+        parameters: func_decl
+            .parameters
+            .into_iter()
+            .map(|param| {
+                let (param, span) = (param.item, param.span);
 
-    fn try_from(value: FuncDeclStmt) -> Result<Self, Self::Error> {
-        Ok(Self {
-            visibility: value.visibility,
-            symbol: value.symbol.try_into()?,
-            parameters: value
-                .parameters
-                .into_iter()
-                .map(|param| param.try_map_inner())
-                .try_collect()?,
-            body: value.body.try_into()?,
-            return_type: value
-                .return_type
-                .ok_or(LumaError::new(LoweringErrorKind::UnknownType))?,
-        })
-    }
+                Ok(Spanned::spanned(
+                    span,
+                    AnnotFuncParam {
+                        symbol: annotate_symbol(param.symbol)?,
+                        ty: param.ty,
+                        default_value: match param.default_value {
+                            Some(expr) => Some(annotate_expr(expr)?),
+                            None => None,
+                        },
+                    },
+                ))
+            })
+            .try_collect()?,
+        body: annotate_expr(func_decl.body)?,
+        return_type: func_decl.return_type.ok_or(LumaError::spanned(
+            LoweringErrorKind::UnknownType,
+            func_decl.symbol.span,
+        ))?,
+        symbol: annotate_symbol(func_decl.symbol)?,
+    })
 }
 
-impl TryFrom<FuncParam> for AnnotFuncParam {
-    type Error = LumaError;
-
-    fn try_from(value: FuncParam) -> Result<Self, Self::Error> {
-        Ok(Self {
-            symbol: value.symbol.try_into()?,
-            ty: value.ty,
-            default_value: value
-                .default_value
-                .map(|value| value.try_into())
-                .transpose()?,
-        })
-    }
+fn annotate_return_stmt(return_stmt: ReturnStmt) -> CompilerResult<ReturnAnnotStmt> {
+    Ok(ReturnAnnotStmt {
+        value: match return_stmt.value {
+            Some(expr) => Some(annotate_expr(expr)?),
+            None => None,
+        },
+    })
 }
 
-impl TryFrom<ReturnStmt> for ReturnAnnotStmt {
-    type Error = LumaError;
+fn annotate_struct_decl(struct_decl: StructDeclStmt) -> CompilerResult<StructDeclAnnotStmt> {
+    Ok(StructDeclAnnotStmt {
+        visibility: struct_decl.visibility,
+        symbol: annotate_symbol(struct_decl.symbol)?,
+        fields: struct_decl
+            .fields
+            .into_iter()
+            .map(|field| {
+                let (field, span) = (field.item, field.span);
 
-    fn try_from(value: ReturnStmt) -> Result<Self, Self::Error> {
-        Ok(Self {
-            value: value.value.map(|value| value.try_into()).transpose()?,
-        })
-    }
+                Ok(Spanned::spanned(
+                    span,
+                    StructFieldAnnotDecl {
+                        visibility: field.visibility,
+                        symbol: annotate_symbol(field.symbol)?,
+                        ty: field.ty,
+                    },
+                ))
+            })
+            .try_collect()?,
+    })
 }
 
-impl TryFrom<StructDeclStmt> for StructDeclAnnotStmt {
-    type Error = LumaError;
-
-    fn try_from(value: StructDeclStmt) -> Result<Self, Self::Error> {
-        Ok(Self {
-            visibility: value.visibility,
-            symbol: value.symbol.try_into()?,
-            fields: value
-                .fields
-                .into_iter()
-                .map(|field| field.try_map_inner())
-                .try_collect()?,
-        })
-    }
+fn annotate_var_decl(var_decl: VarDeclStmt) -> CompilerResult<VarDeclAnnotStmt> {
+    Ok(VarDeclAnnotStmt {
+        visibility: var_decl.visibility,
+        ty: var_decl.ty.ok_or(LumaError::spanned(
+            LoweringErrorKind::UnknownType,
+            var_decl.symbol.span,
+        ))?,
+        symbol: annotate_symbol(var_decl.symbol)?,
+        initializer: annotate_expr(var_decl.initializer)?,
+    })
 }
 
-impl TryFrom<StructFieldDecl> for StructFieldAnnotDecl {
-    type Error = LumaError;
-
-    fn try_from(value: StructFieldDecl) -> Result<Self, Self::Error> {
-        Ok(Self {
-            visibility: value.visibility,
-            symbol: value.symbol.try_into()?,
-            ty: value.ty,
-        })
-    }
+fn annotate_expr(expr: Expr) -> CompilerResult<AnnotExpr> {
+    Ok(AnnotExpr {
+        item: match expr.item {
+            ExprKind::Assign(assign_expr) => AnnotExprKind::Assign(annotate_assign(assign_expr)?),
+            ExprKind::Binary(binary_expr) => AnnotExprKind::Binary(annotate_binary(binary_expr)?),
+            ExprKind::Block(block_expr) => AnnotExprKind::Block(annotate_block(block_expr)?),
+            ExprKind::Call(call_expr) => AnnotExprKind::Call(annotate_call(call_expr)?),
+            ExprKind::Get(get_expr) => AnnotExprKind::Get(annotate_get(get_expr)?),
+            ExprKind::Group(group_expr) => {
+                AnnotExprKind::Group(Box::new(annotate_expr(*group_expr)?))
+            }
+            ExprKind::Ident(ident_expr) => {
+                AnnotExprKind::Ident(annotate_ident(ident_expr, &expr.span)?)
+            }
+            ExprKind::If(if_expr) => AnnotExprKind::If(annotate_if(if_expr)?),
+            ExprKind::Literal(_) => AnnotExprKind::Literal(lower_literal(&expr)?),
+            ExprKind::Struct(struct_expr) => AnnotExprKind::Struct(annotate_struct(struct_expr)?),
+            ExprKind::TupleLiteral(tuple_expr) => {
+                AnnotExprKind::TupleLiteral(annotate_tuple(tuple_expr)?)
+            }
+            ExprKind::Unary(unary_expr) => AnnotExprKind::Unary(annotate_unary(unary_expr)?),
+        },
+        ty: expr.ty.ok_or(LumaError::spanned(
+            LoweringErrorKind::UnknownType,
+            expr.span,
+        ))?,
+        scope_id: expr.scope_id.ok_or(LumaError::spanned(
+            LoweringErrorKind::MissingScopeId,
+            expr.span,
+        ))?,
+        span: expr.span,
+    })
 }
 
-impl TryFrom<VarDeclStmt> for VarDeclAnnotStmt {
-    type Error = LumaError;
-
-    fn try_from(value: VarDeclStmt) -> Result<Self, Self::Error> {
-        Ok(Self {
-            visibility: value.visibility,
-            symbol: value.symbol.try_into()?,
-            ty: value
-                .ty
-                .ok_or(LumaError::new(LoweringErrorKind::UnknownType))?,
-            initializer: value.initializer.try_into()?,
-        })
-    }
+fn annotate_assign(assign_expr: AssignExpr) -> CompilerResult<AssignAnnotExpr> {
+    Ok(AssignAnnotExpr {
+        target: Box::new(annotate_expr(*assign_expr.target)?),
+        operator: assign_expr.operator,
+        value: Box::new(annotate_expr(*assign_expr.value)?),
+    })
 }
 
-impl TryFrom<Expr> for AnnotExpr {
-    type Error = LumaError;
-
-    fn try_from(value: Expr) -> Result<Self, Self::Error> {
-        Ok(AnnotExpr {
-            item: match value.item {
-                ExprKind::Assign(assign_expr) => AnnotExprKind::Assign(assign_expr.try_into()?),
-                ExprKind::Binary(binary_expr) => AnnotExprKind::Binary(binary_expr.try_into()?),
-                ExprKind::Block(block_expr) => AnnotExprKind::Block(block_expr.try_into()?),
-                ExprKind::Call(call_expr) => AnnotExprKind::Call(call_expr.try_into()?),
-                ExprKind::Get(get_expr) => AnnotExprKind::Get(get_expr.try_into()?),
-                ExprKind::Group(expr) => AnnotExprKind::Group(Box::new((*expr).try_into()?)),
-                ExprKind::Ident(ident_expr) => AnnotExprKind::Ident(ident_expr.try_into()?),
-                ExprKind::If(if_expr) => AnnotExprKind::If(if_expr.try_into()?),
-                ExprKind::Literal(_) => AnnotExprKind::Literal(lower_literal(&value)?),
-                ExprKind::Struct(struct_expr) => AnnotExprKind::Struct(struct_expr.try_into()?),
-                ExprKind::TupleLiteral(tuple_expr) => {
-                    AnnotExprKind::TupleLiteral(tuple_expr.try_into()?)
-                }
-                ExprKind::Unary(unary_expr) => AnnotExprKind::Unary(unary_expr.try_into()?),
-            },
-            ty: value
-                .ty
-                .ok_or(LumaError::new(LoweringErrorKind::UnknownType))?,
-            scope_id: value
-                .scope_id
-                .ok_or(LumaError::new(LoweringErrorKind::MissingScopeId))?,
-            span: value.span,
-        })
-    }
+fn annotate_binary(binary_expr: BinaryExpr) -> CompilerResult<BinaryAnnotExpr> {
+    Ok(BinaryAnnotExpr {
+        left: Box::new(annotate_expr(*binary_expr.left)?),
+        operator: binary_expr.operator,
+        right: Box::new(annotate_expr(*binary_expr.right)?),
+    })
 }
 
-impl TryFrom<AssignExpr> for AssignAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: AssignExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            target: Box::new((*value.target).try_into()?),
-            operator: value.operator,
-            value: Box::new((*value.value).try_into()?),
-        })
-    }
+fn annotate_block(block_expr: BlockExpr) -> CompilerResult<BlockAnnotExpr> {
+    Ok(BlockAnnotExpr {
+        statements: block_expr
+            .statements
+            .into_iter()
+            .map(annotate_stmt)
+            .try_collect()?,
+    })
 }
 
-impl TryFrom<BinaryExpr> for BinaryAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: BinaryExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            left: Box::new((*value.left).try_into()?),
-            operator: value.operator,
-            right: Box::new((*value.right).try_into()?),
-        })
-    }
+fn annotate_call(call_expr: CallExpr) -> CompilerResult<CallAnnotExpr> {
+    Ok(CallAnnotExpr {
+        callee: Box::new(annotate_expr(*call_expr.callee)?),
+        arguments: call_expr
+            .arguments
+            .into_iter()
+            .map(annotate_expr)
+            .try_collect()?,
+    })
 }
 
-impl TryFrom<BlockExpr> for BlockAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: BlockExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            statements: value
-                .statements
-                .into_iter()
-                .map(|stmt| stmt.try_into())
-                .try_collect()?,
-        })
-    }
+fn annotate_get(get_expr: GetExpr) -> CompilerResult<GetAnnotExpr> {
+    Ok(GetAnnotExpr {
+        object: Box::new(annotate_expr(*get_expr.object)?),
+        property: annotate_symbol(get_expr.property)?,
+    })
 }
 
-impl TryFrom<CallExpr> for CallAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: CallExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            callee: Box::new((*value.callee).try_into()?),
-            arguments: value
-                .arguments
-                .into_iter()
-                .map(|arg| arg.try_into())
-                .try_collect()?,
-        })
-    }
+fn annotate_ident(ident_expr: IdentExpr, span: &Span) -> CompilerResult<IdentAnnotExpr> {
+    Ok(IdentAnnotExpr {
+        symbol: AnnotSymbol {
+            name: ident_expr.symbol.name().to_string(),
+            id: ident_expr.symbol.id().ok_or(LumaError::spanned(
+                LoweringErrorKind::MissingSymbolId,
+                *span,
+            ))?,
+            span: *span,
+        },
+    })
 }
 
-impl TryFrom<GetExpr> for GetAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: GetExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            object: Box::new((*value.object).try_into()?),
-            property: value.property.try_into()?,
-        })
-    }
-}
-
-impl TryFrom<IdentExpr> for IdentAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: IdentExpr) -> Result<Self, Self::Error> {
-        let name = value.symbol.name().to_string();
-        let id = value
-            .symbol
-            .id()
-            .ok_or(LumaError::new(LoweringErrorKind::MissingSymbolId))?;
-        Ok(Self {
-            symbol: AnnotSymbol {
-                name,
-                id,
-                span: Default::default(), // You may want to pass the correct span
-            },
-        })
-    }
-}
-
-impl TryFrom<IfExpr> for IfAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: IfExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            condition: Box::new((*value.condition).try_into()?),
-            then_branch: Box::new((*value.then_branch).try_into()?),
-            else_branch: match value.else_branch {
-                Some(else_expr) => Some(Box::new((*else_expr).try_into()?)),
-                None => None,
-            },
-        })
-    }
+fn annotate_if(if_expr: IfExpr) -> CompilerResult<IfAnnotExpr> {
+    Ok(IfAnnotExpr {
+        condition: Box::new(annotate_expr(*if_expr.condition)?),
+        then_branch: Box::new(annotate_expr(*if_expr.then_branch)?),
+        else_branch: match if_expr.else_branch {
+            Some(else_expr) => Some(Box::new(annotate_expr(*else_expr)?)),
+            None => None,
+        },
+    })
 }
 
 fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
     let ExprKind::Literal(lit) = &expr.item else {
-        return Err(LumaError::new(LoweringErrorKind::InvalidLiteralConversion(
-            expr.item.to_string(),
-        )));
+        return Err(LumaError::spanned(
+            LoweringErrorKind::InvalidLiteralConversion(expr.item.to_string()),
+            expr.span,
+        ));
     };
 
-    let ty = expr.ty.as_ref().ok_or(LumaError::new(
-        LoweringErrorKind::UnknownType
+    let ty = expr.ty.as_ref().ok_or(LumaError::spanned(
+        LoweringErrorKind::UnknownType,
+        expr.span,
     ))?;
 
     macro_rules! num_pattern {
         ($value:expr, $value_ty:ty, $lit_kind:tt, $wrapper_struct:ty, $ty_kind:tt, $ty:ty, $err_kind:tt) => {{
             if $value <= <$ty>::MAX as $value_ty {
-                Ok(LiteralAnnotExpr::$lit_kind(<$wrapper_struct>::$ty_kind($value as $ty)))
+                Ok(LiteralAnnotExpr::$lit_kind(<$wrapper_struct>::$ty_kind(
+                    $value as $ty,
+                )))
             } else {
-                Err(LumaError::new(LoweringErrorKind::$err_kind {
-                    amount: $value,
-                    target: TypeKind::$ty_kind.to_string(),
-                }))
+                Err(LumaError::spanned(
+                    LoweringErrorKind::$err_kind {
+                        amount: $value,
+                        target: TypeKind::$ty_kind.to_string(),
+                    },
+                    expr.span,
+                ))
             }
         }};
     }
@@ -324,17 +289,97 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
             let value = *value;
 
             match ty {
-                TypeKind::UInt8 => num_pattern!(value, u64, Int, IntLiteralAnnotExpr, UInt8, u8, IntegerOverflow),
-                TypeKind::UInt16 => num_pattern!(value, u64, Int, IntLiteralAnnotExpr, UInt16, u16, IntegerOverflow),
-                TypeKind::UInt32 => num_pattern!(value, u64, Int, IntLiteralAnnotExpr, UInt32, u32, IntegerOverflow),
-                TypeKind::UInt64 => num_pattern!(value, u64, Int, IntLiteralAnnotExpr, UInt64, u64, IntegerOverflow),
-                TypeKind::Int8 => num_pattern!(value, u64, Int, IntLiteralAnnotExpr, Int8, i8, IntegerOverflow),
-                TypeKind::Int16 => num_pattern!(value, u64, Int, IntLiteralAnnotExpr, Int16, i16, IntegerOverflow),
-                TypeKind::Int32 => num_pattern!(value, u64, Int, IntLiteralAnnotExpr, Int32, i32, IntegerOverflow),
-                TypeKind::Int64 => num_pattern!(value, u64, Int, IntLiteralAnnotExpr, Int64, i64, IntegerOverflow),
+                TypeKind::UInt8 => num_pattern!(
+                    value,
+                    u64,
+                    Int,
+                    IntLiteralAnnotExpr,
+                    UInt8,
+                    u8,
+                    IntegerOverflow
+                ),
+                TypeKind::UInt16 => num_pattern!(
+                    value,
+                    u64,
+                    Int,
+                    IntLiteralAnnotExpr,
+                    UInt16,
+                    u16,
+                    IntegerOverflow
+                ),
+                TypeKind::UInt32 => num_pattern!(
+                    value,
+                    u64,
+                    Int,
+                    IntLiteralAnnotExpr,
+                    UInt32,
+                    u32,
+                    IntegerOverflow
+                ),
+                TypeKind::UInt64 => num_pattern!(
+                    value,
+                    u64,
+                    Int,
+                    IntLiteralAnnotExpr,
+                    UInt64,
+                    u64,
+                    IntegerOverflow
+                ),
+                TypeKind::Int8 => num_pattern!(
+                    value,
+                    u64,
+                    Int,
+                    IntLiteralAnnotExpr,
+                    Int8,
+                    i8,
+                    IntegerOverflow
+                ),
+                TypeKind::Int16 => num_pattern!(
+                    value,
+                    u64,
+                    Int,
+                    IntLiteralAnnotExpr,
+                    Int16,
+                    i16,
+                    IntegerOverflow
+                ),
+                TypeKind::Int32 => num_pattern!(
+                    value,
+                    u64,
+                    Int,
+                    IntLiteralAnnotExpr,
+                    Int32,
+                    i32,
+                    IntegerOverflow
+                ),
+                TypeKind::Int64 => num_pattern!(
+                    value,
+                    u64,
+                    Int,
+                    IntLiteralAnnotExpr,
+                    Int64,
+                    i64,
+                    IntegerOverflow
+                ),
 
-                TypeKind::Float32 => num_pattern!(value, u64, Float, FloatLiteralAnnotExpr, Float32, f32, IntegerOverflow),
-                TypeKind::Float64 => num_pattern!(value, u64, Float, FloatLiteralAnnotExpr, Float64, f64, IntegerOverflow),
+                TypeKind::Float32 => num_pattern!(
+                    value,
+                    u64,
+                    Float,
+                    FloatLiteralAnnotExpr,
+                    Float32,
+                    f32,
+                    IntegerOverflow
+                ),
+                TypeKind::Float64 => num_pattern!(
+                    value,
+                    u64,
+                    Float,
+                    FloatLiteralAnnotExpr,
+                    Float64,
+                    f64,
+                    IntegerOverflow
+                ),
 
                 TypeKind::Char => {
                     if value <= char::MAX as u64 {
@@ -357,12 +402,29 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
             let value = *value;
 
             match ty {
-                TypeKind::Float32 => num_pattern!(value, f64, Float, FloatLiteralAnnotExpr, Float32, f32, FloatOverflow),
-                TypeKind::Float64 => num_pattern!(value, f64, Float, FloatLiteralAnnotExpr, Float64, f64, FloatOverflow),
+                TypeKind::Float32 => num_pattern!(
+                    value,
+                    f64,
+                    Float,
+                    FloatLiteralAnnotExpr,
+                    Float32,
+                    f32,
+                    FloatOverflow
+                ),
+                TypeKind::Float64 => num_pattern!(
+                    value,
+                    f64,
+                    Float,
+                    FloatLiteralAnnotExpr,
+                    Float64,
+                    f64,
+                    FloatOverflow
+                ),
 
-                _ => Err(LumaError::new(LoweringErrorKind::InvalidLiteralConversion(
-                    expr.item.to_string(),
-                ))),
+                _ => Err(LumaError::spanned(
+                    LoweringErrorKind::InvalidLiteralConversion(expr.item.to_string()),
+                    expr.span,
+                )),
             }
         }
 
@@ -373,49 +435,35 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
     }
 }
 
-impl TryFrom<StructExpr> for StructAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: StructExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            symbol: value.symbol.try_into()?,
-            fields: value
-                .fields
-                .into_iter()
-                .map(|field| field.try_into())
-                .try_collect()?,
-        })
-    }
+fn annotate_struct(struct_expr: StructExpr) -> CompilerResult<StructAnnotExpr> {
+    Ok(StructAnnotExpr {
+        symbol: annotate_symbol(struct_expr.symbol)?,
+        fields: struct_expr
+            .fields
+            .into_iter()
+            .map(|field| {
+                Ok(StructFieldAnnotExpr {
+                    symbol: annotate_symbol(field.symbol)?,
+                    value: annotate_expr(field.value)?,
+                })
+            })
+            .try_collect()?,
+    })
 }
 
-impl TryFrom<StructFieldExpr> for StructFieldAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: StructFieldExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            symbol: value.symbol.try_into()?,
-            value: value.value.try_into()?,
-        })
-    }
+fn annotate_tuple(tuple_expr: TupleExpr) -> CompilerResult<TupleAnnotExpr> {
+    Ok(TupleAnnotExpr {
+        elements: tuple_expr
+            .elements
+            .into_iter()
+            .map(annotate_expr)
+            .try_collect()?,
+    })
 }
 
-impl TryFrom<TupleExpr> for TupleAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: TupleExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            elements: value
-                .elements
-                .into_iter()
-                .map(|el| el.try_into())
-                .try_collect()?,
-        })
-    }
-}
-
-impl TryFrom<UnaryExpr> for UnaryAnnotExpr {
-    type Error = LumaError;
-    fn try_from(value: UnaryExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            operator: value.operator,
-            value: Box::new((*value.value).try_into()?),
-        })
-    }
+fn annotate_unary(unary_expr: UnaryExpr) -> CompilerResult<UnaryAnnotExpr> {
+    Ok(UnaryAnnotExpr {
+        operator: unary_expr.operator,
+        value: Box::new(annotate_expr(*unary_expr.value)?),
+    })
 }
