@@ -1,10 +1,10 @@
 use crate::ast::*;
 use luma_core::{CodeSourceId, Span};
-use luma_diagnostic::{CompilerResult, LumaError, error};
+use luma_diagnostic::{CompilerResult, Diagnostic, error};
 
 use crate::stages::{
     lexer::{Token, TokenKind},
-    parser::{ctx::ParserContext, error::ParserErrorKind},
+    parser::{ctx::ParserContext, ParserError},
 };
 
 pub struct TokenParser<'a> {
@@ -25,7 +25,7 @@ impl TokenParser<'_> {
     }
 
     /// The main parsing loop.
-    pub(super) fn parse_tokens(mut self, errors: &mut Vec<LumaError>) -> Ast {
+    pub(super) fn parse_tokens(mut self, diagnostics: &mut Vec<Diagnostic>) -> Ast {
         if self.tokens.is_empty() {
             return Ast {
                 span: Span::new(CodeSourceId::void(), 0, 0),
@@ -41,7 +41,7 @@ impl TokenParser<'_> {
             match self.parse_statement(None) {
                 Ok(stmt) => statements.push(stmt),
                 Err(err) => {
-                    errors.push(err);
+                    diagnostics.push(err);
 
                     self.synchronize();
                 }
@@ -107,8 +107,8 @@ impl TokenParser<'_> {
 
         if current.kind != expected {
             return Err(error!(
-                ParserErrorKind::ExpectedToken {
-                    expected,
+                ParserError::ExpectedToken {
+                    expected: expected.clone(),
                     found: current.kind.clone(),
                 },
                 current.span,

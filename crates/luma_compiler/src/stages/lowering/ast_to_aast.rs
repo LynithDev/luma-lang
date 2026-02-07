@@ -2,8 +2,7 @@ use luma_core::Span;
 use luma_diagnostic::{CompilerResult, error};
 
 use crate::{
-    CompilerContext, CompilerStage, TypeKind, aast::*, ast::*,
-    stages::lowering::error::LoweringErrorKind,
+    CompilerContext, CompilerStage, TypeKind, aast::*, ast::*, stages::lowering::LoweringError,
 };
 
 pub struct AstLoweringStage;
@@ -23,7 +22,7 @@ impl CompilerStage<'_> for AstLoweringStage {
             let aast = match annotate_ast(ast) {
                 Ok(aast) => aast,
                 Err(err) => {
-                    ctx.add_error(err);
+                    ctx.add_diag(err);
                     return Vec::new();
                 }
             };
@@ -51,7 +50,7 @@ fn annotate_symbol(symbol: Symbol) -> CompilerResult<AnnotSymbol> {
         name: symbol.name().to_string(),
         id: symbol
             .id()
-            .ok_or(error!(LoweringErrorKind::MissingSymbolId, symbol.span,))?,
+            .ok_or(error!(LoweringError::MissingSymbolId, symbol.span,))?,
         span: symbol.span,
     })
 }
@@ -73,7 +72,7 @@ fn annotate_stmt(stmt: Stmt) -> CompilerResult<AnnotStmt> {
         },
         scope_id: stmt
             .scope_id
-            .ok_or(error!(LoweringErrorKind::MissingScopeId, stmt.span,))?,
+            .ok_or(error!(LoweringError::MissingScopeId, stmt.span,))?,
         span: stmt.span,
     })
 }
@@ -97,10 +96,9 @@ fn annotate_func_decl(func_decl: FuncDeclStmt) -> CompilerResult<FuncDeclAnnotSt
             })
             .try_collect()?,
         body: annotate_expr(func_decl.body)?,
-        return_type: func_decl.return_type.ok_or(error!(
-            LoweringErrorKind::UnknownType,
-            func_decl.symbol.span,
-        ))?,
+        return_type: func_decl
+            .return_type
+            .ok_or(error!(LoweringError::UnknownType, func_decl.symbol.span,))?,
         symbol: annotate_symbol(func_decl.symbol)?,
     })
 }
@@ -138,7 +136,7 @@ fn annotate_var_decl(var_decl: VarDeclStmt) -> CompilerResult<VarDeclAnnotStmt> 
         visibility: var_decl.visibility,
         ty: var_decl
             .ty
-            .ok_or(error!(LoweringErrorKind::UnknownType, var_decl.symbol.span,))?,
+            .ok_or(error!(LoweringError::UnknownType, var_decl.symbol.span))?,
         symbol: annotate_symbol(var_decl.symbol)?,
         initializer: annotate_expr(var_decl.initializer)?,
     })
@@ -168,10 +166,10 @@ fn annotate_expr(expr: Expr) -> CompilerResult<AnnotExpr> {
         },
         ty: expr
             .ty
-            .ok_or(error!(LoweringErrorKind::UnknownType, expr.span))?,
+            .ok_or(error!(LoweringError::UnknownType, expr.span))?,
         scope_id: expr
             .scope_id
-            .ok_or(error!(LoweringErrorKind::MissingScopeId, expr.span))?,
+            .ok_or(error!(LoweringError::MissingScopeId, expr.span))?,
         span: expr.span,
     })
 }
@@ -227,7 +225,7 @@ fn annotate_ident(ident_expr: IdentExpr, span: &Span) -> CompilerResult<IdentAnn
             id: ident_expr
                 .symbol
                 .id()
-                .ok_or(error!(LoweringErrorKind::MissingSymbolId, *span,))?,
+                .ok_or(error!(LoweringError::MissingSymbolId, *span,))?,
             span: *span,
         },
     })
@@ -247,7 +245,9 @@ fn annotate_if(if_expr: IfExpr) -> CompilerResult<IfAnnotExpr> {
 fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
     let ExprKind::Literal(lit) = &expr.item else {
         return Err(error!(
-            LoweringErrorKind::InvalidLiteralConversion(expr.item.to_string()),
+            LoweringError::InvalidLiteralConversion {
+                found: expr.item.to_string(),
+            },
             expr.span,
         ));
     };
@@ -255,7 +255,7 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
     let ty = expr
         .ty
         .as_ref()
-        .ok_or(error!(LoweringErrorKind::UnknownType, expr.span,))?;
+        .ok_or(error!(LoweringError::UnknownType, expr.span,))?;
 
     macro_rules! num_pattern {
         ($value:expr, $value_ty:ty, $lit_kind:tt, $wrapper_struct:ty, $ty_kind:tt, $ty:ty, $err_kind:tt) => {{
@@ -265,7 +265,7 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
                 )))
             } else {
                 Err(error!(
-                    LoweringErrorKind::$err_kind {
+                    LoweringError::$err_kind {
                         amount: $value,
                         target: TypeKind::$ty_kind.to_string(),
                     },
@@ -377,7 +377,7 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
                         Ok(LiteralAnnotExpr::Char(value as u8 as char))
                     } else {
                         Err(error!(
-                            LoweringErrorKind::InvalidCast {
+                            LoweringError::InvalidCast {
                                 from: value.to_string(),
                                 to: TypeKind::Char.to_string(),
                             },
@@ -387,7 +387,9 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
                 }
 
                 _ => Err(error!(
-                    LoweringErrorKind::InvalidLiteralConversion(expr.item.to_string(),),
+                    LoweringError::InvalidLiteralConversion {
+                        found: expr.item.to_string(),
+                    },
                     expr.span
                 )),
             }
@@ -417,7 +419,9 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
                 ),
 
                 _ => Err(error!(
-                    LoweringErrorKind::InvalidLiteralConversion(expr.item.to_string()),
+                    LoweringError::InvalidLiteralConversion {
+                        found: expr.item.to_string(),
+                    },
                     expr.span,
                 )),
             }

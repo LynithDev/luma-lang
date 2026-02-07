@@ -6,7 +6,7 @@ use luma_core::{CodeSourceId, Span};
 use luma_diagnostic::error;
 pub use tokens::*;
 
-use crate::{CompilerContext, CompilerStage, error::CompilerErrorKind};
+use crate::{CompilerContext, CompilerStage, diagnostics::CompilerError};
 
 pub struct LexerStage;
 
@@ -19,10 +19,12 @@ impl CompilerStage<'_> for LexerStage {
     }
 
     fn process(self, ctx: &CompilerContext, input: Self::Input) -> Self::Output {
-        input.into_iter()
+        input
+            .into_iter()
             .map(|id| {
                 let Some(source) = ctx.sources.get_source(id) else {
-                    ctx.add_error(error!(CompilerErrorKind::InvalidSourceId { id }));
+                    let diagnostic = error!(CompilerError::InvalidSourceId { id }, Span::void());
+                    ctx.add_diag(diagnostic);
                     return Vec::new();
                 };
 
@@ -238,7 +240,7 @@ impl<'a> Tokenizer<'a> {
 
                     self.lexeme = builder;
                     break;
-                },
+                }
                 '\\' => {
                     if let Some(escaped_char) = self.peek().and_then(escaped) {
                         // valid escape sequence

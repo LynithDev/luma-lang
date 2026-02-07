@@ -18,7 +18,6 @@ luma_vm = { path = "crates/luma_vm" }
 # utils
 strum = { version = "0.27", features = ["derive"] }
 annotate-snippets = { version = "0.12.10" }
-thiserror = { version = "2.0.17" }
 tracing = { version = "0.1.44" }
 
 # dev dependencies

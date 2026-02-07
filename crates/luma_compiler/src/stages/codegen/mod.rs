@@ -1,8 +1,10 @@
 use crate::{CompilerContext, CompilerStage, aast::*, bytecode::ModuleBytecode, stages::codegen::bytecode_gen::BytecodeGen};
 
-pub mod error;
 pub mod chunk;
+mod diagnostics;
 mod bytecode_gen;
+
+pub use diagnostics::*;
 
 pub struct CodegenStage;
 
@@ -28,7 +30,7 @@ impl CompilerStage<'_> for CodegenStage {
             let bytecode = match BytecodeGen::generate(ast) {
                 Ok(bc) => bc,
                 Err(err) => {
-                    ctx.add_error(err);
+                    ctx.add_diag(err);
                     return Vec::new();
                 }
             };

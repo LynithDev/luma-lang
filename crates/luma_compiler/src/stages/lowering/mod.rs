@@ -1,4 +1,5 @@
 mod ast_to_aast;
-pub mod error;
+mod diagnostics;
 
+pub use diagnostics::*;
 pub use ast_to_aast::AstLoweringStage;

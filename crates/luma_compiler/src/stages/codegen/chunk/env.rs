@@ -4,7 +4,7 @@ use luma_diagnostic::{CompilerResult, error};
 
 use crate::{
     bytecode::*,
-    stages::codegen::{chunk::CodeChunk, error::CodegenErrorKind},
+    stages::codegen::{CodegenError, chunk::CodeChunk},
 };
 
 pub type LocalSlot = u16;
@@ -28,7 +28,7 @@ impl ChunkBuilderEnv {
         let slot_index = self.local_slots.len();
 
         if slot_index >= LocalSlot::MAX as usize {
-            return Err(error!(CodegenErrorKind::TooManyLocals));
+            return Err(error!(CodegenError::TooManyLocals));
         }
 
         let slot_index = slot_index as LocalSlot;
@@ -42,10 +42,11 @@ impl ChunkBuilderEnv {
 
     /// Returns the slot index of the local variable if it exists
     pub fn resolve_local_slot(&self, symbol_id: &usize) -> CompilerResult<LocalSlot> {
-        self.local_slots
-            .get(symbol_id)
-            .copied()
-            .ok_or_else(|| error!(CodegenErrorKind::UndefinedLocal(*symbol_id)))
+        self.local_slots.get(symbol_id).copied().ok_or_else(|| {
+            error!(CodegenError::UndefinedLocal {
+                symbol_id: *symbol_id,
+            })
+        })
     }
 
     /// Adds a constant (if it doesn't already exist) to the constant pool
@@ -58,7 +59,7 @@ impl ChunkBuilderEnv {
         let index = self.chunk.constants.len();
 
         if index >= ConstSlot::MAX as usize {
-            return Err(error!(CodegenErrorKind::TooManyLocals));
+            return Err(error!(CodegenError::TooManyConstants));
         }
 
         let index = index as ConstSlot;
@@ -81,9 +82,9 @@ impl ChunkBuilderEnv {
     /// Updates an opcode at a specific index
     pub fn patch_instr(&mut self, index: usize, opcode: Opcode) -> CompilerResult<()> {
         if index >= self.chunk.instructions.len() {
-            return Err(error!(CodegenErrorKind::InvalidPatchPosition(
-                index,
-            )));
+            return Err(error!(CodegenError::InvalidPatchPosition {
+                position: index,
+            }));
         }
 
         self.chunk.instructions[index] = opcode;

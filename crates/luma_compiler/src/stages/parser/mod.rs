@@ -4,13 +4,14 @@ use crate::{
     CompilerContext, CompilerStage, stages::{lexer::Token, parser::parse::TokenParser}
 };
 
-pub mod error;
-
+mod diagnostics;
 mod ctx;
 mod parse;
 mod parse_expr;
 mod parse_stmt;
 mod parse_util;
+
+pub use diagnostics::ParserError;
 
 #[cfg(test)]
 mod tests;
@@ -27,7 +28,7 @@ impl<'stage> CompilerStage<'stage> for ParserStage {
     }
     
     fn process(self, ctx: &CompilerContext, input: Self::Input) -> Self::Output {
-        let mut errors = ctx.get_errors_mut();
+        let mut errors = ctx.get_diagnostics_mut();
         
         input.iter()
             .map(|tokens| {

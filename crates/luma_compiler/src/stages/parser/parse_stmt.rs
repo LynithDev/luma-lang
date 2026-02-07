@@ -3,7 +3,7 @@ use luma_diagnostic::{CompilerResult, error};
 
 use crate::stages::{
     lexer::TokenKind,
-    parser::{error::ParserErrorKind, parse::TokenParser},
+    parser::{ParserError, parse::TokenParser},
 };
 
 impl TokenParser<'_> {
@@ -156,7 +156,7 @@ impl TokenParser<'_> {
                 expr
             }
             _ => {
-                return Err(error!(ParserErrorKind::MissingFunctionBody, current.span,));
+                return Err(error!(ParserError::MissingFunctionBody, current.span,));
             }
         };
 

@@ -3,7 +3,7 @@ use luma_diagnostic::{CompilerResult, error};
 
 use crate::stages::{
     lexer::TokenKind,
-    parser::{error::ParserErrorKind, parse::TokenParser},
+    parser::{ParserError, parse::TokenParser},
 };
 
 impl TokenParser<'_> {
@@ -20,7 +20,7 @@ impl TokenParser<'_> {
 
                 if type_str.is_empty() {
                     return Err(error!(
-                        ParserErrorKind::InvalidType {
+                        ParserError::InvalidType {
                             type_name: type_str.to_string(),
                         },
                         token.span,
@@ -107,7 +107,7 @@ impl TokenParser<'_> {
             }
 
             _ => Err(error!(
-                ParserErrorKind::InvalidType {
+                ParserError::InvalidType {
                     type_name: current.lexeme.clone(),
                 },
                 current.span,
@@ -132,7 +132,7 @@ impl TokenParser<'_> {
                 TokenKind::This => VisibilityKind::Private,
                 _ => {
                     return Err(error!(
-                        ParserErrorKind::InvalidVisibility {
+                        ParserError::InvalidVisibility {
                             ident: vis_token.lexeme.clone(),
                         },
                         vis_token.span,

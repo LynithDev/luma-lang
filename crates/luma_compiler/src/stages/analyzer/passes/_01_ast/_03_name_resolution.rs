@@ -2,7 +2,7 @@ use luma_diagnostic::error;
 
 use crate::ast::*;
 
-use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, error::AnalyzerErrorKind, symbols::SymbolNamespace};
+use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, AnalyzerError, symbols::SymbolNamespace};
 
 pub struct NameResolution;
 
@@ -34,8 +34,10 @@ impl AstVisitor<'_> for NameResolution {
                     scope_manager.current_scope(),
                     symbol.name()
                 ) else {
-                    ctx.error(error!(
-                        AnalyzerErrorKind::UnresolvedIdentifier(symbol.name().to_string()), 
+                    ctx.diagnostic(error!(
+                        AnalyzerError::UnresolvedIdentifier {
+                            identifier: symbol.name().to_string(),
+                        }, 
                         expr.span,
                     ));
 
@@ -57,8 +59,10 @@ impl AstVisitor<'_> for NameResolution {
                     scope_manager.current_scope(), 
                     symbol.kind.name()
                 ) else {
-                    ctx.error(error!(
-                        AnalyzerErrorKind::UnresolvedType(symbol.name().to_string()), 
+                    ctx.diagnostic(error!(
+                        AnalyzerError::UnresolvedType {
+                            name: symbol.name().to_string(),
+                        }, 
                         expr.span,
                     ));
                     return;
@@ -77,8 +81,10 @@ impl AstVisitor<'_> for NameResolution {
         // lookup the symbol in type namespace, 
         // as identifiers refer to types
         let Some(resolved_struct_id) = struct_symbol.id() else {
-            ctx.error(error!(
-                AnalyzerErrorKind::UnresolvedType(struct_symbol.name().to_string()), 
+            ctx.diagnostic(error!(
+                AnalyzerError::UnresolvedType {
+                    name: struct_symbol.name().to_string(),
+                }, 
                 struct_symbol.span,
             ));
             return;
@@ -92,8 +98,8 @@ impl AstVisitor<'_> for NameResolution {
             scope_manager.current_scope(),
             field_symbol.name()
         ) else {
-            ctx.error(error!(
-                AnalyzerErrorKind::UnresolvedStructField {
+            ctx.diagnostic(error!(
+                AnalyzerError::UnresolvedStructField {
                     struct_name: struct_symbol.name().to_string(), 
                     field_name: field_symbol.name().to_string()
                 }, 

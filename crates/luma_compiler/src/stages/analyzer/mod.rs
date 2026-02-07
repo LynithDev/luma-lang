@@ -1,6 +1,5 @@
 use crate::{CompilerContext, CompilerStage};
 
-// analyzer modules
 mod ctx;
 pub use ctx::*;
 
@@ -8,7 +7,9 @@ pub mod scopes;
 pub mod registry;
 pub mod symbols;
 pub mod passes;
-pub mod error;
+
+mod diagnostics;
+pub use diagnostics::*;
 
 /// Responsible for things like name resolution, type checking, and other semantic analyses.
 pub struct AnalyzerStage<Input> {
@@ -74,7 +75,7 @@ impl<Input> CompilerStage<'_> for AnalyzerStage<Input> {
             }
         }
 
-        ctx.get_errors_mut().append(&mut self.ctx.errors.borrow_mut());
+        ctx.get_diagnostics_mut().append(&mut self.ctx.diagnostics.borrow_mut());
 
         asts
     }

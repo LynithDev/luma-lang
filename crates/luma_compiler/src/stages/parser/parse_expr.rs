@@ -1,9 +1,9 @@
-use crate::{Operator, OperatorKind, ast::*};
+use crate::{Operator, OperatorKind, ast::*, stages::parser::ParserError};
 use luma_diagnostic::{CompilerResult, error};
 
 use crate::stages::{
     lexer::TokenKind,
-    parser::{error::ParserErrorKind, parse::TokenParser},
+    parser::parse::TokenParser,
 };
 
 impl TokenParser<'_> {
@@ -317,7 +317,9 @@ impl TokenParser<'_> {
             expr = match &current.kind {
                 TokenKind::LeftParen => self.expr_finish_call(expr)?,
                 TokenKind::Dot => self.expr_get(expr)?,
-                TokenKind::LeftBrace if self.ctx.allow_struct_literal => self.expr_finish_struct(expr)?,
+                TokenKind::LeftBrace if self.ctx.allow_struct_literal => {
+                    self.expr_finish_struct(expr)?
+                }
                 _ => break,
             };
         }
@@ -382,7 +384,7 @@ impl TokenParser<'_> {
     pub(super) fn expr_finish_struct(&mut self, expr: Expr) -> CompilerResult<Expr> {
         let ExprKind::Ident(ident) = &expr.item else {
             return Err(error!(
-                ParserErrorKind::InvalidStructLiteralTarget {
+                ParserError::InvalidStructLiteralTarget {
                     found: expr.item.clone(),
                 },
                 expr.span,
@@ -394,7 +396,6 @@ impl TokenParser<'_> {
         self.consume(TokenKind::LeftBrace)?;
 
         while !self.check(TokenKind::RightBrace) {
-
             let field_name = self.consume(TokenKind::Ident)?;
             self.consume(TokenKind::Colon)?;
             let value = self.parse_expression()?;
@@ -407,7 +408,6 @@ impl TokenParser<'_> {
             if self.consume(TokenKind::Comma).is_err() {
                 break;
             }
-            
         }
 
         let right_brace = self.consume(TokenKind::RightBrace)?;
@@ -440,7 +440,7 @@ impl TokenParser<'_> {
             TokenKind::Ident => self.expr_ident(),
 
             _ => Err(error!(
-                ParserErrorKind::UnexpectedToken {
+                ParserError::UnexpectedToken {
                     found: current.kind.clone(),
                 },
                 current.span,
@@ -463,20 +463,17 @@ impl TokenParser<'_> {
 
         let mut elements = Vec::new();
 
-
         // force allow struct literals in this context
         let original_allow_struct_literal = self.ctx.allow_struct_literal;
         self.ctx.allow_struct_literal = true;
 
         let result = {
-    
             // push the first element (this'll be used for grouping if no comma follows)
             let expr = self.parse_expression()?;
-            
+
             elements.push(expr);
 
             if self.consume(TokenKind::Comma).is_ok() {
-                
                 // tuple
                 while !self.check(TokenKind::RightParen) {
                     elements.push(self.parse_expression()?);
@@ -492,21 +489,17 @@ impl TokenParser<'_> {
                     left_paren.span.merged(&elements.last().unwrap().span),
                     ExprKind::TupleLiteral(TupleExpr { elements }),
                 ))
-
             } else {
-
                 // grouping
                 self.consume(TokenKind::RightParen)?;
-    
+
                 let expr = elements.remove(0);
-    
+
                 Ok(Expr::new(
                     left_paren.span.merged(&expr.span),
-                    ExprKind::Group(Box::new(expr)), 
+                    ExprKind::Group(Box::new(expr)),
                 ))
-
             }
-
         };
 
         self.ctx.allow_struct_literal = original_allow_struct_literal;
@@ -532,8 +525,8 @@ impl TokenParser<'_> {
                 let current = self.current();
 
                 return Err(error!(
-                    ParserErrorKind::ExpectedToken { 
-                        expected: TokenKind::Semicolon, 
+                    ParserError::ExpectedToken {
+                        expected: TokenKind::Semicolon,
                         found: current.kind.clone(),
                     },
                     current.span,
@@ -602,7 +595,7 @@ impl TokenParser<'_> {
             TokenKind::CharLiteral => ExprKind::Literal(LiteralExpr::Char(
                 current.lexeme.clone().chars().next().ok_or_else(|| {
                     error!(
-                        ParserErrorKind::InvalidCharLiteral {
+                        ParserError::InvalidCharLiteral {
                             lexeme: current.lexeme.clone(),
                         },
                         current.span,
@@ -613,9 +606,9 @@ impl TokenParser<'_> {
             TokenKind::FloatLiteral => {
                 let value = current.lexeme.parse::<f64>().map_err(|err| {
                     error!(
-                        ParserErrorKind::InvalidFloatLiteral {
+                        ParserError::InvalidFloatLiteral {
                             lexeme: current.lexeme.clone(),
-                            source: err,
+                            source: err.to_string(),
                         },
                         current.span,
                     )
@@ -627,9 +620,9 @@ impl TokenParser<'_> {
             TokenKind::IntLiteral => {
                 let value = current.lexeme.parse::<u64>().map_err(|err| {
                     error!(
-                        ParserErrorKind::InvalidIntegerLiteral {
+                        ParserError::InvalidIntegerLiteral {
                             lexeme: current.lexeme.clone(),
-                            source: err,
+                            source: err.to_string(),
                         },
                         current.span,
                     )
@@ -644,7 +637,7 @@ impl TokenParser<'_> {
                     "false" => false,
                     _ => {
                         return Err(error!(
-                            ParserErrorKind::InvalidBooleanLiteral {
+                            ParserError::InvalidBooleanLiteral {
                                 lexeme: current.lexeme.clone(),
                             },
                             current.span,

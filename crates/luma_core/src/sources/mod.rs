@@ -47,6 +47,11 @@ impl CodeSource {
     }
 
     #[must_use]
+    pub fn source_file(&self) -> &str {
+        self.file_path.as_deref().unwrap_or("<virtual>")
+    }
+
+    #[must_use]
     pub const fn is_file(&self) -> bool {
         self.file_path.is_some()
     }

@@ -1,7 +1,7 @@
 use crate::{OperatorKind, Type, TypeKind, ast::*};
 use luma_diagnostic::error;
 
-use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, error::AnalyzerErrorKind};
+use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, AnalyzerError};
 
 pub struct TypeInference;
 
@@ -64,8 +64,8 @@ impl TypeInference {
                     None => {
                         // type inference failure
                         // report error and return unit type as fallback
-                        ctx.error(error!(
-                            AnalyzerErrorKind::TypeInferenceFailure, 
+                        ctx.diagnostic(error!(
+                            AnalyzerError::TypeInferenceFailure, 
                             expr.span,
                         ));
 
@@ -84,10 +84,10 @@ impl TypeInference {
                     Some(ty) => ty,
                     None => {
                         // type mismatch
-                        ctx.error(error!(
-                            AnalyzerErrorKind::TypeMismatch { 
-                                expected: lty,
-                                found: rty
+                        ctx.diagnostic(error!(
+                            AnalyzerError::TypeMismatch { 
+                                expected: lty.clone(),
+                                found: rty.clone()
                             },
                             binary_expr.left.span.merged(&binary_expr.right.span),
                         ));

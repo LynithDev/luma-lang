@@ -55,6 +55,10 @@ impl Span {
     pub const fn len(&self) -> u32 {
         self.end - self.start
     }
+
+    pub fn as_range(&self) -> std::ops::Range<usize> {
+        self.start as usize..self.end as usize
+    }
 }
 
 impl std::fmt::Display for Span {

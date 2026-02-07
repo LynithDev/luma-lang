@@ -4,7 +4,7 @@
 mod ctx;
 mod representation;
 mod compiler;
-pub mod error;
+pub mod diagnostics;
 pub mod stages;
 
 pub use compiler::LumaCompiler;

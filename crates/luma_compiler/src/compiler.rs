@@ -1,5 +1,5 @@
-use luma_core::{CodeSource, CodeSourceId};
-use luma_diagnostic::LumaError;
+use luma_core::{CodeSource, CodeSourceId, SourceManager};
+use luma_diagnostic::Diagnostic;
 
 use crate::{AnalyzerStage, AstLoweringStage, CodegenStage, CompilerContext, CompilerStage, LexerStage, ParserStage, aast::AnnotatedAst, ast::Ast};
 
@@ -9,7 +9,8 @@ pub struct LumaCompiler {
 
 #[derive(Debug)]
 pub struct CompileResult {
-    pub errors: Vec<LumaError>,
+    pub sources: SourceManager,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 impl LumaCompiler {
@@ -27,10 +28,9 @@ impl LumaCompiler {
 
         let _ = self.run_pipeline(&ctx, source_ids);
 
-        let errors = std::mem::take(&mut *ctx.get_errors_mut());
-
         CompileResult {
-            errors,
+            sources: ctx.sources,
+            diagnostics: ctx.diagnostics.into_inner(),
         }
     }
 
@@ -38,7 +38,6 @@ impl LumaCompiler {
         let tokens = run_stage(ctx, LexerStage, source_ids)?;
         let asts = run_stage(ctx, ParserStage, &tokens)?;
         let asts = run_stage(ctx, AnalyzerStage::<Ast>::default(), asts)?;
-        println!("{:#?}", asts);
         let aasts = run_stage(ctx, AstLoweringStage, asts)?;
         let aasts = run_stage(ctx, AnalyzerStage::<AnnotatedAst>::default(), aasts)?;
         let bytecodes = run_stage(ctx, CodegenStage, aasts)?;
@@ -60,7 +59,7 @@ where
     ctx.set_stage_name(S::name());
     let output = stage.process(ctx, input);
 
-    if ctx.has_errors() {
+    if ctx.has_diagnostics() {
         return Err(());
     }
 

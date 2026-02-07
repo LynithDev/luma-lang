@@ -8,8 +8,25 @@ cfg_select! {
     }
 }
 
-mod error;
-pub use error::{LumaError, ErrorSource};
+mod macros;
+mod diagnostic;
+pub use diagnostic::*;
 
-pub type CompilerResult<T> = Result<T, LumaError>;
+pub type CompilerResult<T> = Result<T, Diagnostic>;
 
+
+// pub enum CompilerContext {
+//     #[context("while trying to assign to variable '{name}'")]
+//     Assignment {
+//         name: String,
+//     }
+// }
+
+// add_error(CompilerError::MismatchedTypes {
+//     expected: "i32".to_string(),
+//     found: "f64".to_string(),
+// }, vec![
+//     CompilerContext::Assignment {
+//         name: "x".to_string(),
+//     }
+// ]);
