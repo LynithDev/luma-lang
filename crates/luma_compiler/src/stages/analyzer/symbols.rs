@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use crate::{Type, stages::analyzer::scopes::{ScopeId, ScopeManager}};
+use crate::{ScopeId, SymbolId, Type, stages::analyzer::scopes::ScopeManager};
 
 #[derive(Debug)]
 pub struct SymbolTable {
     symbols: Vec<SymbolEntry>,
     /// (namespace + name) -> symbol id
-    lookup_map: HashMap<(SymbolNamespace, ScopeId, String), usize>,
+    lookup_map: HashMap<(SymbolNamespace, ScopeId, String), SymbolId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -25,7 +25,7 @@ pub struct SymbolEntry {
     pub namespace: SymbolNamespace,
     pub scope_id: ScopeId,
     pub declared_ty: Option<Type>,
-    pub shadowed: Option<usize>,
+    pub shadowed: Option<SymbolId>,
 }
 
 impl SymbolTable {
@@ -36,7 +36,7 @@ impl SymbolTable {
         }
     }
 
-    pub fn declare(&mut self, scope_id: ScopeId, namespace: SymbolNamespace, name: String, declared_ty: Option<Type>) -> usize {
+    pub fn declare(&mut self, scope_id: ScopeId, namespace: SymbolNamespace, name: String, declared_ty: Option<Type>) -> SymbolId {
         let shadowed = self.lookup_map.get(&(namespace, scope_id, name.clone())).cloned();
 
         let id = self.symbols.len();
@@ -59,7 +59,7 @@ impl SymbolTable {
         namespace: SymbolNamespace, 
         mut scope: ScopeId,
         name: &str,
-    ) -> Option<usize> {
+    ) -> Option<SymbolId> {
         loop {
             if let Some(id) = self.lookup_map.get(&(namespace, scope, name.to_string())) {
                 return Some(*id);
@@ -76,7 +76,7 @@ impl SymbolTable {
         // no-op
     }
 
-    pub fn exit_scope(&mut self, scope: usize) {
+    pub fn exit_scope(&mut self, scope: ScopeId) {
         for i in (0..self.symbols.len()).rev() {
             let sym = &self.symbols[i];
             if sym.scope_id != scope {
@@ -93,7 +93,7 @@ impl SymbolTable {
         }
     }
 
-    pub fn get_symbol(&self, id: usize) -> Option<&SymbolEntry> {
+    pub fn get_symbol(&self, id: SymbolId) -> Option<&SymbolEntry> {
         self.symbols.get(id)
     }
 }

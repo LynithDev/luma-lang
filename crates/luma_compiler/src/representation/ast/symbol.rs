@@ -86,6 +86,10 @@ impl SymbolKind {
         }
     }
 
+    pub fn unwrap_id(&self) -> usize {
+        self.id().unwrap_or_else(|| panic!("symbol '{}' does not have an id", self.name()))
+    }
+
     pub fn is_named(&self) -> bool {
         matches!(self, SymbolKind::Named { .. })
     }

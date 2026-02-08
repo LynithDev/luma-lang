@@ -1,4 +1,4 @@
-pub type ScopeId = usize;
+use crate::ScopeId;
 
 pub struct ScopeManager {
     scopes: Vec<Scope>,

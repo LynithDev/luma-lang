@@ -2,7 +2,7 @@ use strum::Display;
 
 use luma_core::Span;
 
-use crate::{Type, Visibility, aast::*, stages::analyzer::scopes::ScopeId};
+use crate::{Type, Visibility, aast::*, ScopeId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AnnotStmt {

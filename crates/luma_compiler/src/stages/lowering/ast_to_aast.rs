@@ -48,9 +48,7 @@ fn annotate_ast(ast: Ast) -> CompilerResult<AnnotatedAst> {
 fn annotate_symbol(symbol: Symbol) -> CompilerResult<AnnotSymbol> {
     Ok(AnnotSymbol {
         name: symbol.name().to_string(),
-        id: symbol
-            .id()
-            .ok_or(error!(LoweringError::MissingSymbolId, symbol.span,))?,
+        id: symbol.unwrap_id(),
         span: symbol.span,
     })
 }
@@ -222,10 +220,7 @@ fn annotate_ident(ident_expr: IdentExpr, span: &Span) -> CompilerResult<IdentAnn
     Ok(IdentAnnotExpr {
         symbol: AnnotSymbol {
             name: ident_expr.symbol.name().to_string(),
-            id: ident_expr
-                .symbol
-                .id()
-                .ok_or(error!(LoweringError::MissingSymbolId, *span,))?,
+            id: ident_expr.symbol.unwrap_id(),
             span: *span,
         },
     })

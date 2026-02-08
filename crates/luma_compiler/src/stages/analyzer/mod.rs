@@ -3,9 +3,10 @@ use crate::{CompilerContext, CompilerStage};
 mod ctx;
 pub use ctx::*;
 
-pub mod scopes;
-pub mod registry;
-pub mod symbols;
+pub(super) mod scopes;
+pub(super) mod registry;
+pub(super) mod symbols;
+pub(super) mod type_cache;
 pub mod passes;
 
 mod diagnostics;

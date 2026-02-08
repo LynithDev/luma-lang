@@ -1,12 +1,14 @@
 use luma_diagnostic::CompilerResult;
 
-use crate::{aast::*, bytecode::*, stages::codegen::chunk::{ChunkBuilderEnv, CodeChunk}};
+use crate::{OperatorKind, aast::*, bytecode::*, stages::codegen::chunk::{ChunkBuilderEnv, CodeChunk}};
 
 pub struct ChunkBuilder;
 
 impl ChunkBuilder {
     pub fn build(self, ast: &mut AnnotatedAst) -> CompilerResult<CodeChunk> {
         let mut ctx = ChunkBuilderEnv::default();
+
+        dbg!(&ast);
 
         self.traverse(&mut ctx, ast)?;
 
@@ -36,9 +38,14 @@ impl AnnotAstVisitor<'_> for ChunkBuilder {
 
     fn try_visit_expr(&self, ctx: &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
         #[allow(unused)]
-        match &expr.item {
+        match &mut expr.item {
             AnnotExprKind::Assign(assign_expr) => todo!(),
-            AnnotExprKind::Binary(binary_expr) => todo!(),
+            AnnotExprKind::Binary(binary_expr) => {
+                ctx.emit(match binary_expr.operator.kind {
+                    OperatorKind::Add => Opcode::Add,
+                    _ => todo!()
+                });
+            },
             AnnotExprKind::Block(block_expr) => todo!(),
             AnnotExprKind::Call(call_expr) => todo!(),
             AnnotExprKind::Get(get_expr) => todo!(),

@@ -1,7 +1,7 @@
 use luma_core::Span;
 use strum::Display;
 
-use crate::{Operator, TypeKind, aast::*, stages::analyzer::scopes::ScopeId};
+use crate::{Operator, TypeKind, aast::*, ScopeId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AnnotExpr {

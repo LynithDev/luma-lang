@@ -12,6 +12,13 @@ pub struct Diagnostic {
     pub thrower: CallerInfo,
 }
 
+impl Diagnostic {
+    pub fn span(mut self, span: Span) -> Self {
+        self.span = Some(span);
+        self
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticLevel {
     Error,
