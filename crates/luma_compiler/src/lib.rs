@@ -1,5 +1,6 @@
 #![allow(clippy::new_without_default)]
 #![feature(iterator_try_collect)]
+#![feature(try_blocks)]
 
 mod ctx;
 mod representation;

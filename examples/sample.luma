@@ -1,2 +1,2 @@
-var test = 3529282222;
-test;
+var a = 3529282222;
+var test = a + 5;

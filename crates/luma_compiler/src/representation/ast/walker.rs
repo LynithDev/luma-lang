@@ -5,7 +5,10 @@ pub trait AstVisitor<'a> {
     type Ctx;
 
     fn visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {}
+    fn leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {}
+
     fn visit_expr(&self, ctx: &mut Self::Ctx, expr: &mut Expr) {}
+    fn leave_expr(&self, ctx: &mut Self::Ctx, expr: &mut Expr) {}
 
     fn visit_func_param(&self, ctx: &mut Self::Ctx, param: &mut FuncParam) {}
     fn visit_struct_field_decl(&self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldDecl) {}
@@ -82,6 +85,8 @@ pub trait AstVisitor<'a> {
                 // leaf nodes
             },
         }
+
+        self.leave_expr(ctx, expr);
     }
 
     fn walk_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
@@ -121,6 +126,8 @@ pub trait AstVisitor<'a> {
                 self.walk_expr(ctx, &mut var_decl_stmt.initializer);
             },
         }
+
+        self.leave_stmt(ctx, stmt);
     }
 
     fn walk_func_param(&self, ctx: &mut Self::Ctx, param: &mut FuncParam) {

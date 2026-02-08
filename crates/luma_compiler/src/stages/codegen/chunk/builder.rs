@@ -20,7 +20,7 @@ impl AnnotAstVisitor<'_> for ChunkBuilder {
     fn try_visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
         #[allow(unused)]
         match &stmt.item {
-            AnnotStmtKind::Expr(expr) => todo!(),
+            AnnotStmtKind::Expr(expr) => {},
             AnnotStmtKind::Func(func_decl) => todo!(),
             AnnotStmtKind::Return(ret_stmt) => todo!(),
             AnnotStmtKind::Struct(struct_decl) => todo!(),

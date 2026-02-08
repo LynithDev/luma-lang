@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::stages::analyzer::scopes::{ScopeId, ScopeManager};
+use crate::{Type, stages::analyzer::scopes::{ScopeId, ScopeManager}};
 
 #[derive(Debug)]
 pub struct SymbolTable {
@@ -24,6 +24,7 @@ pub struct SymbolEntry {
     pub name: String,
     pub namespace: SymbolNamespace,
     pub scope_id: ScopeId,
+    pub declared_ty: Option<Type>,
     pub shadowed: Option<usize>,
 }
 
@@ -35,7 +36,7 @@ impl SymbolTable {
         }
     }
 
-    pub fn declare(&mut self, scope_id: ScopeId, namespace: SymbolNamespace, name: String) -> usize {
+    pub fn declare(&mut self, scope_id: ScopeId, namespace: SymbolNamespace, name: String, declared_ty: Option<Type>) -> usize {
         let shadowed = self.lookup_map.get(&(namespace, scope_id, name.clone())).cloned();
 
         let id = self.symbols.len();
@@ -43,6 +44,7 @@ impl SymbolTable {
             name: name.clone(),
             namespace,
             scope_id,
+            declared_ty,
             shadowed,
         });
 

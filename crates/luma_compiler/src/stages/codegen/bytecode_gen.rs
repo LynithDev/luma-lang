@@ -11,6 +11,7 @@ impl BytecodeGen {
         let chunk = ChunkBuilder.build(&mut ast)?;
 
         Ok(ModuleBytecode {
+            source_id: ast.span.source_id,
             chunk: TopLevelChunk {
                 code: chunk,
                 functions: vec![],

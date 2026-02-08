@@ -1,7 +1,7 @@
 use crate::{OperatorKind, Type, TypeKind, ast::*};
 use luma_diagnostic::error;
 
-use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, AnalyzerError};
+use crate::stages::analyzer::{AnalyzerContext, AnalyzerError, AnalyzerPass};
 
 pub struct TypeInference;
 
@@ -11,13 +11,11 @@ impl AnalyzerPass<Ast> for TypeInference {
     }
 
     fn analyze(&self, ctx: &mut AnalyzerContext, input: &mut Ast) {
-        self.traverse(
-            ctx,
-            input,
-        );
+        self.traverse(ctx, input);
     }
 }
 
+#[derive(Default)]
 struct TypeContext {
     contextual_type: Option<TypeKind>,
 }
@@ -27,101 +25,83 @@ impl AstVisitor<'_> for TypeInference {
 
     fn visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
         match &mut stmt.item {
+            StmtKind::Expr(expr) => {
+                Self::infer_expr(ctx, &TypeContext::default(), expr);
+            }
+            StmtKind::Func(_) => todo!(),
+            StmtKind::Return(return_stmt) => todo!(),
+            StmtKind::Struct(struct_decl_stmt) => todo!(),
             StmtKind::Var(var_decl) => {
                 let type_ctx = TypeContext {
                     contextual_type: var_decl.ty.clone().map(Into::<TypeKind>::into),
                 };
 
-                let inferred_ty = Self::infer_expr(
-                    ctx,
-                    &type_ctx,
-                    &mut var_decl.initializer,
-                );
+                let inferred_ty = Self::infer_expr(ctx, &type_ctx, &mut var_decl.initializer);
 
                 var_decl.initializer.set_type(inferred_ty.clone());
                 var_decl.ty = Some(Type::unspanned(inferred_ty));
-            },
-            StmtKind::Func(_) => {
-                
-            },
-            _ => {}
+            }
         }
     }
 }
 
 impl TypeInference {
-    
-    fn infer_expr(
-        ctx: &AnalyzerContext, 
-        type_ctx: &TypeContext,
-        expr: &mut Expr, 
-    ) -> TypeKind {
+    fn infer_expr(ctx: &AnalyzerContext, type_ctx: &TypeContext, expr: &mut Expr) -> TypeKind {
+        if let Some(ty) = &expr.ty {
+            tracing::debug!(
+                "infer_expr: type already known for {:?} is {:?}",
+                &expr.item,
+                ty
+            );
+            return ty.clone();
+        }
 
-        let ty = match &mut expr.item {
-            ExprKind::Literal(literal_expr) => {
-                match Self::infer_literal(type_ctx, literal_expr) {
-                    Some(ty) => ty,
-                    None => {
-                        // type inference failure
-                        // report error and return unit type as fallback
-                        ctx.diagnostic(error!(
-                            AnalyzerError::TypeInferenceFailure, 
-                            expr.span,
-                        ));
-
-                        TypeKind::Unit
-                    }
-                }
-            },
-            ExprKind::Group(group_expr) => {
-                Self::infer_expr(ctx, type_ctx, group_expr)
-            },
+        let ty: Option<TypeKind> = match &mut expr.item {
+            ExprKind::Literal(literal_expr) => Self::infer_literal(type_ctx, literal_expr),
+            ExprKind::Group(group_expr) => Some(Self::infer_expr(ctx, type_ctx, group_expr)),
             ExprKind::Binary(binary_expr) => {
                 let lty = Self::infer_expr(ctx, type_ctx, &mut binary_expr.left);
                 let rty = Self::infer_expr(ctx, type_ctx, &mut binary_expr.right);
 
-                match TypeKind::promote(&lty, &rty) {
-                    Some(ty) => ty,
-                    None => {
-                        // type mismatch
+                println!("lty: {:?}, rty: {:?}", lty, rty);
+
+                TypeKind::promote(&lty, &rty)
+            }
+            ExprKind::Unary(unary_expr) => {
+                Some(Self::infer_expr(ctx, type_ctx, &mut unary_expr.value))
+            }
+            ExprKind::Ident(ident_expr) => {
+                if let Some(symbol_id) = ident_expr.symbol.id() {
+                    if let Some(symbol) = ctx.symbols.borrow().get_symbol(symbol_id) {
+                        symbol.declared_ty.clone().map(|t| t.kind)
+                    } else {
                         ctx.diagnostic(error!(
-                            AnalyzerError::TypeMismatch { 
-                                expected: lty.clone(),
-                                found: rty.clone()
+                            AnalyzerError::UnidentifiedSymbol {
+                                name: ident_expr.symbol.name().to_string()
                             },
-                            binary_expr.left.span.merged(&binary_expr.right.span),
+                            expr.span
                         ));
 
-                        TypeKind::Unit
+                        None
                     }
+                } else {
+                    ctx.diagnostic(error!(
+                        AnalyzerError::UnidentifiedSymbol {
+                            name: ident_expr.symbol.name().to_string()
+                        },
+                        expr.span
+                    ));
+
+                    None
                 }
-            },
-            ExprKind::Unary(unary_expr) => {
-                let val_ty = Self::infer_expr(ctx, type_ctx, &mut unary_expr.value);
-
-                match unary_expr.operator.kind {
-                    OperatorKind::Subtract | OperatorKind::Not => val_ty.clone(),
-                    _ => val_ty.clone(),
-                }
-            },
-            // ExprKind::Struct(struct_expr) => {
-                // let ty = TypeKind::Named(struct_expr.symbol.name().to_string());
-
-                // // infer types for each field
-                // for field in &mut struct_expr.fields {
-                //     let field_ty = Self::infer_expr(ctx, type_ctx, &mut field.value);
-                //     field.value.set_type(field_ty);
-                // }
-
-                // ty
-            //     todo!("handle struct expression type inference")
-            // }
-            
+            }
             _ => {
                 tracing::warn!("handle expression type inference for {:?}", expr.item);
-                expr.ty.clone().unwrap_or(TypeKind::Unit)
-            },
+                expr.ty.clone()
+            }
         };
+
+        let ty = ty.unwrap_or(TypeKind::Unit);
 
         expr.set_type(ty.clone());
         ty
@@ -129,13 +109,16 @@ impl TypeInference {
 
     fn infer_literal(type_ctx: &TypeContext, lit: &LiteralExpr) -> Option<TypeKind> {
         Some(if let Some(contextual) = &type_ctx.contextual_type {
-
             // contextual type
             match (lit, contextual) {
                 // integer literals
                 (LiteralExpr::Int(n), TypeKind::UInt8) if *n <= u8::MAX as u64 => TypeKind::UInt8,
-                (LiteralExpr::Int(n), TypeKind::UInt16) if *n <= u16::MAX as u64 => TypeKind::UInt16,
-                (LiteralExpr::Int(n), TypeKind::UInt32) if *n <= u32::MAX as u64 => TypeKind::UInt32,
+                (LiteralExpr::Int(n), TypeKind::UInt16) if *n <= u16::MAX as u64 => {
+                    TypeKind::UInt16
+                }
+                (LiteralExpr::Int(n), TypeKind::UInt32) if *n <= u32::MAX as u64 => {
+                    TypeKind::UInt32
+                }
                 (LiteralExpr::Int(_), TypeKind::UInt64) => TypeKind::UInt64,
 
                 (LiteralExpr::Int(n), TypeKind::Int8) if *n <= i8::MAX as u64 => TypeKind::Int8,
@@ -144,9 +127,11 @@ impl TypeInference {
                 (LiteralExpr::Int(_), TypeKind::Int64) => TypeKind::Int64,
 
                 // float literals
-                (LiteralExpr::Float(n), TypeKind::Float32) if *n <= f32::MAX as f64 => TypeKind::Float32,
+                (LiteralExpr::Float(n), TypeKind::Float32) if *n <= f32::MAX as f64 => {
+                    TypeKind::Float32
+                }
                 (LiteralExpr::Float(_), TypeKind::Float64) => TypeKind::Float64,
-                
+
                 // boolean literals
                 (LiteralExpr::Bool(_), TypeKind::Bool) => TypeKind::Bool,
 
@@ -164,9 +149,7 @@ impl TypeInference {
                     return None;
                 }
             }
-
         } else {
-
             // inferred type
             match lit {
                 // integer literals
@@ -189,8 +172,6 @@ impl TypeInference {
 
                 LiteralExpr::Unit => TypeKind::Unit,
             }
-
         })
     }
-    
 }
