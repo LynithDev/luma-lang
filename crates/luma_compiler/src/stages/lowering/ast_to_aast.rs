@@ -90,6 +90,7 @@ fn annotate_func_decl(func_decl: FuncDeclStmt) -> CompilerResult<FuncDeclAnnotSt
                         None => None,
                     },
                     span: param.span,
+                    scope_id: param.scope_id.unwrap()
                 })
             })
             .try_collect()?,

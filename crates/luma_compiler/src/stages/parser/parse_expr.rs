@@ -400,7 +400,7 @@ impl TokenParser<'_> {
             self.consume(TokenKind::Colon)?;
             let value = self.parse_expression()?;
 
-            fields.push(StructFieldExpr {
+            fields.push(StructExprField {
                 symbol: field_name.as_symbol(),
                 value,
             });

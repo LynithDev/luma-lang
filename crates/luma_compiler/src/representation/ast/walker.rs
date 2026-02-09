@@ -1,4 +1,4 @@
-use crate::{Type, TypeKind, ast::{Ast, Expr, ExprKind, FuncParam, Stmt, StmtKind, StructFieldDecl, StructFieldExpr, Symbol}};
+use crate::{ScopeId, Type, TypeKind, ast::*};
 
 #[allow(unused_variables)]
 pub trait AstVisitor<'a> {
@@ -10,18 +10,75 @@ pub trait AstVisitor<'a> {
     fn visit_expr(&self, ctx: &mut Self::Ctx, expr: &mut Expr) {}
     fn leave_expr(&self, ctx: &mut Self::Ctx, expr: &mut Expr) {}
 
-    fn visit_func_param(&self, ctx: &mut Self::Ctx, param: &mut FuncParam) {}
-    fn visit_struct_field_decl(&self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldDecl) {}
-    fn visit_struct_field_expr(&self, ctx: &mut Self::Ctx, struct_symbol: &Symbol, field: &mut StructFieldExpr) {}
     fn visit_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) {}
+    fn leave_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) {}
+
+    fn visit_func_param<'node>(&self, ctx: &mut Self::Ctx, func: &'node FuncDeclStmt, param: &'node mut FuncParam) {}
+    fn leave_func_param<'node>(&self, ctx: &mut Self::Ctx, func: &'node FuncDeclStmt, param: &'node mut FuncParam) {}
+
+    fn visit_struct_decl_field<'node>(&self, ctx: &mut Self::Ctx, struct_decl: &'node StructDeclStmt, field: &'node mut StructDeclField) {}
+    fn leave_struct_decl_field<'node>(&self, ctx: &mut Self::Ctx, struct_decl: &'node StructDeclStmt, field: &'node mut StructDeclField) {}
     
-    fn enter_scope(&self, ctx: &mut Self::Ctx) {}
-    fn exit_scope(&self, ctx: &mut Self::Ctx) {} 
+    fn visit_struct_expr_field<'node>(&self, ctx: &mut Self::Ctx, struct_expr: &'node StructExpr, field: &'node mut StructExprField) {}
+    fn leave_struct_expr_field<'node>(&self, ctx: &mut Self::Ctx, struct_expr: &'node StructExpr, field: &'node mut StructExprField) {}
+    
+    fn enter_scope(&self, ctx: &mut Self::Ctx, entering_scope_id: Option<ScopeId>) {}
+    fn exit_scope(&self, ctx: &mut Self::Ctx, leaving_scope_id: Option<ScopeId>) {} 
 
     fn traverse(&self, ctx: &mut Self::Ctx, ast: &mut Ast) {
         for stmt in &mut ast.statements {
             self.walk_stmt(ctx, stmt);
         }
+    }
+
+    fn walk_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
+        self.visit_stmt(ctx, stmt);
+
+        match &mut stmt.item {
+            StmtKind::Expr(expr) => {
+                self.walk_expr(ctx, expr);
+            },
+            StmtKind::Func(func_decl) => {
+                self.enter_scope(ctx, stmt.scope_id);
+
+                let func_decl_ptr = func_decl as *const FuncDeclStmt;
+
+                for param in &mut func_decl.parameters {
+                    self.visit_func_param(ctx, unsafe { &*func_decl_ptr }, param);
+                    
+                    self.walk_type(ctx, &mut param.ty);
+
+                    if let Some(default_value) = &mut param.default_value {
+                        self.walk_expr(ctx, default_value);
+                    }
+
+                    self.leave_func_param(ctx, unsafe { &*func_decl_ptr }, param);
+                }
+
+                if let Some(ty) = &mut func_decl.return_type {
+                    self.walk_type(ctx, ty);
+                }
+
+                self.walk_expr(ctx, &mut func_decl.body);
+
+                self.exit_scope(ctx, stmt.scope_id);
+            },
+            StmtKind::Return(return_stmt) => {
+                if let Some(value) = &mut return_stmt.value {
+                    self.walk_expr(ctx, value);
+                }
+            },
+            StmtKind::Struct(struct_decl_stmt) => {
+                for field in &mut struct_decl_stmt.fields {
+                    self.walk_type(ctx, &mut field.ty);
+                }
+            },
+            StmtKind::Var(var_decl_stmt) => {
+                self.walk_expr(ctx, &mut var_decl_stmt.initializer);
+            },
+        }
+
+        self.leave_stmt(ctx, stmt);
     }
 
     fn walk_expr(&self, ctx: &mut Self::Ctx, expr: &mut Expr) {
@@ -37,13 +94,13 @@ pub trait AstVisitor<'a> {
                 self.walk_expr(ctx, &mut binary_expr.right);
             },
             ExprKind::Block(block_expr) => {
-                self.enter_scope(ctx);
+                self.enter_scope(ctx, expr.scope_id.map(|scope| scope + 1));
 
                 for stmt in &mut block_expr.statements {
                     self.walk_stmt(ctx, stmt);
                 }
 
-                self.exit_scope(ctx);
+                self.exit_scope(ctx, expr.scope_id.map(|scope| scope + 1));
             },
             ExprKind::Call(call_expr) => {
                 self.walk_expr(ctx, &mut call_expr.callee);
@@ -67,9 +124,14 @@ pub trait AstVisitor<'a> {
                 }
             },
             ExprKind::Struct(struct_expr) => {
+                let ptr = struct_expr as *const StructExpr;
+
                 for field in &mut struct_expr.fields {
-                    self.visit_struct_field_expr(ctx, &struct_expr.symbol, field);
+                    self.visit_struct_expr_field(ctx, unsafe { &*ptr }, field);
+
                     self.walk_expr(ctx, &mut field.value);
+
+                    self.leave_struct_expr_field(ctx, unsafe { &*ptr }, field);
                 }
             },
             ExprKind::TupleLiteral(tuple_expr) => {
@@ -89,56 +151,6 @@ pub trait AstVisitor<'a> {
         self.leave_expr(ctx, expr);
     }
 
-    fn walk_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
-        self.visit_stmt(ctx, stmt);
-
-        match &mut stmt.item {
-            StmtKind::Expr(expr) => {
-                self.walk_expr(ctx, expr);
-            },
-            StmtKind::Func(func_decl_stmt) => {
-                self.enter_scope(ctx);
-
-                for param in &mut func_decl_stmt.parameters {
-                    self.walk_func_param(ctx, param);
-                }
-
-                if let Some(ty) = &mut func_decl_stmt.return_type {
-                    self.walk_type(ctx, ty);
-                }
-
-                self.walk_expr(ctx, &mut func_decl_stmt.body);
-
-                self.exit_scope(ctx);
-            },
-            StmtKind::Return(return_stmt) => {
-                if let Some(value) = &mut return_stmt.value {
-                    self.walk_expr(ctx, value);
-                }
-            },
-            StmtKind::Struct(struct_decl_stmt) => {
-                for field in &mut struct_decl_stmt.fields {
-                    self.visit_struct_field_decl(ctx, &struct_decl_stmt.symbol, field);
-                    self.walk_type(ctx, &mut field.ty);
-                }
-            },
-            StmtKind::Var(var_decl_stmt) => {
-                self.walk_expr(ctx, &mut var_decl_stmt.initializer);
-            },
-        }
-
-        self.leave_stmt(ctx, stmt);
-    }
-
-    fn walk_func_param(&self, ctx: &mut Self::Ctx, param: &mut FuncParam) {
-        self.visit_func_param(ctx, param);
-        self.walk_type(ctx, &mut param.ty);
-
-        if let Some(default_value) = &mut param.default_value {
-            self.walk_expr(ctx, default_value);
-        }
-    }
-
     fn walk_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) {
         self.visit_type(ctx, ty);
 
@@ -153,5 +165,7 @@ pub trait AstVisitor<'a> {
             },
             _ => {}
         }
+
+        self.leave_type(ctx, ty);
     }
 }

@@ -50,6 +50,7 @@ pub struct FuncParam {
     pub ty: Type,
     pub default_value: Option<Expr>,
     pub span: Span,
+    pub scope_id: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,11 +62,11 @@ pub struct ReturnStmt {
 pub struct StructDeclStmt {
     pub visibility: Visibility,
     pub symbol: Symbol,
-    pub fields: Vec<StructFieldDecl>,
+    pub fields: Vec<StructDeclField>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructFieldDecl {
+pub struct StructDeclField {
     pub visibility: Visibility,
     pub symbol: Symbol,
     pub ty: Type,

@@ -46,6 +46,7 @@ pub struct AnnotFuncParam {
     pub ty: Type,
     pub default_value: Option<AnnotExpr>,
     pub span: Span,
+    pub scope_id: ScopeId,
 }
 
 #[derive(Debug, Clone, PartialEq)]

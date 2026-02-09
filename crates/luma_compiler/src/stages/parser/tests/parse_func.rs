@@ -46,6 +46,7 @@ fn var_with_type_and_value() {
                             ty: Type::spanned(Span::void(), TypeKind::UInt32),
                             default_value: None,
                             span: Span::void(),
+                            scope_id: None,
                         },
                         FuncParam {
                             symbol: Symbol::new(
@@ -55,6 +56,7 @@ fn var_with_type_and_value() {
                             ty: Type::spanned(Span::void(), TypeKind::Float32),
                             default_value: None,
                             span: Span::void(),
+                            scope_id: None,
                         },
                         FuncParam {
                             symbol: Symbol::new(
@@ -67,6 +69,7 @@ fn var_with_type_and_value() {
                                 ExprKind::Literal(LiteralExpr::Bool(false)),
                             )),
                             span: Span::void(),
+                            scope_id: None,
                         },
                     ],
                     return_type: Some(Type::spanned(

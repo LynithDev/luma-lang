@@ -3,6 +3,8 @@ use std::ops::{Deref, DerefMut};
 use luma_core::Span;
 use strum::Display;
 
+use crate::SymbolId;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol {
     pub kind: SymbolKind,
@@ -39,7 +41,7 @@ pub enum SymbolKind {
     #[strum(to_string = "Identified({name}, {id})")]
     Identified {
         name: String,
-        id: usize,
+        id: SymbolId,
     },
 }
 
@@ -50,18 +52,18 @@ impl SymbolKind {
     }
 
     #[must_use]
-    pub const fn identified(name: String, id: usize) -> Self {
+    pub const fn identified(name: String, id: SymbolId) -> Self {
         SymbolKind::Identified { name, id }
     }
 
-    pub fn with_id(self, id: usize) -> Self {
+    pub fn with_id(self, id: SymbolId) -> Self {
         match self {
             SymbolKind::Named { name } => SymbolKind::Identified { name, id },
             SymbolKind::Identified { name, .. } => SymbolKind::Identified { name, id },
         }
     }
 
-    pub fn set_id(&mut self, id: usize) {
+    pub fn set_id(&mut self, id: SymbolId) {
         match self {
             SymbolKind::Named { name } => {
                 *self = SymbolKind::Identified { name: name.clone(), id };
@@ -79,7 +81,7 @@ impl SymbolKind {
         }
     }
 
-    pub fn id(&self) -> Option<usize> {
+    pub fn id(&self) -> Option<SymbolId> {
         match self {
             SymbolKind::Identified { id, .. } => Some(*id),
             SymbolKind::Named { .. } => None,

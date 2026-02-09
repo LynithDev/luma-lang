@@ -68,11 +68,17 @@ impl<Input> CompilerStage<'_> for AnalyzerStage<Input> {
         let mut asts = input;
 
         // todo: somehow make this faster (parallelize?)
-        for ast in &mut asts {
+        'ast_loop: for ast in &mut asts {
             for analyzer in self.passes.iter() {
                 tracing::debug!("running analyzer stage: '{}'", analyzer.name());
 
                 analyzer.analyze(&mut self.ctx, ast);
+
+                if !analyzer.continue_after_error()
+                    && !self.ctx.diagnostics.borrow().is_empty() {
+                        tracing::debug!("analyzer stage '{}' produced diagnostics, halting further analysis", analyzer.name());
+                        continue 'ast_loop;
+                    }
             }
         }
 
@@ -86,4 +92,8 @@ pub trait AnalyzerPass<Input> {
     fn name(&self) -> String;
 
     fn analyze(&self, ctx: &mut AnalyzerContext, input: &mut Input);
+
+    fn continue_after_error(&self) -> bool {
+        true
+    }
 }

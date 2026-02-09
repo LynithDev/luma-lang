@@ -18,19 +18,20 @@ impl ScopeManager {
         }
     }
 
-    pub fn enter_scope(&mut self) -> usize {
-        self.scopes.push(Scope { 
-            parent: Some(self.current)
+    pub fn enter_scope(&mut self) -> ScopeId {
+        self.scopes.push(Scope {
+            parent: Some(self.current),
         });
 
         self.current = self.scopes.len() - 1;
         self.current
     }
 
-    pub fn exit_scope(&mut self) {
+    pub fn exit_scope(&mut self) -> ScopeId {
         self.current = self.scopes[self.current]
             .parent
             .expect("cannot exit global scope");
+        self.current
     }
 
     pub fn current_scope(&self) -> usize {

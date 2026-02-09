@@ -22,6 +22,7 @@ impl<'a> Printer<'a> {
 
     fn build_report<'report>(&'report self, diagnostic: &Diagnostic) -> Vec<Group<'report>> {
         let mut report = Vec::new();
+        let mut notes = Vec::new();
 
         let primary_group = if let Some(root_span) = diagnostic.span
             && let Some(source) = self.sources.get_source(root_span.source_id)
@@ -43,7 +44,9 @@ impl<'a> Printer<'a> {
                             .span(span.as_range())
                             .label(ctx.annotation.clone()),
                     );
-                };
+                } else if let Some(annotation) = &ctx.annotation {
+                    notes.push(Level::INFO.message(annotation.clone()));
+                }
             }
 
             Level::from(diagnostic.level)
@@ -58,6 +61,8 @@ impl<'a> Printer<'a> {
                 title.element(Level::NOTE.message("no source provided"))
             }
         };
+
+        let primary_group = primary_group.elements(notes);
 
         report.push(primary_group);
 

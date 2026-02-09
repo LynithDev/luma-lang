@@ -23,6 +23,7 @@ impl AstVisitor<'_> for TypeInference {
     }
 }
 
+#[allow(unused)]
 impl TypeInference {
     fn infer_stmt(
         &self,

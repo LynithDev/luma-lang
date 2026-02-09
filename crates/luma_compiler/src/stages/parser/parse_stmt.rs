@@ -117,6 +117,7 @@ impl TokenParser<'_> {
                 ty,
                 default_value,
                 span: param_span,
+                scope_id: None,
             });
 
             // check for comma separation
@@ -206,7 +207,7 @@ impl TokenParser<'_> {
             let field_type = self.parse_type()?;
             field_span.maybe_merge(field_type.span.as_ref());
 
-            fields.push(StructFieldDecl {
+            fields.push(StructDeclField {
                 visibility: field_visibility,
                 symbol: field_ident.as_symbol(),
                 ty: field_type,

@@ -128,11 +128,11 @@ pub enum LiteralExpr {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructExpr {
     pub symbol: Symbol,
-    pub fields: Vec<StructFieldExpr>,
+    pub fields: Vec<StructExprField>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructFieldExpr {
+pub struct StructExprField {
     pub symbol: Symbol,
     pub value: Expr,
 }

@@ -9,24 +9,24 @@ pub trait AnnotAstVisitor<'a> {
     fn try_visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
         Ok(())
     }
+    
+    fn try_leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
+        Ok(())
+    }
 
     fn try_visit_expr(&self, ctx: &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
         Ok(())
     }
 
-    fn try_visit_func_param(&self, ctx: &mut Self::Ctx, param: &mut AnnotFuncParam) -> CompilerResult<()> {
+    fn try_leave_expr(&self, ctx: &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
         Ok(())
     }
 
-    fn try_visit_struct_field_decl(&self, ctx: &mut Self::Ctx, struct_symbol: &AnnotSymbol, field: &mut StructFieldAnnotDecl) -> CompilerResult<()> {
-        Ok(())
-    }
-
-    fn try_visit_struct_field_expr(&self, ctx: &mut Self::Ctx, struct_symbol: &AnnotSymbol, field: &mut StructFieldAnnotExpr) -> CompilerResult<()> {
+    fn try_visit_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) -> CompilerResult<()> {
         Ok(())
     }
     
-    fn try_visit_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) -> CompilerResult<()> {
+    fn try_leave_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) -> CompilerResult<()> {
         Ok(())
     }
     
@@ -42,6 +42,8 @@ pub trait AnnotAstVisitor<'a> {
     }
 
     fn walk_expr(&self, ctx: &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
+        self.try_visit_expr(ctx, expr)?;
+
         match &mut expr.item {
             AnnotExprKind::Assign(assign_expr) => {
                 self.walk_expr(ctx, &mut assign_expr.target)?;
@@ -84,7 +86,6 @@ pub trait AnnotAstVisitor<'a> {
             AnnotExprKind::Struct(struct_expr) => {
                 for field in &mut struct_expr.fields {
                     self.walk_expr(ctx, &mut field.value)?;
-                    self.try_visit_struct_field_expr(ctx, &struct_expr.symbol, field)?;
                 }
             },
             AnnotExprKind::TupleLiteral(tuple_expr) => {
@@ -101,10 +102,12 @@ pub trait AnnotAstVisitor<'a> {
             },
         }
 
-        self.try_visit_expr(ctx, expr)
+        self.try_leave_expr(ctx, expr)
     }
 
     fn walk_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
+        self.try_visit_stmt(ctx, stmt)?;
+
         match &mut stmt.item {
             AnnotStmtKind::Expr(expr) => {
                 self.walk_expr(ctx, expr)?;
@@ -113,7 +116,11 @@ pub trait AnnotAstVisitor<'a> {
                 self.enter_scope(ctx);
 
                 for param in &mut func_decl_stmt.parameters {
-                    self.walk_func_param(ctx, param)?;
+                    self.walk_type(ctx, &mut param.ty)?;
+        
+                    if let Some(default_value) = &mut param.default_value {
+                        self.walk_expr(ctx, default_value)?;
+                    }
                 }
 
                 self.walk_type(ctx, &mut func_decl_stmt.return_type)?;
@@ -130,7 +137,6 @@ pub trait AnnotAstVisitor<'a> {
             AnnotStmtKind::Struct(struct_decl_stmt) => {
                 for field in &mut struct_decl_stmt.fields {
                     self.walk_type(ctx, &mut field.ty)?;
-                    self.try_visit_struct_field_decl(ctx, &struct_decl_stmt.symbol, field)?;
                 }
             },
             AnnotStmtKind::Var(var_decl_stmt) => {
@@ -138,20 +144,12 @@ pub trait AnnotAstVisitor<'a> {
             },
         }
 
-        self.try_visit_stmt(ctx, stmt)
-    }
-
-    fn walk_func_param(&self, ctx: &mut Self::Ctx, param: &mut AnnotFuncParam) -> CompilerResult<()> {
-        self.walk_type(ctx, &mut param.ty)?;
-        
-        if let Some(default_value) = &mut param.default_value {
-            self.walk_expr(ctx, default_value)?;
-        }
-        
-        self.try_visit_func_param(ctx, param)
+        self.try_leave_stmt(ctx, stmt)
     }
 
     fn walk_type(&self, ctx: &mut Self::Ctx, ty: &mut Type) -> CompilerResult<()> {
+        self.try_visit_type(ctx, ty)?;
+
         match &mut ty.kind {
             TypeKind::Ptr(ty) => {
                 self.walk_type(ctx, ty)?;
@@ -164,6 +162,6 @@ pub trait AnnotAstVisitor<'a> {
             _ => {}
         }
         
-        self.try_visit_type(ctx, ty)
+        self.try_leave_type(ctx, ty)
     }
 }

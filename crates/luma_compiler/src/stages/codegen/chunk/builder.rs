@@ -19,7 +19,7 @@ impl ChunkBuilder {
 impl AnnotAstVisitor<'_> for ChunkBuilder {
     type Ctx = ChunkBuilderEnv;
 
-    fn try_visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
+    fn try_leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
         #[allow(unused)]
         match &stmt.item {
             AnnotStmtKind::Expr(expr) => {},
@@ -36,7 +36,7 @@ impl AnnotAstVisitor<'_> for ChunkBuilder {
         Ok(())
     }
 
-    fn try_visit_expr(&self, ctx: &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
+    fn try_leave_expr(&self, ctx: &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
         #[allow(unused)]
         match &mut expr.item {
             AnnotExprKind::Assign(assign_expr) => todo!(),
@@ -46,7 +46,7 @@ impl AnnotAstVisitor<'_> for ChunkBuilder {
                     _ => todo!()
                 });
             },
-            AnnotExprKind::Block(block_expr) => todo!(),
+            AnnotExprKind::Block(block_expr) => {},
             AnnotExprKind::Call(call_expr) => todo!(),
             AnnotExprKind::Get(get_expr) => todo!(),
             AnnotExprKind::Group(expr) => todo!(),

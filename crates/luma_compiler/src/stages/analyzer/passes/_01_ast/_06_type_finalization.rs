@@ -28,6 +28,7 @@ impl AstVisitor<'_> for TypeFinalization {
     }
 }
 
+#[allow(unused)]
 impl TypeFinalization {
     fn finalize_stmt(
         &self,

@@ -1,5 +1,5 @@
-use crate::TypeKind;
-use luma_diagnostic::define_diagnostics;
+use crate::{ScopeId, TypeKind};
+use luma_diagnostic::{define_contexts, define_diagnostics};
 
 define_diagnostics! {
     pub enum AnalyzerError {
@@ -26,6 +26,15 @@ define_diagnostics! {
         TypeMismatch {
             expected: TypeKind,
             found: TypeKind,
+        },
+    }
+}
+
+define_contexts! {
+    pub enum AnalyzerErrorContext {
+        #[Context("in scope depth {scope_id}")]
+        ScopeContext {
+            scope_id: ScopeId,
         },
     }
 }

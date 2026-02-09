@@ -20,6 +20,7 @@ impl AstVisitor<'_> for TypeSolving {
     }
 }
 
+#[allow(unused)]
 impl TypeSolving {
     fn infer_stmt(&self, ctx: &mut AnalyzerContext, contextual_type: Option<&TypeKind>, stmt: &mut Stmt) {
         match &mut stmt.item {

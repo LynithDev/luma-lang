@@ -5,8 +5,7 @@ use crate::{ScopeId, SymbolId, Type, stages::analyzer::scopes::ScopeManager};
 #[derive(Debug)]
 pub struct SymbolTable {
     symbols: Vec<SymbolEntry>,
-    /// (namespace + name) -> symbol id
-    lookup_map: HashMap<(SymbolNamespace, ScopeId, String), SymbolId>,
+    lookup_map: HashMap<ScopeId, HashMap<SymbolNamespace, HashMap<String, SymbolId>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -14,9 +13,9 @@ pub enum SymbolNamespace {
     ControlFlow,
     Type,
     Value,
-    /// field symbols within a struct
-    /// usize - index of the field within the struct
-    StructField(usize),
+    // /// field symbols within a struct
+    // /// usize - index of the field within the struct
+    // StructField(usize),
 }
 
 #[derive(Debug)]
@@ -25,7 +24,6 @@ pub struct SymbolEntry {
     pub namespace: SymbolNamespace,
     pub scope_id: ScopeId,
     pub declared_ty: Option<Type>,
-    pub shadowed: Option<SymbolId>,
 }
 
 impl SymbolTable {
@@ -36,19 +34,28 @@ impl SymbolTable {
         }
     }
 
-    pub fn declare(&mut self, scope_id: ScopeId, namespace: SymbolNamespace, name: String, declared_ty: Option<Type>) -> SymbolId {
-        let shadowed = self.lookup_map.get(&(namespace, scope_id, name.clone())).cloned();
-
+    pub fn declare(
+        &mut self,
+        scope_id: ScopeId,
+        namespace: SymbolNamespace,
+        name: String,
+        declared_ty: Option<Type>,
+    ) -> SymbolId {
         let id = self.symbols.len();
+
         self.symbols.push(SymbolEntry {
             name: name.clone(),
             namespace,
             scope_id,
             declared_ty,
-            shadowed,
         });
 
-        self.lookup_map.insert((namespace, scope_id, name), id);
+        self.lookup_map
+            .entry(scope_id)
+            .or_default()
+            .entry(namespace)
+            .or_default()
+            .insert(name.clone(), id);
 
         id
     }
@@ -56,41 +63,31 @@ impl SymbolTable {
     pub fn lookup(
         &self,
         scopes: &ScopeManager,
-        namespace: SymbolNamespace, 
+        namespace: SymbolNamespace,
         mut scope: ScopeId,
         name: &str,
     ) -> Option<SymbolId> {
-        loop {
-            if let Some(id) = self.lookup_map.get(&(namespace, scope, name.to_string())) {
-                return Some(*id);
+        while let Some(scope_map) = self.lookup_map.get(&scope) {
+            if let Some(ns_map) = scope_map.get(&namespace)
+                && let Some(&id) = ns_map.get(name)
+            {
+                return Some(id);
             }
 
-            match scopes.parent(scope) {
-                Some(parent) => scope = parent,
-                None => return None,
-            }
+            scope = match scopes.parent(scope) {
+                Some(p) => p,
+                None => break,
+            };
         }
+        None
     }
 
-    pub fn enter_scope(&mut self) {
+    pub fn enter_scope(&mut self, scope_id: ScopeId) {
+        self.lookup_map.entry(scope_id).or_default();
+    }
+
+    pub fn exit_scope(&mut self, _scope: ScopeId) {
         // no-op
-    }
-
-    pub fn exit_scope(&mut self, scope: ScopeId) {
-        for i in (0..self.symbols.len()).rev() {
-            let sym = &self.symbols[i];
-            if sym.scope_id != scope {
-                continue;
-            }
-
-            let key = (sym.namespace, sym.scope_id, sym.name.clone());
-
-            if let Some(prev) = sym.shadowed {
-                self.lookup_map.insert(key, prev);
-            } else {
-                self.lookup_map.remove(&key);
-            }
-        }
     }
 
     pub fn get_symbol(&self, id: SymbolId) -> Option<&SymbolEntry> {

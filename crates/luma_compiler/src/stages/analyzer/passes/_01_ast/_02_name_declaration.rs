@@ -1,5 +1,5 @@
 use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass, symbols::SymbolNamespace};
-use crate::{Type, TypeKind, ast::*};
+use crate::{ScopeId, SymbolId, Type, TypeKind, ast::*};
 
 pub struct NameDeclaration;
 
@@ -16,86 +16,88 @@ impl AnalyzerPass<Ast> for NameDeclaration {
 impl AstVisitor<'_> for NameDeclaration {
     type Ctx = AnalyzerContext;
 
-    fn visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
-        let (namespace, declared_ty, symbol) = match &mut stmt.item {
-            StmtKind::Var(var_decl) => (
-                SymbolNamespace::Value,
-                var_decl.ty.clone(),
-                &mut var_decl.symbol.kind,
-            ),
-            StmtKind::Func(func_decl) => (
-                SymbolNamespace::Value,
-                func_decl.return_type.clone(),
-                &mut func_decl.symbol.kind,
-            ),
-            StmtKind::Struct(struct_decl) => (
-                SymbolNamespace::Type,
-                Some(Type::spanned(
+    fn leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
+        match &mut stmt.item {
+            StmtKind::Var(var_decl) => {
+                self.declare_symbol(
+                    ctx,
+                    stmt.scope_id.unwrap(),
+                    &mut var_decl.symbol,
+                    SymbolNamespace::Value,
+                    var_decl.ty.clone(),
+                );
+            }
+            StmtKind::Func(func_decl) => {
+                self.declare_symbol(
+                    ctx,
+                    stmt.scope_id.unwrap(),
+                    &mut func_decl.symbol,
+                    SymbolNamespace::Value,
+                    func_decl.return_type.clone(),
+                );
+            }
+            StmtKind::Struct(struct_decl) => {
+                // walk fields first
+                // todo: struct fields decl
+                // for (index, field) in struct_decl.fields.iter_mut().enumerate() {
+                //     let symbol = &mut field.symbol.kind;
+
+                //     // this should never occur, as we should only visit fields of declared structs
+                //     let struct_id = struct_symbol.kind.id().unwrap();
+
+                //     let current_scope = ctx.scopes.borrow().current_scope();
+                //     let symbol_id = ctx.symbols.borrow_mut().declare(
+                //         current_scope,
+                //         SymbolNamespace::StructField(struct_id),
+                //         symbol.name().to_string(),
+                //         Some(field.ty.clone())
+                //     );
+
+                //     symbol.set_id(symbol_id);
+                // }
+
+                let ty = Some(Type::spanned(
                     struct_decl.symbol.span,
                     TypeKind::Named {
                         name: struct_decl.symbol.name().to_string(),
                         def_id: None,
                     },
-                )),
-                &mut struct_decl.symbol.kind,
-            ),
-            _ => return,
-        };
+                ));
 
-        let current_scope = ctx.scopes.borrow().current_scope();
-        let symbol_id =
-            ctx.symbols
-                .borrow_mut()
-                .declare(current_scope, namespace, symbol.name().to_string(), declared_ty);
-
-        symbol.set_id(symbol_id);
+                self.declare_symbol(ctx, stmt.scope_id.unwrap(), &mut struct_decl.symbol, SymbolNamespace::Type, ty);
+            }
+            _ => {},
+        }
     }
 
-    fn visit_func_param(&self, ctx: &mut Self::Ctx, param: &mut FuncParam) {
-        let symbol = &mut param.symbol.kind;
-
-        let current_scope = ctx.scopes.borrow().current_scope();
-        let symbol_id = ctx.symbols.borrow_mut().declare(
-            current_scope,
+    fn leave_func_param<'node>(&self, ctx: &mut Self::Ctx, _func: &'node FuncDeclStmt, param: &'node mut FuncParam) {
+        self.declare_symbol(
+            ctx,
+            param.scope_id.unwrap(),
+            &mut param.symbol,
             SymbolNamespace::Value,
-            symbol.name().to_string(),
-            Some(param.ty.clone())
+            Some(param.ty.clone()),
         );
-
-        symbol.set_id(symbol_id);
     }
+}
 
-    fn visit_struct_field_decl(
+impl NameDeclaration {
+    fn declare_symbol(
         &self,
-        ctx: &mut Self::Ctx,
-        struct_symbol: &Symbol,
-        field: &mut StructFieldDecl,
-    ) {
-        let symbol = &mut field.symbol.kind;
-
-        // this should never occur, as we should only visit fields of declared structs
-        let struct_id = struct_symbol.kind.id().unwrap();
-
-        let current_scope = ctx.scopes.borrow().current_scope();
+        ctx: &mut AnalyzerContext,
+        scope_id: ScopeId,
+        symbol: &mut Symbol,
+        namespace: SymbolNamespace,
+        declared_ty: Option<Type>,
+    ) -> SymbolId {
         let symbol_id = ctx.symbols.borrow_mut().declare(
-            current_scope,
-            SymbolNamespace::StructField(struct_id),
+            scope_id,
+            namespace,
             symbol.name().to_string(),
-            Some(field.ty.clone())
+            declared_ty,
         );
 
         symbol.set_id(symbol_id);
-    }
-
-    fn enter_scope(&self, ctx: &mut Self::Ctx) {
-        ctx.scopes.borrow_mut().enter_scope();
-        ctx.symbols.borrow_mut().enter_scope();
-    }
-
-    fn exit_scope(&self, ctx: &mut Self::Ctx) {
-        let scope = ctx.scopes.borrow_mut().current_scope();
-
-        ctx.symbols.borrow_mut().exit_scope(scope);
-        ctx.scopes.borrow_mut().exit_scope();
+        symbol_id
     }
 }
