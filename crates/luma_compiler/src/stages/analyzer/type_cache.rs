@@ -23,6 +23,15 @@ pub enum TypeCacheEntry {
     Relative(RelativeTypeId),
 }
 
+impl TypeCacheEntry {
+    pub fn as_concrete(&self) -> Option<&TypeKind> {
+        match self {
+            TypeCacheEntry::Concrete(ty) => Some(ty),
+            TypeCacheEntry::Relative(_) => None,
+        }
+    }
+}
+
 impl TypeCache {
     pub fn new() -> Self {
         TypeCache {

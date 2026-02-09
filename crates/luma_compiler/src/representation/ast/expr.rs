@@ -67,14 +67,25 @@ pub struct BlockExpr {
 }
 
 impl BlockExpr {
+    // TODO: This has a bug, this doesn't check if the last expression statemnet is a return (a return only qualifies 
+    // if it doesnt have a semicolon, which only our parser and lexer know about)
+    // so implement a field in BlockExpr that stores the return expression there instead
     pub fn return_value(&self) -> Option<&Expr> {
         let stmt = self.statements.last()?;
 
         match &stmt.item {
             StmtKind::Expr(expr) => Some(expr),
-            StmtKind::Return(ret) => ret
-                .value
-                .as_ref(),
+            StmtKind::Return(ret) => ret.value.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn return_value_mut(&mut self) -> Option<&mut Expr> {
+        let stmt = self.statements.last_mut()?;
+
+        match &mut stmt.item {
+            StmtKind::Expr(expr) => Some(expr),
+            StmtKind::Return(ret) => ret.value.as_mut(),
             _ => None,
         }
     }

@@ -18,21 +18,51 @@ impl AnalyzerPass<Ast> for TypeInference {
 impl AstVisitor<'_> for TypeInference {
     type Ctx = AnalyzerContext;
 
-    fn visit_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
-        #[allow(unused)]
+    fn leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
+        self.infer_stmt(ctx, None, stmt);
+    }
+}
+
+impl TypeInference {
+    fn infer_stmt(
+        &self,
+        ctx: &mut AnalyzerContext,
+        contextual_type: Option<&TypeKind>,
+        stmt: &mut Stmt,
+    ) {
         match &mut stmt.item {
             StmtKind::Expr(expr) => {
-                Self::infer_expr(ctx, None, expr);
+                self.infer_expr(ctx, contextual_type, expr);
             }
-            StmtKind::Func(_) => todo!(),
+            StmtKind::Func(func_decl) => {
+                let symbol_id = func_decl.symbol.unwrap_id();
+
+                let type_entry = {
+                    let mut ty_cache = ctx.type_cache.borrow_mut();
+
+                    if let Some(ty) = &func_decl.return_type {
+                        ty_cache.insert_concrete(symbol_id, ty.kind.clone());
+                        TypeCacheEntry::Concrete(ty.kind.clone())
+                    } else {
+                        let id = ty_cache.insert_relative(symbol_id);
+                        TypeCacheEntry::Relative(id)
+                    }
+                };
+
+                let body_type = self.infer_expr(ctx, type_entry.as_concrete(), &mut func_decl.body);
+
+                if let Err(err) = ctx.type_cache.borrow_mut().unify(&type_entry, &body_type) {
+                    ctx.diagnostic(err.span(func_decl.symbol.span));
+                }
+            }
             StmtKind::Return(return_stmt) => todo!(),
             StmtKind::Struct(struct_decl_stmt) => todo!(),
             StmtKind::Var(var_decl) => {
                 let symbol_id = var_decl.symbol.unwrap_id();
-                
+
                 let type_entry = {
                     let mut ty_cache = ctx.type_cache.borrow_mut();
-                    
+
                     if let Some(ty) = &var_decl.ty {
                         ty_cache.insert_concrete(symbol_id, ty.kind.clone());
                         TypeCacheEntry::Concrete(ty.kind.clone())
@@ -42,66 +72,79 @@ impl AstVisitor<'_> for TypeInference {
                     }
                 };
 
-                let ctx_type = match &type_entry {
-                    TypeCacheEntry::Concrete(ty) => Some(ty),
-                    TypeCacheEntry::Relative(_) => None,
-                };
+                let init_type =
+                    self.infer_expr(ctx, type_entry.as_concrete(), &mut var_decl.initializer);
 
-                let init_type = Self::infer_expr(
-                    ctx,
-                    ctx_type,
-                    &var_decl.initializer,
-                );
-
-                if let Err(mut err) = ctx.type_cache.borrow_mut().unify(&type_entry, &init_type) {
+                if let Err(err) = ctx.type_cache.borrow_mut().unify(&type_entry, &init_type) {
                     ctx.diagnostic(err.span(var_decl.symbol.span));
                 }
             }
         }
     }
-}
 
-impl TypeInference {
-    fn infer_expr(ctx: &AnalyzerContext, contextual_type: Option<&TypeKind>, expr: &Expr) -> TypeCacheEntry {
+    fn infer_expr(
+        &self,
+        ctx: &mut AnalyzerContext,
+        contextual_type: Option<&TypeKind>,
+        expr: &mut Expr,
+    ) -> TypeCacheEntry {
         #[allow(unused)]
-        match &expr.item {
+        match &mut expr.item {
             ExprKind::Assign(assign_expr) => todo!(),
             ExprKind::Binary(binary_expr) => {
-                let left_type = Self::infer_expr(ctx, None, &binary_expr.left);
-                let right_type = Self::infer_expr(ctx, None, &binary_expr.right);
+                let left_type = self.infer_expr(ctx, None, &mut binary_expr.left);
+                let right_type = self.infer_expr(ctx, None, &mut binary_expr.right);
 
                 if let Err(mut err) = ctx.type_cache.borrow_mut().unify(&left_type, &right_type) {
                     ctx.diagnostic(err.span(binary_expr.operator.span));
                 }
 
                 left_type
-            },
-            ExprKind::Block(block_expr) => todo!(),
+            }
+            ExprKind::Block(block_expr) => {
+                let mut last_type = TypeCacheEntry::Concrete(TypeKind::Unit);
+
+                for stmt in &mut block_expr.statements {
+                    self.infer_stmt(ctx, contextual_type, stmt);
+                }
+
+                if let Some(expr) = block_expr.return_value_mut() {
+                    last_type = self.infer_expr(ctx, contextual_type, expr);
+                }
+                
+                last_type
+            }
             ExprKind::Call(call_expr) => todo!(),
             ExprKind::Get(get_expr) => todo!(),
-            ExprKind::Group(expr) => todo!(),
+            ExprKind::Group(expr) => self.infer_expr(ctx, contextual_type, expr),
             ExprKind::Ident(ident_expr) => {
                 let symbol_id = ident_expr.symbol.unwrap_id();
-                ctx.type_cache.borrow().get(symbol_id)
+                ctx.type_cache
+                    .borrow()
+                    .get(symbol_id)
                     .cloned()
                     .unwrap_or_else(|| {
                         let id = ctx.type_cache.borrow_mut().insert_relative(symbol_id);
 
                         TypeCacheEntry::Relative(id)
                     })
-            },
+            }
             ExprKind::If(if_expr) => todo!(),
             ExprKind::Literal(literal_expr) => {
-                let ty = Self::infer_literal_type(contextual_type, literal_expr).unwrap_or(TypeKind::Unit);
+                let ty = Self::infer_literal_type(contextual_type, literal_expr)
+                    .unwrap_or(TypeKind::Unit);
                 TypeCacheEntry::Concrete(ty)
-            },
+            }
             ExprKind::Struct(struct_expr) => todo!(),
             ExprKind::TupleLiteral(tuple_expr) => todo!(),
             ExprKind::Unary(unary_expr) => todo!(),
         }
     }
 
-    pub(super) fn infer_literal_type(contextual_type: Option<&TypeKind>, lit: &LiteralExpr) -> Option<TypeKind> {
+    pub(super) fn infer_literal_type(
+        contextual_type: Option<&TypeKind>,
+        lit: &LiteralExpr,
+    ) -> Option<TypeKind> {
         Some(match (lit, contextual_type) {
             // integer literals
             (LiteralExpr::Int(n), Some(TypeKind::UInt8)) if *n <= u8::MAX as u64 => TypeKind::UInt8,
