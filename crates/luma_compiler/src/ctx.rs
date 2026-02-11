@@ -3,17 +3,24 @@ use std::cell::{Ref, RefCell, RefMut};
 use luma_core::SourceManager;
 use luma_diagnostic::Diagnostic;
 
+use crate::CompilerOptions;
+
+#[derive(Default)]
 pub struct CompilerContext {
-    pub sources: SourceManager,
     current_stage_name: RefCell<String>,
+    
+    pub options: CompilerOptions,
+    pub sources: SourceManager,
     pub(crate) diagnostics: RefCell<Vec<Diagnostic>>,
 }
 
 impl CompilerContext {
-    pub fn new() -> Self {
+    pub fn configure(options: CompilerOptions) -> Self {
         Self {
-            sources: SourceManager::new(),
             current_stage_name: RefCell::new(String::new()),
+            options,
+            
+            sources: SourceManager::new(),
             diagnostics: RefCell::new(Vec::new()),
         }
     }

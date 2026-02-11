@@ -100,6 +100,10 @@ pub trait AstVisitor<'a> {
                     self.walk_stmt(ctx, stmt);
                 }
 
+                if let Some(expr) = &mut block_expr.tail_expr {
+                    self.walk_expr(ctx, expr);
+                }
+
                 self.exit_scope(ctx, expr.scope_id.map(|scope| scope + 1));
             },
             ExprKind::Call(call_expr) => {

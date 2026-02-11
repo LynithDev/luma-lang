@@ -33,8 +33,8 @@ pub trait AnnotAstVisitor<'a> {
     fn enter_scope(&self, ctx: &mut Self::Ctx) {}
     fn exit_scope(&self, ctx: &mut Self::Ctx) {}
 
-    fn traverse(&self, ctx: &mut Self::Ctx, ast: &mut AnnotatedAst) -> CompilerResult<()> {
-        for stmt in &mut ast.statements {
+    fn traverse(&self, ctx: &mut Self::Ctx, stmts: &mut Vec<AnnotStmt>) -> CompilerResult<()> {
+        for stmt in stmts {
             self.walk_stmt(ctx, stmt)?;
         }
 
@@ -58,6 +58,10 @@ pub trait AnnotAstVisitor<'a> {
 
                 for stmt in &mut block_expr.statements {
                     self.walk_stmt(ctx, stmt)?;
+                }
+
+                if let Some(expr) = &mut block_expr.tail_expr {
+                    self.walk_expr(ctx, expr)?;
                 }
 
                 self.exit_scope(ctx);

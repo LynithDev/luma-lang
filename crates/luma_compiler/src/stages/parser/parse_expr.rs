@@ -510,7 +510,9 @@ impl TokenParser<'_> {
     /// Parses a block expression
     pub(super) fn expr_block(&mut self) -> CompilerResult<Expr> {
         let left_brace = self.consume(TokenKind::LeftBrace)?;
+
         let mut statements = Vec::new();
+        let mut tail_expr = None;
 
         while !self.check(TokenKind::RightBrace) && !self.is_at_end() {
             let stmt = self.parse_statement(Some(false))?;
@@ -531,6 +533,13 @@ impl TokenParser<'_> {
                     },
                     current.span,
                 ));
+            } else if let StmtKind::Expr(expr) = stmt.item {
+                // we don't need a semicolon and there isn't one,
+                // meaning this must be the tail expression
+                tail_expr = Some(Box::new(expr));
+
+                // don't push this as a statement
+                continue; 
             }
 
             statements.push(stmt);
@@ -540,7 +549,10 @@ impl TokenParser<'_> {
 
         Ok(Expr::new(
             left_brace.span.merged(&right_brace.span),
-            ExprKind::Block(BlockExpr { statements }),
+            ExprKind::Block(BlockExpr { 
+                statements,
+                tail_expr
+            }),
         ))
     }
 

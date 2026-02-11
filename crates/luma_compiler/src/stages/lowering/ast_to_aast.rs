@@ -90,7 +90,7 @@ fn annotate_func_decl(func_decl: FuncDeclStmt) -> CompilerResult<FuncDeclAnnotSt
                         None => None,
                     },
                     span: param.span,
-                    scope_id: param.scope_id.unwrap()
+                    scope_id: param.scope_id.unwrap(),
                 })
             })
             .try_collect()?,
@@ -196,6 +196,12 @@ fn annotate_block(block_expr: BlockExpr) -> CompilerResult<BlockAnnotExpr> {
             .into_iter()
             .map(annotate_stmt)
             .try_collect()?,
+        tail_expr: block_expr
+            .tail_expr
+            .map(|expr| *expr)
+            .map(annotate_expr)
+            .transpose()?
+            .map(Box::new)
     })
 }
 

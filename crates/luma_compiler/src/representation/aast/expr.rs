@@ -56,6 +56,7 @@ pub struct BinaryAnnotExpr {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockAnnotExpr {
     pub statements: Vec<AnnotStmt>,
+    pub tail_expr: Option<Box<AnnotExpr>>,
 }
 
 impl BlockAnnotExpr {

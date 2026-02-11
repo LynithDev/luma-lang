@@ -1,4 +1,4 @@
-use crate::{ast::*, compiler::run_stage};
+use crate::{CompilerOptions, ast::*, compiler::run_stage, stages::lexer::LexerOptions};
 use luma_core::{CodeSource, CodeSourceId};
 
 use crate::{AnalyzerStage, CompilerContext, LexerStage, ParserStage};
@@ -23,7 +23,14 @@ pub(crate) use macros::*;
 pub fn analyze_source(src: &str) -> Option<Ast> {
     let source = CodeSource::from(src);
     
-    let mut ctx = CompilerContext::new();
+    let mut ctx = CompilerContext::configure(CompilerOptions {
+        lexer: LexerOptions {
+            zeroed_spans: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    
     ctx.sources.add_source(source);
 
     let tokens = run_stage(&ctx, LexerStage, vec![CodeSourceId::new(0)]).ok()?;

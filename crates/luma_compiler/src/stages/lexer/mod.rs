@@ -1,12 +1,15 @@
-mod tokens;
 
 use std::str::Chars;
 
 use luma_core::{CodeSourceId, Span};
 use luma_diagnostic::error;
-pub use tokens::*;
-
 use crate::{CompilerContext, CompilerStage, diagnostics::CompilerError};
+
+mod tokens;
+mod options;
+
+pub use tokens::*;
+pub use options::*;
 
 pub struct LexerStage;
 
@@ -23,12 +26,12 @@ impl CompilerStage<'_> for LexerStage {
             .into_iter()
             .map(|id| {
                 let Some(source) = ctx.sources.get_source(id) else {
-                    let diagnostic = error!(CompilerError::InvalidSourceId { id }, Span::void());
+                    let diagnostic = error!(CompilerError::InvalidSourceId { id }, Span::ZERO);
                     ctx.add_diag(diagnostic);
                     return Vec::new();
                 };
 
-                Tokenizer::new(&source.content, id).process()
+                Tokenizer::new(&source.content, id, &ctx.options.lexer).process()
             })
             .collect()
     }
@@ -42,10 +45,12 @@ struct Tokenizer<'a> {
     cursor: u32,
     span_start: u32,
     lexeme: String,
+
+    options: &'a LexerOptions,
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(content: &'a str, id: CodeSourceId) -> Self {
+    pub fn new(content: &'a str, id: CodeSourceId, options: &'a LexerOptions) -> Self {
         Self {
             source_id: id,
             chars: content.chars(),
@@ -54,6 +59,8 @@ impl<'a> Tokenizer<'a> {
             cursor: 0,
             span_start: 0,
             lexeme: String::new(),
+
+            options,
         }
     }
 
@@ -77,9 +84,15 @@ impl<'a> Tokenizer<'a> {
                 None => continue,
             };
 
+            let span = if self.options.zeroed_spans {
+                Span::ZERO
+            } else {
+                Span::new(self.source_id, self.span_start, self.cursor)
+            };
+
             // now we add the token
             let token = Token {
-                span: Span::new(self.source_id, self.span_start, self.cursor),
+                span,
                 kind: token_kind,
                 lexeme: self.lexeme.clone(),
             };

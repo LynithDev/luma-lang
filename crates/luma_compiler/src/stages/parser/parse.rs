@@ -1,5 +1,5 @@
 use crate::ast::*;
-use luma_core::{CodeSourceId, Span};
+use luma_core::Span;
 use luma_diagnostic::{CompilerResult, Diagnostic, error};
 
 use crate::stages::{
@@ -28,7 +28,7 @@ impl TokenParser<'_> {
     pub(super) fn parse_tokens(mut self, diagnostics: &mut Vec<Diagnostic>) -> Ast {
         if self.tokens.is_empty() {
             return Ast {
-                span: Span::new(CodeSourceId::void(), 0, 0),
+                span: Span::ZERO,
                 statements: Vec::new(),
             };
         }

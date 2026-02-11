@@ -10,7 +10,7 @@ use crate::{
 pub type LocalSlot = u16;
 pub type ConstSlot = u16;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ChunkBuilderEnv {
     pub chunk: CodeChunk,
 
@@ -23,6 +23,14 @@ pub struct ChunkBuilderEnv {
 }
 
 impl ChunkBuilderEnv {
+    pub fn new() -> Self {
+        Self {
+            chunk: CodeChunk::default(),
+            local_slots: HashMap::new(),
+            constants_lookup: HashMap::new(),
+        }
+    }
+
     /// Declares a new local variable and returns its slot index
     pub fn declare_local(&mut self, symbol_id: usize) -> CompilerResult<LocalSlot> {
         let slot_index = self.local_slots.len();

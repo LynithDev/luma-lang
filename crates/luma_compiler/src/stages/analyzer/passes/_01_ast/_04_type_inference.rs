@@ -109,7 +109,7 @@ impl TypeInference {
                     self.infer_stmt(ctx, contextual_type, stmt);
                 }
 
-                if let Some(expr) = block_expr.return_value_mut() {
+                if let Some(expr) = &mut block_expr.tail_expr {
                     last_type = self.infer_expr(ctx, contextual_type, expr);
                 }
                 

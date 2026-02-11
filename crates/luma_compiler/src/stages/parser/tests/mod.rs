@@ -1,10 +1,19 @@
-use crate::{CompilerContext, LexerStage, ParserStage, ast::Ast, compiler::run_stage};
+use crate::{
+    CompilerContext, CompilerOptions, LexerStage, ParserStage, ast::Ast, compiler::run_stage, stages::lexer::LexerOptions,
+};
 
-pub mod parse_var;
 pub mod parse_func;
+pub mod parse_var;
 
 pub fn parse_ast(src: &str) -> Ast {
-    let mut ctx = CompilerContext::new();
+    let mut ctx = CompilerContext::configure(CompilerOptions {
+        lexer: LexerOptions {
+            zeroed_spans: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    
     ctx.sources.add_source(src.into());
 
     let tokens = run_stage(&ctx, LexerStage, vec![0.into()]).expect("lexing failed");

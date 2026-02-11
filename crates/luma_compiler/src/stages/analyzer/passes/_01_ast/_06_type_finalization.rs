@@ -110,7 +110,8 @@ impl TypeFinalization {
                     self.finalize_stmt(ctx, contextual_type, stmt);
                 }
 
-                if let Some(expr) = block_expr.return_value_mut() {
+                if let Some(expr) = &mut block_expr.tail_expr {
+                    self.finalize_expr(ctx, contextual_type, expr);
                     last_type = expr.ty.clone();
                 }
 

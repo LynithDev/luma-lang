@@ -80,6 +80,8 @@ impl TryFrom<PathBuf> for CodeSource {
 }
 
 impl CodeSourceId {
+    pub const ZERO: CodeSourceId = CodeSourceId::new(0);
+
     #[must_use]
     pub const fn new(id: u32) -> Self {
         Self(id)
@@ -88,17 +90,6 @@ impl CodeSourceId {
     #[must_use]
     pub const fn value(&self) -> u32 {
         self.0
-    }
-
-    /// a special "void" source ID that can be used to represent the absence of a source
-    pub const fn void() -> Self {
-        Self(u32::MAX)
-    }
-
-    /// checks if this is the "void" source ID
-    #[must_use]
-    pub const fn is_void(&self) -> bool {
-        self.0 == u32::MAX
     }
 }
 

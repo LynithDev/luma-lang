@@ -14,27 +14,27 @@ fn var_with_type_and_value() {
     assert_eq!(
         ast,
         Ast::new(
-            Span::void(),
+            Span::ZERO,
             vec![
                 Stmt::new(
-                    Span::void(),
+                    Span::ZERO,
                     StmtKind::Var(VarDeclStmt {
-                        symbol: Symbol::new(Span::void(), SymbolKind::named("x".to_string())),
-                        ty: Some(Type::spanned(Span::void(), TypeKind::UInt32)),
+                        symbol: Symbol::new(Span::ZERO, SymbolKind::named("x".to_string())),
+                        ty: Some(Type::spanned(Span::ZERO, TypeKind::UInt32)),
                         initializer: Expr::new(
-                            Span::void(),
+                            Span::ZERO,
                             ExprKind::Literal(LiteralExpr::Int(42)),
                         ),
                         visibility: Visibility::unspanned(VisibilityKind::default()),
                     }),
                 ),
                 Stmt::new(
-                    Span::void(),
+                    Span::ZERO,
                     StmtKind::Var(VarDeclStmt {
-                        symbol: Symbol::new(Span::void(), SymbolKind::named("y".to_string())),
+                        symbol: Symbol::new(Span::ZERO, SymbolKind::named("y".to_string())),
                         ty: None,
                         initializer: Expr::new(
-                            Span::void(),
+                            Span::ZERO,
                             ExprKind::Literal(LiteralExpr::Float(2.5)),
                         ),
                         visibility: Visibility::unspanned(VisibilityKind::default()),
@@ -56,19 +56,19 @@ fn pub_var_visibility() {
     assert_eq!(
         ast,
         Ast::new(
-            Span::void(),
+            Span::ZERO,
             vec![
                 Stmt::new(
-                    Span::void(),
+                    Span::ZERO,
                     StmtKind::Var(VarDeclStmt {
-                        symbol: Symbol::new(Span::void(), SymbolKind::named("a".to_string())),
+                        symbol: Symbol::new(Span::ZERO, SymbolKind::named("a".to_string())),
                         ty: None,
                         initializer: Expr::new(
-                            Span::void(),
+                            Span::ZERO,
                             ExprKind::Literal(LiteralExpr::Int(5)),
                         ),
                         visibility: Visibility::spanned(
-                            Span::void(),
+                            Span::ZERO,
                             VisibilityKind::Module,
                         ),
                     }),

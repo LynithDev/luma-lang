@@ -1,8 +1,13 @@
-use crate::{CompilerContext, CompilerStage, aast::*, bytecode::ModuleBytecode, stages::codegen::bytecode_gen::BytecodeGen};
+use crate::{
+    CompilerContext, CompilerStage, aast::*, bytecode::ModuleBytecode,
+    stages::codegen::module::BytecodeGen,
+};
 
 pub mod chunk;
 mod diagnostics;
-mod bytecode_gen;
+pub mod module;
+pub mod scope;
+pub mod stores;
 
 pub use diagnostics::*;
 
@@ -34,7 +39,7 @@ impl CompilerStage<'_> for CodegenStage {
                     return Vec::new();
                 }
             };
-        
+
             bytecodes.push(bytecode);
         }
 

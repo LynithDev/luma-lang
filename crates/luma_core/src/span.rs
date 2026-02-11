@@ -8,19 +8,14 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn new(source_id: CodeSourceId, start: u32, end: u32) -> Self {
+    pub const ZERO: Span = Span::new(CodeSourceId::ZERO, 0, 0);
+
+    #[must_use]
+    pub const fn new(source_id: CodeSourceId, start: u32, end: u32) -> Self {
         Self {
             source_id,
             start,
             end,
-        }
-    }
-
-    pub fn void() -> Self {
-        Self {
-            source_id: CodeSourceId::void(),
-            start: 0,
-            end: 0,
         }
     }
 

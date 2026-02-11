@@ -1,11 +1,10 @@
 use crate::bytecode::{BytecodeValue, Opcode};
 
-pub mod scope;
-mod env;
 mod builder;
+mod env;
 
-pub use env::*;
 pub use builder::*;
+pub use env::*;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct CodeChunk {

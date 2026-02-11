@@ -1,47 +1,49 @@
 use luma_diagnostic::CompilerResult;
 
-use crate::{OperatorKind, aast::*, bytecode::*, stages::codegen::chunk::{ChunkBuilderEnv, CodeChunk}};
+use crate::{OperatorKind, aast::*, bytecode::*, stages::codegen::{chunk::{ChunkBuilderEnv, CodeChunk}, module::ModuleContext}};
 
 pub struct ChunkBuilder;
 
 impl ChunkBuilder {
-    pub fn build(self, ast: &mut AnnotatedAst) -> CompilerResult<CodeChunk> {
-        let mut ctx = ChunkBuilderEnv::default();
+    pub fn build(self, ctx: &ModuleContext, statements: &mut Vec<AnnotStmt>) -> CompilerResult<CodeChunk> {
+        let mut env = ChunkBuilderEnv::new();
 
-        dbg!(&ast);
+        self.traverse(&mut (ctx, &mut env), statements)?;
 
-        self.traverse(&mut ctx, ast)?;
-
-        Ok(ctx.chunk)
+        Ok(env.chunk)
     }
 }
 
-impl AnnotAstVisitor<'_> for ChunkBuilder {
-    type Ctx = ChunkBuilderEnv;
+impl< 'a> AnnotAstVisitor<'a> for ChunkBuilder {
+    type Ctx = (&'a ModuleContext, &'a mut ChunkBuilderEnv);
 
-    fn try_leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
+    fn try_leave_stmt(&self, (ctx, env): &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
         #[allow(unused)]
         match &stmt.item {
-            AnnotStmtKind::Expr(expr) => {},
-            AnnotStmtKind::Func(func_decl) => todo!(),
+            AnnotStmtKind::Expr(expr) => {
+                env.emit(Opcode::Pop);
+            },
+            AnnotStmtKind::Func(func_decl) => {
+                // let chunk = Self.build(ctx, &mut func_decl.body)?;
+            },
             AnnotStmtKind::Return(ret_stmt) => todo!(),
             AnnotStmtKind::Struct(struct_decl) => todo!(),
             AnnotStmtKind::Var(var_decl) => {
-                let slot = ctx.declare_local(var_decl.symbol.id)?;
+                let slot = env.declare_local(var_decl.symbol.id)?;
 
-                ctx.emit(Opcode::SetLocal(slot));
+                env.emit(Opcode::SetLocal(slot));
             },
         }
 
         Ok(())
     }
 
-    fn try_leave_expr(&self, ctx: &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
+    fn try_leave_expr(&self, (ctx, env): &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
         #[allow(unused)]
         match &mut expr.item {
             AnnotExprKind::Assign(assign_expr) => todo!(),
             AnnotExprKind::Binary(binary_expr) => {
-                ctx.emit(match binary_expr.operator.kind {
+                env.emit(match binary_expr.operator.kind {
                     OperatorKind::Add => Opcode::Add,
                     _ => todo!()
                 });
@@ -51,15 +53,16 @@ impl AnnotAstVisitor<'_> for ChunkBuilder {
             AnnotExprKind::Get(get_expr) => todo!(),
             AnnotExprKind::Group(expr) => todo!(),
             AnnotExprKind::Ident(ident_expr) => {
-                let slot = ctx.resolve_local_slot(&ident_expr.symbol.id)?;
-                ctx.emit(Opcode::GetLocal(slot));
+                let slot = env.resolve_local_slot(&ident_expr.symbol.id)?;
+                env.emit(Opcode::GetLocal(slot));
             },
             AnnotExprKind::If(if_expr) => todo!(),
-            AnnotExprKind::Literal(literal_expr) => {
-                let bytecode_value = build_literal_expr(literal_expr.clone());
-                let const_index = ctx.add_constant(bytecode_value)?;
+            AnnotExprKind::Literal(literal_expr) => { 
 
-                ctx.emit(Opcode::LoadConst(const_index));
+                let bytecode_value = build_literal_expr(literal_expr.clone());
+                let const_index = env.add_constant(bytecode_value)?;
+
+                env.emit(Opcode::LoadConst(const_index));
             },
             AnnotExprKind::Struct(struct_expr) => todo!(),
             AnnotExprKind::TupleLiteral(tuple_expr) => todo!(),
@@ -71,7 +74,7 @@ impl AnnotAstVisitor<'_> for ChunkBuilder {
 
 }
 
-pub fn build_literal_expr(lit: LiteralAnnotExpr) -> BytecodeValue {
+fn build_literal_expr(lit: LiteralAnnotExpr) -> BytecodeValue {
     match lit {
         LiteralAnnotExpr::Int(value) => match value {
             IntLiteralAnnotExpr::UInt8(value) => BytecodeValue::UInt8(value),

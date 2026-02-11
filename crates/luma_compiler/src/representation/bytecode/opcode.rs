@@ -2,6 +2,29 @@
 #[repr(u8)]
 pub enum Opcode {
     // ##########################
+    // ###  stack operations  ###
+    // ##########################
+
+    /// get local variable
+    GetLocal(u16) = 0x01,
+
+    /// set local variable
+    SetLocal(u16) = 0x02,
+
+    /// remove top of stack
+    Pop = 0x03,
+
+    /// duplicate top of stack
+    Dup = 0x04,
+
+    // ###########################
+    // ###  values / literals  ###
+    // ###########################
+
+    /// load constant from constant pool
+    LoadConst(u16) = 0x05,
+
+    // ##########################
     // ###  binary operators  ###
     // ##########################
     
@@ -37,26 +60,4 @@ pub enum Opcode {
     Not,
     BitNot,
 
-    // ###########################
-    // ###  values / literals  ###
-    // ###########################
-
-    /// load constant from constant pool
-    LoadConst(u16),
-    
-    // ##########################
-    // ###  stack operations  ###
-    // ##########################
-
-    /// duplicate top of stack
-    Dup,
-
-    /// get local variable
-    GetLocal(u16),
-
-    /// set local variable
-    SetLocal(u16),
-
-    /// remove top of stack
-    Pop,
 }

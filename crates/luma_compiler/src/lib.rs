@@ -2,14 +2,16 @@
 #![feature(iterator_try_collect)]
 #![feature(try_blocks)]
 
-mod ctx;
-mod representation;
 mod compiler;
+mod ctx;
 pub mod diagnostics;
+mod options;
+mod representation;
 pub mod stages;
 
 pub use compiler::LumaCompiler;
 pub use ctx::CompilerContext;
+pub use options::CompilerOptions;
 pub use representation::*;
 pub use stages::{
     analyzer::AnalyzerStage, codegen::CodegenStage, lexer::LexerStage, lowering::AstLoweringStage,
@@ -24,4 +26,3 @@ pub trait CompilerStage<'stage> {
 
     fn process(self, ctx: &CompilerContext, input: Self::Input) -> Self::Output;
 }
-

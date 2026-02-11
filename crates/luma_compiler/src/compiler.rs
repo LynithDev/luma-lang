@@ -1,10 +1,10 @@
 use luma_core::{CodeSource, CodeSourceId, SourceManager};
 use luma_diagnostic::Diagnostic;
 
-use crate::{AnalyzerStage, AstLoweringStage, CodegenStage, CompilerContext, CompilerStage, LexerStage, ParserStage, aast::AnnotatedAst, ast::Ast, bytecode::ModuleBytecode};
+use crate::{AnalyzerStage, AstLoweringStage, CodegenStage, CompilerContext, CompilerOptions, CompilerStage, LexerStage, ParserStage, aast::AnnotatedAst, ast::Ast, bytecode::ModuleBytecode};
 
 pub struct LumaCompiler {
-    // todo: flags, options
+    options: CompilerOptions,
 }
 
 #[derive(Debug)]
@@ -16,18 +16,26 @@ pub struct CompileResult {
 
 impl LumaCompiler {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            options: CompilerOptions::default(),
+        }
+    }
+
+    pub fn configure(options: CompilerOptions) -> Self {
+        Self { 
+            options
+        }
     }
 
     pub fn compile(self, sources: impl IntoIterator<Item = CodeSource>) -> CompileResult {
-        let mut ctx = CompilerContext::new();
+        let mut ctx = CompilerContext::configure(self.options);
         let mut source_ids = Vec::<CodeSourceId>::new();
 
         for source in sources {
             source_ids.push(ctx.sources.add_source(source));
         }
 
-        let bytecode = self.run_pipeline(&ctx, source_ids);
+        let bytecode = Self::run_pipeline(&ctx, source_ids);
 
         CompileResult {
             sources: ctx.sources,
@@ -36,7 +44,7 @@ impl LumaCompiler {
         }
     }
 
-    fn run_pipeline(&self, ctx: &CompilerContext, source_ids: Vec<CodeSourceId>) -> Result<Vec<ModuleBytecode>, ()> {
+    fn run_pipeline(ctx: &CompilerContext, source_ids: Vec<CodeSourceId>) -> Result<Vec<ModuleBytecode>, ()> {
         let tokens = run_stage(ctx, LexerStage, source_ids)?;
         let asts = run_stage(ctx, ParserStage, &tokens)?;
         let asts = run_stage(ctx, AnalyzerStage::<Ast>::default(), asts)?;
