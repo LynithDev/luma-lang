@@ -36,5 +36,7 @@ define_contexts! {
         ScopeContext {
             scope_id: ScopeId,
         },
+        #[Context("in block expression")]
+        BlockContext,
     }
 }

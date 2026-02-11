@@ -4,7 +4,7 @@ use crate::{
     Type, TypeKind,
     ast::*,
     stages::analyzer::{
-        AnalyzerContext, AnalyzerError, AnalyzerPass, passes::_01_ast::TypeInference,
+        AnalyzerContext, AnalyzerError, AnalyzerPass, passes::_01_ast::TypeInference, type_cache::TypeCacheEntry,
     },
 };
 
@@ -16,15 +16,13 @@ impl AnalyzerPass<Ast> for TypeFinalization {
     }
 
     fn analyze(&self, ctx: &mut AnalyzerContext, input: &mut Ast) {
-        self.traverse(ctx, input);
+        for stmt in input.statements.iter_mut() {
+            self.finalize_stmt(ctx, &TypeCacheEntry::Concrete(TypeKind::Unit), stmt);
+        }
     }
-}
 
-impl AstVisitor<'_> for TypeFinalization {
-    type Ctx = AnalyzerContext;
-
-    fn leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
-        self.finalize_stmt(ctx, None, stmt);
+    fn continue_after_error(&self) -> bool {
+        false
     }
 }
 
@@ -33,7 +31,7 @@ impl TypeFinalization {
     fn finalize_stmt(
         &self,
         ctx: &mut AnalyzerContext,
-        contextual_type: Option<&TypeKind>,
+        contextual_type: &TypeCacheEntry,
         stmt: &mut Stmt,
     ) {
         match &mut stmt.item {
@@ -49,10 +47,9 @@ impl TypeFinalization {
                 };
 
                 let resolved_ty = ctx.type_cache.borrow_mut().resolve(&type_entry).unwrap();
-
                 func_decl.return_type = Some(Type::unspanned(resolved_ty.clone()));
 
-                self.finalize_expr(ctx, Some(&resolved_ty), &mut func_decl.body);
+                self.finalize_expr(ctx, &type_entry, &mut func_decl.body);
             }
             StmtKind::Return(return_stmt) => todo!(),
             StmtKind::Struct(struct_decl) => todo!(),
@@ -65,10 +62,9 @@ impl TypeFinalization {
                 };
 
                 let resolved_ty = ctx.type_cache.borrow_mut().resolve(&type_entry).unwrap();
-
                 var_decl.ty = Some(Type::unspanned(resolved_ty.clone()));
 
-                self.finalize_expr(ctx, Some(&resolved_ty), &mut var_decl.initializer);
+                self.finalize_expr(ctx, &type_entry, &mut var_decl.initializer);
             }
         }
     }
@@ -76,7 +72,7 @@ impl TypeFinalization {
     fn finalize_expr(
         &self,
         ctx: &mut AnalyzerContext,
-        contextual_type: Option<&TypeKind>,
+        contextual_type: &TypeCacheEntry,
         expr: &mut Expr,
     ) {
         match self.infer_expr(ctx, contextual_type, expr) {
@@ -92,7 +88,7 @@ impl TypeFinalization {
     fn infer_expr(
         &self,
         ctx: &mut AnalyzerContext,
-        contextual_type: Option<&TypeKind>,
+        contextual_type: &TypeCacheEntry,
         expr: &mut Expr,
     ) -> Option<TypeKind> {
         match &mut expr.item {
@@ -104,18 +100,16 @@ impl TypeFinalization {
                 binary_expr.left.ty.clone()
             }
             ExprKind::Block(block_expr) => {
-                let mut last_type = None;
-
                 for stmt in &mut block_expr.statements {
                     self.finalize_stmt(ctx, contextual_type, stmt);
                 }
 
                 if let Some(expr) = &mut block_expr.tail_expr {
                     self.finalize_expr(ctx, contextual_type, expr);
-                    last_type = expr.ty.clone();
+                    expr.ty.clone()
+                } else {
+                    Some(TypeKind::Unit)
                 }
-
-                last_type.or(Some(TypeKind::Unit))
             }
             ExprKind::Call(call_expr) => todo!(),
             ExprKind::Get(get_expr) => todo!(),
@@ -125,12 +119,21 @@ impl TypeFinalization {
             }
             ExprKind::Ident(ident_expr) => {
                 let symbol_id = ident_expr.symbol.unwrap_id();
-                let type_entry = ctx.type_cache.borrow().get(symbol_id).cloned().unwrap();
-                ctx.type_cache.borrow_mut().resolve(&type_entry)
+
+                let mut ty_cache = ctx.type_cache.borrow_mut();
+
+                if let Some(type_entry) = ty_cache.get(symbol_id).cloned() {
+                    ty_cache.resolve(&type_entry)
+                } else {
+                    None
+                }
             }
             ExprKind::If(if_expr) => todo!(),
             ExprKind::Literal(literal_expr) => {
-                TypeInference::infer_literal_type(contextual_type, literal_expr)
+                dbg!(&contextual_type, &literal_expr);
+
+                dbg!(&ctx.type_cache.borrow());
+                dbg!(TypeInference::infer_literal_type(ctx, contextual_type, literal_expr)).as_concrete().cloned()
             }
             ExprKind::Struct(struct_expr) => todo!(),
             ExprKind::TupleLiteral(tuple_expr) => todo!(),

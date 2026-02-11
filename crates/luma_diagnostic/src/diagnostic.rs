@@ -17,6 +17,16 @@ impl Diagnostic {
         self.span = Some(span);
         self
     }
+
+    pub fn maybe_span(mut self, span: Option<Span>) -> Self {
+        self.span = span;
+        self
+    }
+
+    pub fn context(mut self, context: DiagnosticContext) -> Self {
+        self.additional_contexts.push(context);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

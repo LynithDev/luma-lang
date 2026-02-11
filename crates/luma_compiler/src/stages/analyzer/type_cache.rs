@@ -4,6 +4,7 @@ use luma_diagnostic::{CompilerResult, error};
 
 use crate::{SymbolId, TypeKind, stages::analyzer::AnalyzerError};
 
+#[derive(Debug)]
 pub struct TypeCache {
     /// counter for generating type ids
     next_relative_id: RelativeTypeId,

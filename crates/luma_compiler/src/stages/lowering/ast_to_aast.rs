@@ -247,7 +247,8 @@ fn annotate_if(if_expr: IfExpr) -> CompilerResult<IfAnnotExpr> {
 fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
     let ExprKind::Literal(lit) = &expr.item else {
         return Err(error!(
-            LoweringError::InvalidLiteralConversion {
+            LoweringError::MismatchedNodes {
+                expected: "literal".to_string(),
                 found: expr.item.to_string(),
             },
             expr.span,
@@ -336,7 +337,7 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
                     i16,
                     IntegerOverflow
                 ),
-                TypeKind::Int32 => num_pattern!(
+                TypeKind::Unit | TypeKind::Int32 => num_pattern!(
                     value,
                     u64,
                     Int,
@@ -389,8 +390,8 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
                 }
 
                 _ => Err(error!(
-                    LoweringError::InvalidLiteralConversion {
-                        found: expr.item.to_string(),
+                    LoweringError::InvalidTypeForIntLowering {
+                        found: ty.clone(),
                     },
                     expr.span
                 )),
@@ -401,7 +402,7 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
             let value = *value;
 
             match ty {
-                TypeKind::Float32 => num_pattern!(
+                TypeKind::Unit | TypeKind::Float32 => num_pattern!(
                     value,
                     f64,
                     Float,
@@ -421,8 +422,8 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
                 ),
 
                 _ => Err(error!(
-                    LoweringError::InvalidLiteralConversion {
-                        found: expr.item.to_string(),
+                    LoweringError::InvalidTypeForFloatLowering {
+                        found: ty.clone(),
                     },
                     expr.span,
                 )),

@@ -1,9 +1,9 @@
-func test(param: u32): u32 {
+func test(param: u32): i8 {
     var a = 5;
     var b = {
         var a = 10;
         a
     };
-
+    
     a + b // 15
 };

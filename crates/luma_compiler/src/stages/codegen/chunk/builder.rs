@@ -1,69 +1,93 @@
 use luma_diagnostic::CompilerResult;
 
-use crate::{OperatorKind, aast::*, bytecode::*, stages::codegen::{chunk::{ChunkBuilderEnv, CodeChunk}, module::ModuleContext}};
+use crate::{
+    OperatorKind,
+    aast::*,
+    bytecode::*,
+    stages::codegen::{
+        chunk::{ChunkBuilderEnv, CodeChunk},
+        module::ModuleContext,
+    },
+};
 
 pub struct ChunkBuilder;
 
 impl ChunkBuilder {
-    pub fn build(self, ctx: &ModuleContext, statements: &mut Vec<AnnotStmt>) -> CompilerResult<CodeChunk> {
+    pub fn build(
+        self,
+        ctx: &ModuleContext,
+        statements: &mut Vec<AnnotStmt>,
+    ) -> CompilerResult<CodeChunk> {
         let mut env = ChunkBuilderEnv::new();
 
-        self.traverse(&mut (ctx, &mut env), statements)?;
+        println!("Building chunk for statements: {:#?}", statements);
+
+        self.traverse(
+            &mut ChunkAstVisitorCtx {
+                module: ctx,
+                env: &mut env,
+            },
+            statements,
+        )?;
 
         Ok(env.chunk)
     }
 }
 
-impl< 'a> AnnotAstVisitor<'a> for ChunkBuilder {
-    type Ctx = (&'a ModuleContext, &'a mut ChunkBuilderEnv);
+pub struct ChunkAstVisitorCtx<'a> {
+    pub module: &'a ModuleContext,
+    pub env: &'a mut ChunkBuilderEnv,
+}
 
-    fn try_leave_stmt(&self, (ctx, env): &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
+impl<'a> AnnotAstVisitor<'a> for ChunkBuilder {
+    type Ctx = ChunkAstVisitorCtx<'a>;
+
+    fn try_leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut AnnotStmt) -> CompilerResult<()> {
         #[allow(unused)]
         match &stmt.item {
             AnnotStmtKind::Expr(expr) => {
-                env.emit(Opcode::Pop);
-            },
+                ctx.env.emit(Opcode::Pop);
+            }
             AnnotStmtKind::Func(func_decl) => {
                 // let chunk = Self.build(ctx, &mut func_decl.body)?;
-            },
+            }
             AnnotStmtKind::Return(ret_stmt) => todo!(),
             AnnotStmtKind::Struct(struct_decl) => todo!(),
             AnnotStmtKind::Var(var_decl) => {
-                let slot = env.declare_local(var_decl.symbol.id)?;
+                let slot = ctx.env.declare_local(var_decl.symbol.id)?;
 
-                env.emit(Opcode::SetLocal(slot));
-            },
+                ctx.env.emit(Opcode::SetLocal(slot));
+            }
         }
 
         Ok(())
     }
 
-    fn try_leave_expr(&self, (ctx, env): &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
+    fn try_leave_expr(&self, ctx: &mut Self::Ctx, expr: &mut AnnotExpr) -> CompilerResult<()> {
         #[allow(unused)]
         match &mut expr.item {
             AnnotExprKind::Assign(assign_expr) => todo!(),
             AnnotExprKind::Binary(binary_expr) => {
-                env.emit(match binary_expr.operator.kind {
+                ctx.env.emit(match binary_expr.operator.kind {
                     OperatorKind::Add => Opcode::Add,
-                    _ => todo!()
+                    _ => todo!(),
                 });
-            },
-            AnnotExprKind::Block(block_expr) => {},
+            }
+            AnnotExprKind::Block(block_expr) => {}
             AnnotExprKind::Call(call_expr) => todo!(),
             AnnotExprKind::Get(get_expr) => todo!(),
             AnnotExprKind::Group(expr) => todo!(),
             AnnotExprKind::Ident(ident_expr) => {
-                let slot = env.resolve_local_slot(&ident_expr.symbol.id)?;
-                env.emit(Opcode::GetLocal(slot));
-            },
+                let slot = ctx.env.resolve_local_slot(&ident_expr.symbol.id)?;
+                ctx.env.emit(Opcode::GetLocal(slot));
+            }
             AnnotExprKind::If(if_expr) => todo!(),
-            AnnotExprKind::Literal(literal_expr) => { 
-
+            AnnotExprKind::Literal(literal_expr) => {
                 let bytecode_value = build_literal_expr(literal_expr.clone());
-                let const_index = env.add_constant(bytecode_value)?;
+                let const_index = ctx.env.add_constant(bytecode_value)?;
 
-                env.emit(Opcode::LoadConst(const_index));
-            },
+                ctx.env.emit(Opcode::LoadConst(const_index));
+            }
             AnnotExprKind::Struct(struct_expr) => todo!(),
             AnnotExprKind::TupleLiteral(tuple_expr) => todo!(),
             AnnotExprKind::Unary(unary_expr) => todo!(),
@@ -71,7 +95,6 @@ impl< 'a> AnnotAstVisitor<'a> for ChunkBuilder {
 
         Ok(())
     }
-
 }
 
 fn build_literal_expr(lit: LiteralAnnotExpr) -> BytecodeValue {
@@ -96,5 +119,3 @@ fn build_literal_expr(lit: LiteralAnnotExpr) -> BytecodeValue {
         LiteralAnnotExpr::Unit => unreachable!("unit literals should not be ever be emitted"),
     }
 }
-
-

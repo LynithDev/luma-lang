@@ -44,10 +44,10 @@ pub enum TypeKind {
     UInt32,
     UInt64,
     Int8,
-    Int16,
-    Int32,
+    Int16, 
+    Int32, // int32 is the default int type
     Int64,
-    Float32,
+    Float32, // float32 is the default float type
     Float64,
     Bool,
     Char,

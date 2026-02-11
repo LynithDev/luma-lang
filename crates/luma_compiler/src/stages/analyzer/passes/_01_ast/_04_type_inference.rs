@@ -1,7 +1,9 @@
+use luma_diagnostic::context;
+
 use crate::stages::analyzer::type_cache::TypeCacheEntry;
 use crate::{TypeKind, ast::*};
 
-use crate::stages::analyzer::{AnalyzerContext, AnalyzerPass};
+use crate::stages::analyzer::{AnalyzerContext, AnalyzerErrorContext, AnalyzerPass};
 
 pub struct TypeInference;
 
@@ -11,15 +13,13 @@ impl AnalyzerPass<Ast> for TypeInference {
     }
 
     fn analyze(&self, ctx: &mut AnalyzerContext, input: &mut Ast) {
-        self.traverse(ctx, input);
+        for stmt in &mut input.statements {
+            self.infer_stmt(ctx, &TypeCacheEntry::Concrete(TypeKind::Unit), stmt);
+        }
     }
-}
 
-impl AstVisitor<'_> for TypeInference {
-    type Ctx = AnalyzerContext;
-
-    fn leave_stmt(&self, ctx: &mut Self::Ctx, stmt: &mut Stmt) {
-        self.infer_stmt(ctx, None, stmt);
+    fn continue_after_error(&self) -> bool {
+        false
     }
 }
 
@@ -28,42 +28,57 @@ impl TypeInference {
     fn infer_stmt(
         &self,
         ctx: &mut AnalyzerContext,
-        contextual_type: Option<&TypeKind>,
+        contextual: &TypeCacheEntry,
         stmt: &mut Stmt,
     ) {
         match &mut stmt.item {
             StmtKind::Expr(expr) => {
-                self.infer_expr(ctx, contextual_type, expr);
+                self.infer_expr(ctx, contextual, expr);
             }
             StmtKind::Func(func_decl) => {
                 let symbol_id = func_decl.symbol.unwrap_id();
 
                 let type_entry = {
                     let mut ty_cache = ctx.type_cache.borrow_mut();
-
-                    if let Some(ty) = &func_decl.return_type {
-                        ty_cache.insert_concrete(symbol_id, ty.kind.clone());
-                        TypeCacheEntry::Concrete(ty.kind.clone())
+                    if let Some(ret_type) = &func_decl.return_type {
+                        ty_cache.insert_concrete(symbol_id, ret_type.kind.clone());
+                        TypeCacheEntry::Concrete(ret_type.kind.clone())
                     } else {
                         let id = ty_cache.insert_relative(symbol_id);
                         TypeCacheEntry::Relative(id)
                     }
                 };
 
-                let body_type = self.infer_expr(ctx, type_entry.as_concrete(), &mut func_decl.body);
+                let body_type = self.infer_expr(ctx, &type_entry, &mut func_decl.body);
 
                 if let Err(err) = ctx.type_cache.borrow_mut().unify(&type_entry, &body_type) {
-                    ctx.diagnostic(err.span(func_decl.symbol.span));
+                    ctx.diagnostic(
+                        err.maybe_span(func_decl.return_type.as_ref().and_then(|r| r.span))
+                            .context(context!(
+                                AnalyzerErrorContext::BlockContext,
+                                match &func_decl.body.item {
+                                    ExprKind::Block(block_expr) => block_expr
+                                        .tail_expr
+                                        .as_ref()
+                                        .map(|e| e.span)
+                                        .unwrap_or_else(|| block_expr
+                                            .statements
+                                            .last()
+                                            .map(|s| s.span)
+                                            .unwrap_or(func_decl.symbol.span)),
+                                    _ => func_decl.body.span,
+                                }
+                            )),
+                    );
                 }
             }
-            StmtKind::Return(return_stmt) => todo!(),
-            StmtKind::Struct(struct_decl_stmt) => todo!(),
+            StmtKind::Return(_) => todo!(),
+            StmtKind::Struct(_) => todo!(),
             StmtKind::Var(var_decl) => {
                 let symbol_id = var_decl.symbol.unwrap_id();
 
                 let type_entry = {
                     let mut ty_cache = ctx.type_cache.borrow_mut();
-
                     if let Some(ty) = &var_decl.ty {
                         ty_cache.insert_concrete(symbol_id, ty.kind.clone());
                         TypeCacheEntry::Concrete(ty.kind.clone())
@@ -73,11 +88,16 @@ impl TypeInference {
                     }
                 };
 
-                let init_type =
-                    self.infer_expr(ctx, type_entry.as_concrete(), &mut var_decl.initializer);
+                let init_type = self.infer_expr(ctx, &type_entry, &mut var_decl.initializer);
 
                 if let Err(err) = ctx.type_cache.borrow_mut().unify(&type_entry, &init_type) {
                     ctx.diagnostic(err.span(var_decl.symbol.span));
+                }
+
+                if let Some(concrete_ty) = init_type.as_concrete() {
+                    ctx.type_cache
+                        .borrow_mut()
+                        .insert_concrete(symbol_id, concrete_ty.clone());
                 }
             }
         }
@@ -86,38 +106,35 @@ impl TypeInference {
     fn infer_expr(
         &self,
         ctx: &mut AnalyzerContext,
-        contextual_type: Option<&TypeKind>,
+        contextual: &TypeCacheEntry,
         expr: &mut Expr,
     ) -> TypeCacheEntry {
-        #[allow(unused)]
         match &mut expr.item {
-            ExprKind::Assign(assign_expr) => todo!(),
+            ExprKind::Assign(_) => todo!(),
             ExprKind::Binary(binary_expr) => {
-                let left_type = self.infer_expr(ctx, None, &mut binary_expr.left);
-                let right_type = self.infer_expr(ctx, None, &mut binary_expr.right);
+                let left_type = self.infer_expr(ctx, contextual, &mut binary_expr.left);
+                let right_type = self.infer_expr(ctx, contextual, &mut binary_expr.right);
 
-                if let Err(mut err) = ctx.type_cache.borrow_mut().unify(&left_type, &right_type) {
+                if let Err(err) = ctx.type_cache.borrow_mut().unify(&left_type, &right_type) {
                     ctx.diagnostic(err.span(binary_expr.operator.span));
                 }
 
                 left_type
             }
             ExprKind::Block(block_expr) => {
-                let mut last_type = TypeCacheEntry::Concrete(TypeKind::Unit);
-
                 for stmt in &mut block_expr.statements {
-                    self.infer_stmt(ctx, contextual_type, stmt);
+                    self.infer_stmt(ctx, contextual, stmt);
                 }
 
                 if let Some(expr) = &mut block_expr.tail_expr {
-                    last_type = self.infer_expr(ctx, contextual_type, expr);
+                    self.infer_expr(ctx, contextual, expr)
+                } else {
+                    TypeCacheEntry::Concrete(TypeKind::Unit)
                 }
-                
-                last_type
             }
-            ExprKind::Call(call_expr) => todo!(),
-            ExprKind::Get(get_expr) => todo!(),
-            ExprKind::Group(expr) => self.infer_expr(ctx, contextual_type, expr),
+            ExprKind::Call(_) => todo!(),
+            ExprKind::Get(_) => todo!(),
+            ExprKind::Group(expr) => self.infer_expr(ctx, contextual, expr),
             ExprKind::Ident(ident_expr) => {
                 let symbol_id = ident_expr.symbol.unwrap_id();
                 ctx.type_cache
@@ -126,27 +143,34 @@ impl TypeInference {
                     .cloned()
                     .unwrap_or_else(|| {
                         let id = ctx.type_cache.borrow_mut().insert_relative(symbol_id);
-
                         TypeCacheEntry::Relative(id)
                     })
             }
-            ExprKind::If(if_expr) => todo!(),
-            ExprKind::Literal(literal_expr) => {
-                let ty = Self::infer_literal_type(contextual_type, literal_expr)
-                    .unwrap_or(TypeKind::Unit);
-                TypeCacheEntry::Concrete(ty)
+            ExprKind::If(_) => todo!(),
+            ExprKind::Literal(lit) => {
+                Self::infer_literal_type(ctx, contextual, lit)
             }
-            ExprKind::Struct(struct_expr) => todo!(),
-            ExprKind::TupleLiteral(tuple_expr) => todo!(),
-            ExprKind::Unary(unary_expr) => todo!(),
+            ExprKind::Struct(_) => todo!(),
+            ExprKind::TupleLiteral(_) => todo!(),
+            ExprKind::Unary(_) => todo!(),
         }
     }
 
     pub(super) fn infer_literal_type(
-        contextual_type: Option<&TypeKind>,
+        ctx: &mut AnalyzerContext,
+        contextual_type: &TypeCacheEntry,
         lit: &LiteralExpr,
-    ) -> Option<TypeKind> {
-        Some(match (lit, contextual_type) {
+    ) -> TypeCacheEntry {
+        if let TypeCacheEntry::Relative(id) = contextual_type {
+            // if the contextual type is a relative type, we cant infer the literal type
+            if let Some(resolved) = ctx.type_cache.borrow_mut().resolve(contextual_type) {
+                return TypeCacheEntry::Concrete(resolved);
+            }
+
+            return contextual_type.clone();
+        }
+
+        TypeCacheEntry::Concrete(match (lit, contextual_type.as_concrete()) {
             // integer literals
             (LiteralExpr::Int(n), Some(TypeKind::UInt8)) if *n <= u8::MAX as u64 => TypeKind::UInt8,
             (LiteralExpr::Int(n), Some(TypeKind::UInt16)) if *n <= u16::MAX as u64 => {
@@ -196,7 +220,8 @@ impl TypeInference {
 
             _ => {
                 // type mismatch
-                return None;
+                println!("handle type mismatch errors");
+                return contextual_type.clone();
             }
         })
     }
