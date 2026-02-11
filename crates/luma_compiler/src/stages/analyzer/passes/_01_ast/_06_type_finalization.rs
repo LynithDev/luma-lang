@@ -130,10 +130,7 @@ impl TypeFinalization {
             }
             ExprKind::If(if_expr) => todo!(),
             ExprKind::Literal(literal_expr) => {
-                dbg!(&contextual_type, &literal_expr);
-
-                dbg!(&ctx.type_cache.borrow());
-                dbg!(TypeInference::infer_literal_type(ctx, contextual_type, literal_expr)).as_concrete().cloned()
+                TypeInference::infer_literal_type(ctx, contextual_type, literal_expr).as_concrete().cloned()
             }
             ExprKind::Struct(struct_expr) => todo!(),
             ExprKind::TupleLiteral(tuple_expr) => todo!(),

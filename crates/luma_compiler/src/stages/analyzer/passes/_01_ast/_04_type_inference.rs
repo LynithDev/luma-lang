@@ -162,11 +162,6 @@ impl TypeInference {
         lit: &LiteralExpr,
     ) -> TypeCacheEntry {
         if let TypeCacheEntry::Relative(id) = contextual_type {
-            // if the contextual type is a relative type, we cant infer the literal type
-            if let Some(resolved) = ctx.type_cache.borrow_mut().resolve(contextual_type) {
-                return TypeCacheEntry::Concrete(resolved);
-            }
-
             return contextual_type.clone();
         }
 
