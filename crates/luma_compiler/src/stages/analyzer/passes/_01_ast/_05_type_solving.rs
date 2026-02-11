@@ -125,17 +125,7 @@ impl TypeSolving {
             }
             ExprKind::If(if_expr) => todo!(),
             ExprKind::Literal(literal_expr) => {
-                let contextual_type = if let TypeCacheEntry::Relative(id) = contextual_type {
-                    if let Some(resolved) = ctx.type_cache.borrow_mut().resolve(contextual_type) {
-                        &TypeCacheEntry::Concrete(resolved)
-                    } else {
-                        contextual_type
-                    }
-                } else {
-                    contextual_type
-                };
-
-                TypeInference::infer_literal_type(ctx, contextual_type, literal_expr)
+                TypeInference::infer_literal_type(ctx, contextual_type, literal_expr, true)
             }
             ExprKind::Struct(struct_expr) => todo!(),
             ExprKind::TupleLiteral(tuple_expr) => todo!(),

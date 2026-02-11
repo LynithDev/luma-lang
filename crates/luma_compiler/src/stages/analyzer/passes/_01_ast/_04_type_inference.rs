@@ -148,7 +148,7 @@ impl TypeInference {
             }
             ExprKind::If(_) => todo!(),
             ExprKind::Literal(lit) => {
-                Self::infer_literal_type(ctx, contextual, lit)
+                Self::infer_literal_type(ctx, contextual, lit, false)
             }
             ExprKind::Struct(_) => todo!(),
             ExprKind::TupleLiteral(_) => todo!(),
@@ -160,8 +160,13 @@ impl TypeInference {
         ctx: &mut AnalyzerContext,
         contextual_type: &TypeCacheEntry,
         lit: &LiteralExpr,
+        attempt_resolution: bool,
     ) -> TypeCacheEntry {
         if let TypeCacheEntry::Relative(id) = contextual_type {
+            if attempt_resolution && let Some(resolved) = ctx.type_cache.borrow_mut().resolve(contextual_type) {
+                return TypeCacheEntry::Concrete(resolved);
+            }
+
             return contextual_type.clone();
         }
 
