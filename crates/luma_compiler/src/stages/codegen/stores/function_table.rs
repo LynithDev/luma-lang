@@ -4,7 +4,7 @@ use crate::{SymbolId, stages::codegen::chunk::FunctionChunk};
 
 #[derive(Debug)]
 pub struct FunctionTable {
-    functions: Vec<FunctionChunk>,
+    pub functions: Vec<FunctionChunk>,
     lookup: HashMap<SymbolId, usize>,
 }
 
@@ -25,9 +25,5 @@ impl FunctionTable {
 
     pub fn get_function(&self, symbol_id: &SymbolId) -> Option<&FunctionChunk> {
         self.lookup.get(symbol_id).and_then(|&index| self.functions.get(index))
-    }
-
-    pub fn get_functions(&self) -> &[FunctionChunk] {
-        &self.functions
     }
 }

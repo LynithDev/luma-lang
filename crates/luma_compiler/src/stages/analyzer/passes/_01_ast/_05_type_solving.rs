@@ -70,11 +70,6 @@ impl TypeSolving {
                     ctx.diagnostic(err.span(var_decl.symbol.span));
                 }
 
-                if let Some(concrete_ty) = init_type.as_concrete() {
-                    ctx.type_cache
-                        .borrow_mut()
-                        .insert_concrete(symbol_id, concrete_ty.clone());
-                }
             }
         }
     }
@@ -110,7 +105,7 @@ impl TypeSolving {
             }
             ExprKind::Call(call_expr) => todo!(),
             ExprKind::Get(get_expr) => todo!(),
-            ExprKind::Group(expr) => todo!(),
+            ExprKind::Group(expr) => self.infer_expr(ctx, contextual_type, expr),
             ExprKind::Ident(ident_expr) => {
                 let symbol_id = ident_expr.symbol.unwrap_id();
                 ctx.type_cache
@@ -125,7 +120,15 @@ impl TypeSolving {
             }
             ExprKind::If(if_expr) => todo!(),
             ExprKind::Literal(literal_expr) => {
-                TypeInference::infer_literal_type(ctx, contextual_type, literal_expr, true)
+                if let TypeCacheEntry::Relative(id) = contextual_type {
+                    if let Some(resolved) = ctx.type_cache.borrow_mut().resolve(contextual_type) {
+                        return TypeCacheEntry::Concrete(resolved);
+                    }
+
+                    return contextual_type.clone();
+                }
+
+                TypeInference::infer_literal_type(ctx, contextual_type, literal_expr)
             }
             ExprKind::Struct(struct_expr) => todo!(),
             ExprKind::TupleLiteral(tuple_expr) => todo!(),

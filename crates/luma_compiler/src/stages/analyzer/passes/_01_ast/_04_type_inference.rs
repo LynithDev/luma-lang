@@ -94,11 +94,6 @@ impl TypeInference {
                     ctx.diagnostic(err.span(var_decl.symbol.span));
                 }
 
-                if let Some(concrete_ty) = init_type.as_concrete() {
-                    ctx.type_cache
-                        .borrow_mut()
-                        .insert_concrete(symbol_id, concrete_ty.clone());
-                }
             }
         }
     }
@@ -106,14 +101,14 @@ impl TypeInference {
     fn infer_expr(
         &self,
         ctx: &mut AnalyzerContext,
-        contextual: &TypeCacheEntry,
+        contextual_type: &TypeCacheEntry,
         expr: &mut Expr,
     ) -> TypeCacheEntry {
         match &mut expr.item {
             ExprKind::Assign(_) => todo!(),
             ExprKind::Binary(binary_expr) => {
-                let left_type = self.infer_expr(ctx, contextual, &mut binary_expr.left);
-                let right_type = self.infer_expr(ctx, contextual, &mut binary_expr.right);
+                let left_type = self.infer_expr(ctx, contextual_type, &mut binary_expr.left);
+                let right_type = self.infer_expr(ctx, contextual_type, &mut binary_expr.right);
 
                 if let Err(err) = ctx.type_cache.borrow_mut().unify(&left_type, &right_type) {
                     ctx.diagnostic(err.span(binary_expr.operator.span));
@@ -123,18 +118,18 @@ impl TypeInference {
             }
             ExprKind::Block(block_expr) => {
                 for stmt in &mut block_expr.statements {
-                    self.infer_stmt(ctx, contextual, stmt);
+                    self.infer_stmt(ctx, contextual_type, stmt);
                 }
 
                 if let Some(expr) = &mut block_expr.tail_expr {
-                    self.infer_expr(ctx, contextual, expr)
+                    self.infer_expr(ctx, contextual_type, expr)
                 } else {
                     TypeCacheEntry::Concrete(TypeKind::Unit)
                 }
             }
             ExprKind::Call(_) => todo!(),
             ExprKind::Get(_) => todo!(),
-            ExprKind::Group(expr) => self.infer_expr(ctx, contextual, expr),
+            ExprKind::Group(expr) => self.infer_expr(ctx, contextual_type, expr),
             ExprKind::Ident(ident_expr) => {
                 let symbol_id = ident_expr.symbol.unwrap_id();
                 ctx.type_cache
@@ -148,7 +143,7 @@ impl TypeInference {
             }
             ExprKind::If(_) => todo!(),
             ExprKind::Literal(lit) => {
-                Self::infer_literal_type(ctx, contextual, lit, false)
+                Self::infer_literal_type(ctx, contextual_type, lit)
             }
             ExprKind::Struct(_) => todo!(),
             ExprKind::TupleLiteral(_) => todo!(),
@@ -160,16 +155,7 @@ impl TypeInference {
         ctx: &mut AnalyzerContext,
         contextual_type: &TypeCacheEntry,
         lit: &LiteralExpr,
-        attempt_resolution: bool,
     ) -> TypeCacheEntry {
-        if let TypeCacheEntry::Relative(id) = contextual_type {
-            if attempt_resolution && let Some(resolved) = ctx.type_cache.borrow_mut().resolve(contextual_type) {
-                return TypeCacheEntry::Concrete(resolved);
-            }
-
-            return contextual_type.clone();
-        }
-
         TypeCacheEntry::Concrete(match (lit, contextual_type.as_concrete()) {
             // integer literals
             (LiteralExpr::Int(n), Some(TypeKind::UInt8)) if *n <= u8::MAX as u64 => TypeKind::UInt8,
@@ -221,7 +207,7 @@ impl TypeInference {
             _ => {
                 // type mismatch
                 println!("handle type mismatch errors");
-                return contextual_type.clone();
+                return dbg!(contextual_type).clone();
             }
         })
     }

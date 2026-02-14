@@ -1,6 +1,6 @@
 use crate::{
     CompilerContext, CompilerStage, aast::*, bytecode::ModuleBytecode,
-    stages::codegen::module::BytecodeGen,
+    stages::codegen::module::ModuleBuilder,
 };
 
 pub mod chunk;
@@ -32,7 +32,7 @@ impl CompilerStage<'_> for CodegenStage {
         let mut bytecodes = Vec::new();
 
         for ast in input {
-            let bytecode = match BytecodeGen::generate(ast) {
+            let bytecode = match ModuleBuilder::generate(ast) {
                 Ok(bc) => bc,
                 Err(err) => {
                     ctx.add_diag(err);

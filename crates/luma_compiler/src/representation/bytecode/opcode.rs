@@ -17,12 +17,15 @@ pub enum Opcode {
     /// duplicate top of stack
     Dup = 0x04,
 
+    /// return from function
+    Return = 0x05,
+
     // ###########################
     // ###  values / literals  ###
     // ###########################
 
     /// load constant from constant pool
-    LoadConst(u16) = 0x05,
+    LoadConst(u16),
 
     // ##########################
     // ###  binary operators  ###

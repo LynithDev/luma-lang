@@ -8,7 +8,6 @@ use crate::{
 };
 
 pub type LocalSlot = u16;
-pub type ConstSlot = u16;
 
 #[derive(Debug)]
 pub struct ChunkBuilderEnv {
@@ -18,8 +17,6 @@ pub struct ChunkBuilderEnv {
     /// symbol_id -> slot_index
     local_slots: HashMap<usize, LocalSlot>,
 
-    /// constants used in the chunk
-    constants_lookup: HashMap<BytecodeValue, ConstSlot>,
 }
 
 impl ChunkBuilderEnv {
@@ -27,7 +24,6 @@ impl ChunkBuilderEnv {
         Self {
             chunk: CodeChunk::default(),
             local_slots: HashMap::new(),
-            constants_lookup: HashMap::new(),
         }
     }
 
@@ -55,31 +51,6 @@ impl ChunkBuilderEnv {
                 symbol_id: *symbol_id,
             })
         })
-    }
-
-    /// Adds a constant (if it doesn't already exist) to the constant pool
-    /// and returns its index
-    pub fn add_constant(&mut self, value: BytecodeValue) -> CompilerResult<ConstSlot> {
-        if let Some(&index) = self.constants_lookup.get(&value) {
-            return Ok(index);
-        }
-
-        let index = self.chunk.constants.len();
-
-        if index >= ConstSlot::MAX as usize {
-            return Err(error!(CodegenError::TooManyConstants));
-        }
-
-        let index = index as ConstSlot;
-        self.chunk.constants.push(value.clone());
-        self.constants_lookup.insert(value, index);
-
-        Ok(index)
-    }
-
-    /// Retrieves a constant by its index
-    pub fn get_constant(&self, index: ConstSlot) -> Option<&BytecodeValue> {
-        self.chunk.constants.get(index as usize)
     }
 
     /// Emits an opcode

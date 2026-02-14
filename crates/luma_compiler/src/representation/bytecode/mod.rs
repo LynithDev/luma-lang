@@ -1,4 +1,4 @@
-use crate::stages::codegen::chunk::TopLevelChunk;
+use crate::stages::codegen::chunk::FunctionChunk;
 
 mod opcode;
 use luma_core::CodeSourceId;
@@ -10,12 +10,12 @@ pub use value::BytecodeValue;
 #[derive(Debug)]
 pub struct ModuleBytecode {
     pub source_id: CodeSourceId,
-    pub chunk: TopLevelChunk,
+    pub constants: Vec<BytecodeValue>,
+    pub functions: Vec<FunctionChunk>,
 }
 
 impl ModuleBytecode {
-    pub fn as_bytes(&self) -> Vec<u8> {
-        // let mut bytes = Vec::new();
-        todo!("bytecode serialization")
+    pub fn get_init_chunk(&self) -> Option<&FunctionChunk> {
+        self.functions.first()
     }
 }

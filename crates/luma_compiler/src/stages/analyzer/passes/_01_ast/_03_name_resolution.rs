@@ -25,7 +25,7 @@ impl AstVisitor<'_> for NameResolution {
     type Ctx = AnalyzerContext;
 
     // here we resolve identifiers to their declared symbols
-    fn visit_expr(&self, ctx: &mut Self::Ctx, expr: &mut Expr) {
+    fn leave_expr(&self, ctx: &mut Self::Ctx, expr: &mut Expr) {
         match &mut expr.item {
             ExprKind::Ident(ident_expr) => {
                 let symbol = &mut ident_expr.symbol;

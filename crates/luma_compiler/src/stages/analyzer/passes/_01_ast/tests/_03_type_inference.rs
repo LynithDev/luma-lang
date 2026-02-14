@@ -1,3 +1,5 @@
+use pretty_assertions::assert_eq;
+
 use crate::{TypeKind, ast::*};
 
 use crate::stages::analyzer::passes::_01_ast::tests::{analyze_source, extract_stmt};
@@ -23,17 +25,16 @@ pub fn basic_var_inference() {
     );
 
     // checking initializer type
-    assert!(matches!(
+    assert_eq!(
         initializer.ty,
         Some(TypeKind::Int32)
-    ));
+    );
 
     // checking variable type
-    assert!(matches!(
+    assert_eq!(
         var_ty.as_ref().expect("variable type should be inferred").kind,
         TypeKind::Int32
-    ));
-
+    );
 
     // 2. explicit type inference
     extract_stmt!(
@@ -43,10 +44,10 @@ pub fn basic_var_inference() {
     );
 
     // checking initializer type
-    assert!(matches!(
+    assert_eq!(
         initializer.ty,
         Some(TypeKind::UInt64)
-    ));
+    );
 
 
     // 3. implicit float inference
@@ -57,14 +58,44 @@ pub fn basic_var_inference() {
     );
 
     // checking initializer type
-    assert!(matches!(
+    assert_eq!(
         initializer.ty,
         Some(TypeKind::Float32)
-    ));
+    );
 
     // checking variable type
-    assert!(matches!(
+    assert_eq!(
         var_ty.as_ref().expect("variable type should be inferred").kind,
         TypeKind::Float32
-    ));
+    );
+}
+
+#[test]
+fn func_type_inference() {
+    let ast = analyze_source(r#"
+        func test(): i8 {
+            var a = 5;
+            a
+        };
+    "#).expect("failed to analyze source");
+
+    extract_stmt!(
+        StmtKind::Func(FuncDeclStmt {
+            body, ..
+        }) = ast[0] 
+    );
+
+    let stmt = match &body.item {
+        ExprKind::Block(block) => block.statements.last().unwrap().item.clone(),
+        _ => panic!("expected function body to be a block expression"),
+    };
+
+    let StmtKind::Var(decl) = stmt else {
+        panic!("expected last statement in function body to be a variable declaration");
+    };
+
+    assert_eq!(
+        decl.initializer.ty,
+        Some(TypeKind::Int8)
+    );
 }

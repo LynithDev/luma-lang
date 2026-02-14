@@ -15,6 +15,7 @@ pub enum BytecodeValue {
     Bool(bool),
     Char(char),
     String(String),
+    Unit,
 }
 
 impl Eq for BytecodeValue {}
@@ -38,6 +39,8 @@ impl Hash for BytecodeValue {
             BytecodeValue::Bool(v) => v.hash(state),
             BytecodeValue::Char(v) => v.hash(state),
             BytecodeValue::String(v) => v.hash(state),
+
+            BytecodeValue::Unit => state.write_u8(0),
         }
     }
 }

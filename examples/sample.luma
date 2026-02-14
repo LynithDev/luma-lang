@@ -7,3 +7,17 @@ func test(param: u32): i8 {
     
     a + b // 15
 };
+
+func test2(param: u32): i8 {
+    var a = 5;
+    var a_2 = 10;
+    var b = a_2;
+    a + b 
+};
+
+var a = 10;
+
+func test(): i8 {
+    var a = 5;
+    a
+};
