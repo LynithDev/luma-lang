@@ -1,6 +1,6 @@
 use luma_diagnostic::CompilerResult;
 
-use crate::{aast::AnnotatedAst, bytecode::ModuleBytecode, stages::codegen::chunk::{ChunkBuilder, FunctionChunk}};
+use crate::{aast::AnnotatedAst, bytecode::{ModuleBytecode, Opcode}, stages::codegen::chunk::{ChunkBuilder, FunctionChunk}};
 
 mod ctx;
 
@@ -16,7 +16,9 @@ impl ModuleBuilder {
         
         // build top level chunk into a function chunk
         // the function chunk is a specially reserved function that serves as the "init" function for the module
-        let top_level_chunk = ChunkBuilder.build(&mut ctx, &mut ast.statements)?;
+        let mut top_level_chunk = ChunkBuilder.build(&mut ctx, &mut ast.statements)?;
+        top_level_chunk.emit(Opcode::Return)?;
+
         let init_func = FunctionChunk {
             code: top_level_chunk,
             arity: 0,

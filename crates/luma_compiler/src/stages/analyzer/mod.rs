@@ -4,7 +4,6 @@ mod ctx;
 pub use ctx::*;
 
 pub(super) mod scopes;
-pub(super) mod registry;
 pub(super) mod symbols;
 pub(super) mod type_cache;
 pub mod passes;

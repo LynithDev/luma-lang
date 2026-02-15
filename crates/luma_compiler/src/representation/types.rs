@@ -54,6 +54,7 @@ pub enum TypeKind {
     String,
     
     // special
+    Error, // used to represent a type error, prevents cascading errors
     Tuple(Vec<Type>),
     Unit,
     Ptr(Box<Type>),
@@ -77,7 +78,7 @@ impl Display for TypeKind {
                 let elements = elements.iter().map(|ty| ty.to_string()).collect::<Vec<_>>().join(", ");
                 write!(f, "({})", elements)
             },
-            Self::Named { name, .. } => write!(f, "named@{}", name),
+            Self::Named { name, .. } => write!(f, "{}", name),
             Self::UInt8 => write!(f, "u8"),
             Self::UInt16 => write!(f, "u16"),
             Self::UInt32 => write!(f, "u32"),
@@ -88,6 +89,7 @@ impl Display for TypeKind {
             Self::Int64 => write!(f, "i64"),
             Self::Float32 => write!(f, "f32"),
             Self::Float64 => write!(f, "f64"),
+            Self::Error => write!(f, "<error>"),
         }
     }
 }

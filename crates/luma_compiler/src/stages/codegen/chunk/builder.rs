@@ -39,7 +39,6 @@ impl ChunkBuilder {
 
         let has_return = env
             .chunk
-            .instructions
             .last()
             .is_some_and(|instr| matches!(instr, Opcode::Return));
 
@@ -47,8 +46,8 @@ impl ChunkBuilder {
         if !has_return {
             let unit_const = module.constant_table.add_constant(BytecodeValue::Unit)?;
 
-            env.emit(Opcode::LoadConst(unit_const));
-            env.emit(Opcode::Return);
+            env.chunk.emit(Opcode::LoadConst(unit_const));
+            env.chunk.emit(Opcode::Return);
         }
 
         Ok(FunctionChunk {
@@ -67,7 +66,7 @@ impl ChunkBuilder {
             AnnotStmtKind::Expr(expr) => {
                 self.compile_expr(module, env, expr)?;
 
-                env.emit(Opcode::Pop);
+                env.chunk.emit(Opcode::Pop);
             }
             AnnotStmtKind::Func(func_decl) => {
                 let func_chunk = self.build_function(module, func_decl)?;
@@ -82,7 +81,7 @@ impl ChunkBuilder {
 
                 self.compile_expr(module, env, &mut var_decl.initializer)?;
 
-                env.emit(Opcode::SetLocal(slot));
+                env.chunk.emit(Opcode::SetLocal(slot));
             }
         }
 
@@ -98,7 +97,7 @@ impl ChunkBuilder {
         match &mut expr.item {
             AnnotExprKind::Assign(assign_expr) => todo!(),
             AnnotExprKind::Binary(binary_expr) => {
-                env.emit(match binary_expr.operator.kind {
+                env.chunk.emit(match binary_expr.operator.kind {
                     OperatorKind::Add => Opcode::Add,
                     _ => todo!(),
                 });
@@ -120,14 +119,38 @@ impl ChunkBuilder {
             AnnotExprKind::Ident(ident_expr) => {
                 let slot = env.resolve_local_slot(&ident_expr.symbol.id)?;
 
-                env.emit(Opcode::GetLocal(slot));
+                env.chunk.emit(Opcode::GetLocal(slot));
             }
-            AnnotExprKind::If(if_expr) => todo!(),
+            AnnotExprKind::If(if_expr) => {
+                // condition
+                self.compile_expr(module, env, &mut if_expr.condition)?;
+                let jump_to_else = env.chunk.emit(Opcode::JumpIfFalse(0))?;
+
+                // then branch
+                let then_max_locals = env.chunk.max_locals;
+                self.compile_expr(module, env, &mut if_expr.then_branch)?;
+                let jump_to_end = env.chunk.emit(Opcode::Jump(0))?;
+
+                // else branch start
+                let else_max_locals = env.chunk.max_locals;
+                let else_start = env.chunk.instr_len();
+                env.chunk.patch(jump_to_else, Opcode::JumpIfFalse(else_start))?;
+
+                if let Some(else_branch) = &mut if_expr.else_branch {
+                    self.compile_expr(module, env, else_branch)?;
+                }
+
+                // end
+                let max_locals = then_max_locals.max(else_max_locals);
+                env.chunk.max_locals = max_locals;
+                let end = env.chunk.instr_len();
+                env.chunk.patch(jump_to_end, Opcode::Jump(end))?;
+            },
             AnnotExprKind::Literal(literal_expr) => {
                 let bytecode_value = lit_to_value(literal_expr.clone());
                 let const_index = module.constant_table.add_constant(bytecode_value)?;
 
-                env.emit(Opcode::LoadConst(const_index));
+                env.chunk.emit(Opcode::LoadConst(const_index));
             }
             AnnotExprKind::Struct(struct_expr) => todo!(),
             AnnotExprKind::TupleLiteral(tuple_expr) => todo!(),

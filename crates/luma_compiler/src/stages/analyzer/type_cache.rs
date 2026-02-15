@@ -74,31 +74,82 @@ impl TypeCache {
         }
     }
 
-    pub fn unify(&mut self, a: &TypeCacheEntry, b: &TypeCacheEntry) -> CompilerResult<()> {
-        match (a, b) {
-            (TypeCacheEntry::Concrete(a_ty), TypeCacheEntry::Concrete(b_ty)) => {
-                if a_ty == b_ty {
+    pub fn unify(&mut self, source: &TypeCacheEntry, target: &TypeCacheEntry) -> CompilerResult<()> {
+        match (source, target) {
+            (TypeCacheEntry::Concrete(source_ty), TypeCacheEntry::Concrete(target_ty)) => {
+                if source_ty == target_ty {
                     Ok(())
                 } else {
-                    Err(error!(AnalyzerError::TypeMismatch { 
-                        expected: a_ty.clone(), found: b_ty.clone() 
+                    Err(error!(AnalyzerError::TypeMismatch {
+                        expected: source_ty.clone(),
+                        found: target_ty.clone(),
                     }))
                 }
             }
+
             (TypeCacheEntry::Relative(r1), TypeCacheEntry::Relative(r2)) => {
-                let root1 = self.find_relative(*r1).ok_or(error!(AnalyzerError::TypeInferenceFailure))?;
-                let root2 = self.find_relative(*r2).ok_or(error!(AnalyzerError::TypeInferenceFailure))?;
-                if root1 != root2 {
-                    self.parents.insert(root1, root2);
+                let root1 = self
+                    .find_relative(*r1)
+                    .ok_or(error!(AnalyzerError::TypeInferenceFailure))?;
+                let root2 = self
+                    .find_relative(*r2)
+                    .ok_or(error!(AnalyzerError::TypeInferenceFailure))?;
+
+                if root1 == root2 {
+                    return Ok(());
                 }
-                Ok(())
+
+                let resolved1 = self.resolved.get(&root1).cloned();
+                let resolved2 = self.resolved.get(&root2).cloned();
+
+                self.parents.insert(root1, root2);
+
+                match (resolved1, resolved2) {
+                    (Some(t1), Some(t2)) => {
+                        if t1 != t2 {
+                            let resolved_type = self.resolve_conflict(&t1, &t2)?;
+                            self.resolved.insert(root2, resolved_type.clone());
+                            Ok(())
+                        } else {
+                            self.resolved.insert(root2, t1);
+                            Ok(())
+                        }
+                    }
+                    (Some(t), None) | (None, Some(t)) => {
+                        self.resolved.insert(root2, t);
+                        Ok(())
+                    }
+                    (None, None) => Ok(()),
+                }
             }
+
             (TypeCacheEntry::Relative(r), TypeCacheEntry::Concrete(ty))
             | (TypeCacheEntry::Concrete(ty), TypeCacheEntry::Relative(r)) => {
-                let root = self.find_relative(*r).ok_or(error!(AnalyzerError::TypeInferenceFailure))?;
-                self.resolved.insert(root, ty.clone());
+                let root = self
+                    .find_relative(*r)
+                    .ok_or(error!(AnalyzerError::TypeInferenceFailure))?;
+
+                if let Some(existing) = self.resolved.get(&root) {
+                    if existing != ty {
+                        self.resolved.insert(root, ty.clone());
+                    }
+                } else {
+                    self.resolved.insert(root, ty.clone());
+                }
+
                 Ok(())
             }
+        }
+    }
+
+    fn resolve_conflict(&self, t1: &TypeKind, t2: &TypeKind) -> CompilerResult<TypeKind> {
+        if t1 == &TypeKind::UInt32 || t2 == &TypeKind::UInt32 {
+            Ok(TypeKind::UInt32)
+        } else {
+            Err(error!(AnalyzerError::TypeMismatch {
+                expected: t1.clone(),
+                found: t2.clone(),
+            }))
         }
     }
 
@@ -107,7 +158,11 @@ impl TypeCache {
             TypeCacheEntry::Concrete(ty) => Some(ty.clone()),
             TypeCacheEntry::Relative(r) => {
                 let root = self.find_relative(*r)?;
-                self.resolved.get(&root).cloned()
+                if let Some(resolved) = self.resolved.get(&root).cloned() {
+                    Some(resolved)
+                } else {
+                    Some(TypeKind::Error)
+                }
             }
         }
     }
@@ -116,4 +171,3 @@ impl TypeCache {
         self.map.get(&symbol)
     }
 }
-

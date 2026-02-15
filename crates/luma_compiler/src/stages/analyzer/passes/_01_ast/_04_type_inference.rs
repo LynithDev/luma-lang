@@ -1,9 +1,10 @@
-use luma_diagnostic::context;
+use luma_core::Span;
+use luma_diagnostic::{context, error};
 
 use crate::stages::analyzer::type_cache::TypeCacheEntry;
 use crate::{TypeKind, ast::*};
 
-use crate::stages::analyzer::{AnalyzerContext, AnalyzerErrorContext, AnalyzerPass};
+use crate::stages::analyzer::{AnalyzerContext, AnalyzerError, AnalyzerErrorContext, AnalyzerPass};
 
 pub struct TypeInference;
 
@@ -25,12 +26,7 @@ impl AnalyzerPass<Ast> for TypeInference {
 
 #[allow(unused)]
 impl TypeInference {
-    fn infer_stmt(
-        &self,
-        ctx: &mut AnalyzerContext,
-        contextual: &TypeCacheEntry,
-        stmt: &mut Stmt,
-    ) {
+    fn infer_stmt(&self, ctx: &mut AnalyzerContext, contextual: &TypeCacheEntry, stmt: &mut Stmt) {
         match &mut stmt.item {
             StmtKind::Expr(expr) => {
                 self.infer_expr(ctx, contextual, expr);
@@ -93,7 +89,6 @@ impl TypeInference {
                 if let Err(err) = ctx.type_cache.borrow_mut().unify(&type_entry, &init_type) {
                     ctx.diagnostic(err.span(var_decl.symbol.span));
                 }
-
             }
         }
     }
@@ -141,9 +136,70 @@ impl TypeInference {
                         TypeCacheEntry::Relative(id)
                     })
             }
-            ExprKind::If(_) => todo!(),
+            ExprKind::If(if_expr) => {
+                let cond_type = self.infer_expr(
+                    ctx,
+                    &TypeCacheEntry::Concrete(TypeKind::Bool),
+                    &mut if_expr.condition,
+                );
+
+                if let Err(err) = ctx
+                    .type_cache
+                    .borrow_mut()
+                    .unify(&cond_type, &TypeCacheEntry::Concrete(TypeKind::Bool))
+                {
+                    ctx.diagnostic(err.span(if_expr.condition.span));
+                    return TypeCacheEntry::Concrete(TypeKind::Error);
+                }
+
+                let then_type = self.infer_expr(ctx, contextual_type, &mut if_expr.then_branch);
+
+                if let Err(err) = ctx
+                    .type_cache
+                    .borrow_mut()
+                    .unify(contextual_type, &then_type)
+                {
+                    ctx.diagnostic(err.span(if_expr.then_branch.span));
+                    return TypeCacheEntry::Concrete(TypeKind::Error);
+                }
+
+                if let Some(else_branch) = &mut if_expr.else_branch {
+                    let else_type = self.infer_expr(ctx, contextual_type, else_branch);
+
+                    if let Err(err) = ctx
+                        .type_cache
+                        .borrow_mut()
+                        .unify(contextual_type, &else_type)
+                    {
+                        ctx.diagnostic(err.span(else_branch.span));
+                        return TypeCacheEntry::Concrete(TypeKind::Error);
+                    }
+
+                    let resolved_then_type = ctx
+                        .type_cache
+                        .borrow_mut()
+                        .resolve(&then_type)
+                        .unwrap_or(TypeKind::Error);
+
+                    let resolved_else_type = ctx
+                        .type_cache
+                        .borrow_mut()
+                        .resolve(&else_type)
+                        .unwrap_or(TypeKind::Error);
+
+                    if let Err(err) = ctx.type_cache.borrow_mut().unify(
+                        &TypeCacheEntry::Concrete(resolved_then_type.clone()),
+                        &TypeCacheEntry::Concrete(resolved_else_type.clone()),
+                    ) {
+                        ctx.diagnostic(err.span(expr.span));
+                        return TypeCacheEntry::Concrete(TypeKind::Error);
+                    }
+                }
+
+                then_type
+            }
             ExprKind::Literal(lit) => {
-                Self::infer_literal_type(ctx, contextual_type, lit)
+                Self::infer_literal_type(ctx, contextual_type, lit, expr.span)
             }
             ExprKind::Struct(_) => todo!(),
             ExprKind::TupleLiteral(_) => todo!(),
@@ -155,6 +211,7 @@ impl TypeInference {
         ctx: &mut AnalyzerContext,
         contextual_type: &TypeCacheEntry,
         lit: &LiteralExpr,
+        span: Span,
     ) -> TypeCacheEntry {
         TypeCacheEntry::Concrete(match (lit, contextual_type.as_concrete()) {
             // integer literals
@@ -206,8 +263,18 @@ impl TypeInference {
 
             _ => {
                 // type mismatch
-                println!("handle type mismatch errors");
-                return dbg!(contextual_type).clone();
+                ctx.diagnostic(
+                    error!(AnalyzerError::LiteralTypeMismatch {
+                        literal: lit.clone(),
+                        expected: contextual_type
+                            .as_concrete()
+                            .cloned()
+                            .unwrap_or(TypeKind::Unit),
+                    })
+                    .span(span),
+                );
+
+                return TypeCacheEntry::Concrete(TypeKind::Error);
             }
         })
     }

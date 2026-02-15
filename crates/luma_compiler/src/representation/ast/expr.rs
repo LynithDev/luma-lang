@@ -91,7 +91,7 @@ pub struct IfExpr {
     pub else_branch: Option<Box<Expr>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Display, Debug, Clone, PartialEq)]
 pub enum LiteralExpr {
     Int(u64),
     Float(f64),

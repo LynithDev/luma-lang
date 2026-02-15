@@ -1,23 +1,10 @@
-func test(param: u32): i8 {
-    var a = 5;
-    var b = {
-        var a = 10;
-        a
-    };
-    
-    a + b // 15
-};
-
-func test2(param: u32): i8 {
-    var a = 5;
-    var a_2 = 10;
-    var b = a_2;
-    a + b 
-};
-
-var a = 10;
-
-func test(): i8 {
-    var a = 5;
+var cond: u32 = if true {
+    var a = 10;
     a
+} else if false {
+    var b = 20;
+    b
+} else {
+    var c = 30;
+    c
 };

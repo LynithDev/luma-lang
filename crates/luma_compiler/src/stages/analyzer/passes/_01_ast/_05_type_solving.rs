@@ -60,16 +60,11 @@ impl TypeSolving {
                     ty_cache.get(symbol_id).cloned().unwrap()
                 };
 
-                let init_type = self.infer_expr(
-                    ctx,
-                    &type_entry,
-                    &mut var_decl.initializer,
-                );
+                let init_type = self.infer_expr(ctx, &type_entry, &mut var_decl.initializer);
 
                 if let Err(err) = ctx.type_cache.borrow_mut().unify(&type_entry, &init_type) {
                     ctx.diagnostic(err.span(var_decl.symbol.span));
                 }
-
             }
         }
     }
@@ -118,7 +113,47 @@ impl TypeSolving {
                         TypeCacheEntry::Relative(id)
                     })
             }
-            ExprKind::If(if_expr) => todo!(),
+            ExprKind::If(if_expr) => {
+                let cond_type = self.infer_expr(
+                    ctx,
+                    &TypeCacheEntry::Concrete(TypeKind::Bool),
+                    &mut if_expr.condition,
+                );
+
+                if let Err(err) = ctx
+                    .type_cache
+                    .borrow_mut()
+                    .unify(&cond_type, &TypeCacheEntry::Concrete(TypeKind::Bool))
+                {
+                    ctx.diagnostic(err.span(if_expr.condition.span));
+                    return TypeCacheEntry::Concrete(TypeKind::Error);
+                }
+
+                let then_type = self.infer_expr(ctx, contextual_type, &mut if_expr.then_branch);
+
+                if let Err(err) = ctx.type_cache.borrow_mut().unify(contextual_type, &then_type) {
+                    ctx.diagnostic(err.span(if_expr.then_branch.span));
+                    return TypeCacheEntry::Concrete(TypeKind::Error);
+                }
+
+                let else_type = if let Some(else_branch) = &mut if_expr.else_branch {
+                    let entry = self.infer_expr(ctx, contextual_type, else_branch);
+                    if let Err(err) = ctx.type_cache.borrow_mut().unify(contextual_type, &entry) {
+                        ctx.diagnostic(err.span(else_branch.span));
+                        return TypeCacheEntry::Concrete(TypeKind::Error);
+                    }
+                    entry
+                } else {
+                    TypeCacheEntry::Concrete(TypeKind::Unit)
+                };
+
+                if let Err(err) = ctx.type_cache.borrow_mut().unify(&then_type, &else_type) {
+                    ctx.diagnostic(err.span(expr.span));
+                    return TypeCacheEntry::Concrete(TypeKind::Error);
+                }
+
+                then_type
+            }
             ExprKind::Literal(literal_expr) => {
                 if let TypeCacheEntry::Relative(id) = contextual_type {
                     if let Some(resolved) = ctx.type_cache.borrow_mut().resolve(contextual_type) {
@@ -128,7 +163,7 @@ impl TypeSolving {
                     return contextual_type.clone();
                 }
 
-                TypeInference::infer_literal_type(ctx, contextual_type, literal_expr)
+                TypeInference::infer_literal_type(ctx, contextual_type, literal_expr, expr.span)
             }
             ExprKind::Struct(struct_expr) => todo!(),
             ExprKind::TupleLiteral(tuple_expr) => todo!(),

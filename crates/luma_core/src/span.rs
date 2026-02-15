@@ -19,6 +19,15 @@ impl Span {
         }
     }
 
+    #[must_use]
+    pub fn derive(self, start: Option<u32>, end: Option<u32>) -> Self {
+        Self {
+            source_id: self.source_id,
+            start: start.unwrap_or(self.start),
+            end: end.unwrap_or(self.end),
+        }
+    }
+
     pub fn merge(&mut self, other: &Span) {
         self.start = self.start.min(other.start);
         self.end = self.end.max(other.end);

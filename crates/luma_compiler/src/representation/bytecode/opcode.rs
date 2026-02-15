@@ -27,6 +27,19 @@ pub enum Opcode {
     /// load constant from constant pool
     LoadConst(u16),
 
+    // ###########################
+    // ###   control flow      ###
+    // ###########################
+
+    /// unconditional jump
+    Jump(u16),
+
+    /// conditional jump if top of stack is true
+    JumpIfTrue(u16),
+
+    /// conditional jump if top of stack is false
+    JumpIfFalse(u16),
+
     // ##########################
     // ###  binary operators  ###
     // ##########################

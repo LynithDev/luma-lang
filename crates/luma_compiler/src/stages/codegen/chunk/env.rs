@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use luma_diagnostic::{CompilerResult, error};
 
-use crate::{
-    bytecode::*,
-    stages::codegen::{CodegenError, chunk::CodeChunk},
-};
+use crate::stages::codegen::{CodegenError, chunk::CodeChunk};
 
 pub type LocalSlot = u16;
 
@@ -16,7 +13,6 @@ pub struct ChunkBuilderEnv {
     /// maps local variables to their slot index
     /// symbol_id -> slot_index
     local_slots: HashMap<usize, LocalSlot>,
-
 }
 
 impl ChunkBuilderEnv {
@@ -51,22 +47,5 @@ impl ChunkBuilderEnv {
                 symbol_id: *symbol_id,
             })
         })
-    }
-
-    /// Emits an opcode
-    pub fn emit(&mut self, opcode: Opcode) {
-        self.chunk.instructions.push(opcode);
-    }
-
-    /// Updates an opcode at a specific index
-    pub fn patch_instr(&mut self, index: usize, opcode: Opcode) -> CompilerResult<()> {
-        if index >= self.chunk.instructions.len() {
-            return Err(error!(CodegenError::InvalidPatchPosition {
-                position: index,
-            }));
-        }
-
-        self.chunk.instructions[index] = opcode;
-        Ok(())
     }
 }

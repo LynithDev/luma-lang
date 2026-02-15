@@ -129,14 +129,23 @@ impl TypeFinalization {
                     None
                 }
             }
-            ExprKind::If(if_expr) => todo!(),
+            ExprKind::If(if_expr) => {
+                self.finalize_expr(ctx, &TypeCacheEntry::Concrete(TypeKind::Bool), &mut if_expr.condition);
+                self.finalize_expr(ctx, contextual_type, &mut if_expr.then_branch);
+
+                if let Some(else_branch) = &mut if_expr.else_branch {
+                    self.finalize_expr(ctx, contextual_type, else_branch);
+                }
+
+                if_expr.then_branch.ty.clone()
+            },
             ExprKind::Literal(literal_expr) => {
                 let entry = if let TypeCacheEntry::Relative(id) = contextual_type
                     && let Some(resolved) = ctx.type_cache.borrow_mut().resolve(contextual_type)
                 {
                     TypeCacheEntry::Concrete(resolved)
                 } else {
-                    TypeInference::infer_literal_type(ctx, contextual_type, literal_expr)
+                    TypeInference::infer_literal_type(ctx, contextual_type, literal_expr, expr.span)
                 };
 
                 entry.as_concrete().cloned()

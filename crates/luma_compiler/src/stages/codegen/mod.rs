@@ -6,7 +6,6 @@ use crate::{
 pub mod chunk;
 mod diagnostics;
 pub mod module;
-pub mod scope;
 pub mod stores;
 
 pub use diagnostics::*;

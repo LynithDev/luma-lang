@@ -1,4 +1,4 @@
-use crate::{ScopeId, TypeKind};
+use crate::{ScopeId, TypeKind, ast::LiteralExpr};
 use luma_diagnostic::{define_contexts, define_diagnostics};
 
 define_diagnostics! {
@@ -26,6 +26,11 @@ define_diagnostics! {
         TypeMismatch {
             expected: TypeKind,
             found: TypeKind,
+        },
+        #[Error("literal type mismatch", "expected type '{expected}' but found '{literal}'")]
+        LiteralTypeMismatch {
+            literal: LiteralExpr,
+            expected: TypeKind,
         },
     }
 }
