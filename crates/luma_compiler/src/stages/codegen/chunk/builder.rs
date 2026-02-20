@@ -124,25 +124,38 @@ impl ChunkBuilder {
             AnnotExprKind::If(if_expr) => {
                 // condition
                 self.compile_expr(module, env, &mut if_expr.condition)?;
-                let jump_to_else = env.chunk.emit(Opcode::JumpIfFalse(0))?;
+                let jump_to_else = if if_expr.else_branch.is_some() {
+                    Some(env.chunk.emit(Opcode::JumpIfFalse(0))?)
+                } else {
+                    None
+                };
 
                 // then branch
-                let then_max_locals = env.chunk.max_locals;
-                self.compile_expr(module, env, &mut if_expr.then_branch)?;
+                let pre_max_locals = env.chunk.max_locals;
+                let then_locals = {
+                    self.compile_expr(module, env, &mut if_expr.then_branch)?;
+                    env.chunk.max_locals - pre_max_locals    
+                };
+                    
                 let jump_to_end = env.chunk.emit(Opcode::Jump(0))?;
 
-                // else branch start
-                let else_max_locals = env.chunk.max_locals;
-                let else_start = env.chunk.instr_len();
-                env.chunk.patch(jump_to_else, Opcode::JumpIfFalse(else_start))?;
-
+                // else branch
                 if let Some(else_branch) = &mut if_expr.else_branch {
-                    self.compile_expr(module, env, else_branch)?;
+                    let else_start = env.chunk.instr_len();
+                    env.chunk.patch(jump_to_else.unwrap(), Opcode::JumpIfFalse(else_start))?;
+                    
+                    let else_locals = {
+                        let pre_else_locals = env.chunk.max_locals;
+                        self.compile_expr(module, env, else_branch)?;
+                        env.chunk.max_locals - pre_else_locals
+                    };
+
+                    env.chunk.max_locals = pre_max_locals + then_locals.max(else_locals);
+                } else {
+                    env.chunk.max_locals = pre_max_locals + then_locals;
                 }
 
                 // end
-                let max_locals = then_max_locals.max(else_max_locals);
-                env.chunk.max_locals = max_locals;
                 let end = env.chunk.instr_len();
                 env.chunk.patch(jump_to_end, Opcode::Jump(end))?;
             },
