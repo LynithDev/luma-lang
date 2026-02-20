@@ -1,13 +1,1 @@
-var cond: u32 = if true {
-    var a = 10;
-    a
-} else if false {
-    var b = 20;
-    var b2 = b + 5;
-    b2
-} else {
-    var c = 30;
-    var b = 20;
-    var b2 = b + 5;
-    c
-};
+var test = -5;

@@ -167,7 +167,17 @@ impl ChunkBuilder {
             }
             AnnotExprKind::Struct(struct_expr) => todo!(),
             AnnotExprKind::TupleLiteral(tuple_expr) => todo!(),
-            AnnotExprKind::Unary(unary_expr) => todo!(),
+            AnnotExprKind::Unary(unary_expr) => {
+                self.compile_expr(module, env, &mut unary_expr.value)?;
+
+                let opcode = match unary_expr.operator.kind {
+                    OperatorKind::Subtract => Opcode::Negate,
+                    OperatorKind::Not => Opcode::Not,
+                    _ => unreachable!("unexpected unary operator"),
+                };
+
+                env.chunk.emit(opcode);
+            },
         }
 
         Ok(())

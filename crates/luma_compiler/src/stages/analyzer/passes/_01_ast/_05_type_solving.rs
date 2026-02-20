@@ -167,7 +167,9 @@ impl TypeSolving {
             }
             ExprKind::Struct(struct_expr) => todo!(),
             ExprKind::TupleLiteral(tuple_expr) => todo!(),
-            ExprKind::Unary(unary_expr) => todo!(),
+            ExprKind::Unary(unary_expr) => {
+                self.infer_expr(ctx, contextual_type, &mut unary_expr.value)
+            },
         }
     }
 }

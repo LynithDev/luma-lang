@@ -152,7 +152,11 @@ impl TypeFinalization {
             }
             ExprKind::Struct(struct_expr) => todo!(),
             ExprKind::TupleLiteral(tuple_expr) => todo!(),
-            ExprKind::Unary(unary_expr) => todo!(),
+            ExprKind::Unary(unary_expr) => {
+                self.finalize_expr(ctx, contextual_type, &mut unary_expr.value);
+                
+                unary_expr.value.ty.clone()
+            },
         }
     }
 }

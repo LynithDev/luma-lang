@@ -203,7 +203,9 @@ impl TypeInference {
             }
             ExprKind::Struct(_) => todo!(),
             ExprKind::TupleLiteral(_) => todo!(),
-            ExprKind::Unary(_) => todo!(),
+            ExprKind::Unary(unary_expr) => {
+                self.infer_expr(ctx, contextual_type, &mut unary_expr.value)
+            },
         }
     }
 

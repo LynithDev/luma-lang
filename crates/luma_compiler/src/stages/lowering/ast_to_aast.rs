@@ -258,7 +258,7 @@ fn lower_literal(expr: &Expr) -> CompilerResult<LiteralAnnotExpr> {
     let ty = expr
         .ty
         .as_ref()
-        .ok_or(error!(LoweringError::UnknownType, expr.span,))?;
+        .ok_or(error!(LoweringError::UnknownType, expr.span))?;
 
     macro_rules! num_pattern {
         ($value:expr, $value_ty:ty, $lit_kind:tt, $wrapper_struct:ty, $ty_kind:tt, $ty:ty, $err_kind:tt) => {{

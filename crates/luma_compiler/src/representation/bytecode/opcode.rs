@@ -72,8 +72,12 @@ pub enum Opcode {
 
     And,
     Or,
+    BitNot,
+
+    // ###########################
+    // ###  unary operators  ###
+    // ###########################
     Negate,
     Not,
-    BitNot,
 
 }
