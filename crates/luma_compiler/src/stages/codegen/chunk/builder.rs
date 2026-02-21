@@ -13,7 +13,7 @@ pub struct ChunkBuilder;
 
 #[allow(unused)]
 impl ChunkBuilder {
-    pub fn build(
+    pub fn build_top_level(
         self,
         module: &mut ModuleContext,
         statements: &mut Vec<AnnotStmt>,
@@ -24,10 +24,13 @@ impl ChunkBuilder {
             self.compile_stmt(module, &mut env, stmt)?;
         }
 
+        self.emit_unit(module, &mut env)?;
+        env.chunk.emit(Opcode::Return);
+
         Ok(env.chunk)
     }
 
-    fn build_function(
+    pub fn build_function(
         &self,
         module: &mut ModuleContext,
         func_decl: &FuncDeclAnnotStmt,
@@ -43,9 +46,7 @@ impl ChunkBuilder {
 
         // means its a void function, emit a Unit value to stack to replace the call stack slot, then return to indicate end of function
         if !has_return {
-            let unit_const = module.constant_table.add_constant(BytecodeValue::Unit)?;
-
-            env.chunk.emit(Opcode::LoadConst(unit_const));
+            self.emit_unit(module, &mut env)?;
             env.chunk.emit(Opcode::Return);
         }
 
@@ -70,7 +71,15 @@ impl ChunkBuilder {
                     .function_table
                     .add_function(func_decl.symbol.id, func_chunk);
             }
-            AnnotStmtKind::Return(ret_stmt) => todo!(),
+            AnnotStmtKind::Return(ret_stmt) => {
+                if let Some(expr) = &ret_stmt.value {
+                    self.compile_expr(module, env, expr, true)?;
+                } else {
+                    self.emit_unit(module, env)?;
+                }
+
+                env.chunk.emit(Opcode::Return);
+            },
             AnnotStmtKind::Struct(struct_decl) => todo!(),
             AnnotStmtKind::Var(var_decl) => {
                 let slot = env.declare_local(var_decl.symbol.id)?;
@@ -132,9 +141,8 @@ impl ChunkBuilder {
                 if let Some(expr) = &block_expr.tail_expr {
                     self.compile_expr(module, env, expr, value_used)?;
                 } else if value_used {
-                    // if there's no tail expression but the block's value is used, we need to push a unit value to the stack
-                    let unit_const = module.constant_table.add_constant(BytecodeValue::Unit)?;
-                    env.chunk.emit(Opcode::LoadConst(unit_const));
+                    // if there's no tail expression but the block's value is used, push a unit value to the stack
+                    self.emit_unit(module, env)?;
                 }
             }
             AnnotExprKind::Call(call_expr) => todo!(),
@@ -145,8 +153,6 @@ impl ChunkBuilder {
 
                 env.chunk.emit(Opcode::GetLocal(slot));
 
-                // tbh this should probably just not emit anything if the value isn't used
-                // todo: decide on this
                 if !value_used {
                     env.chunk.emit(Opcode::Pop);
                 }
@@ -192,9 +198,14 @@ impl ChunkBuilder {
             }
             AnnotExprKind::Literal(literal_expr) => {
                 let bytecode_value = lit_to_value(literal_expr.clone());
-                let const_index = module.constant_table.add_constant(bytecode_value)?;
 
-                env.chunk.emit(Opcode::LoadConst(const_index));
+                if let BytecodeValue::Unit = bytecode_value {
+                    env.chunk.emit(Opcode::PushUnit);
+                } else {
+                    let const_index = module.constant_table.add_constant(bytecode_value)?;
+                    env.chunk.emit(Opcode::LoadConst(const_index));
+                }
+
 
                 if !value_used {
                     env.chunk.emit(Opcode::Pop);
@@ -218,6 +229,16 @@ impl ChunkBuilder {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    fn emit_unit(
+        &self,
+        module: &mut ModuleContext,
+        env: &mut ChunkBuilderEnv,
+    ) -> CompilerResult<()> {
+        env.chunk.emit(Opcode::PushUnit);
 
         Ok(())
     }

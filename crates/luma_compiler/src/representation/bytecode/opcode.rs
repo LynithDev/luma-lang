@@ -27,6 +27,9 @@ pub enum Opcode {
     /// load constant from constant pool
     LoadConst(u16),
 
+    /// pushes unit value onto stack
+    PushUnit,
+
     // ###########################
     // ###   control flow      ###
     // ###########################
