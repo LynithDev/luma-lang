@@ -100,7 +100,16 @@ impl TypeInference {
         expr: &mut Expr,
     ) -> TypeCacheEntry {
         match &mut expr.item {
-            ExprKind::Assign(_) => todo!(),
+            ExprKind::Assign(assign_expr) => {
+                let left_type = self.infer_expr(ctx, contextual_type, &mut assign_expr.target);
+                let right_type = self.infer_expr(ctx, contextual_type, &mut assign_expr.value);
+
+                if let Err(err) = ctx.type_cache.borrow_mut().unify(&left_type, &right_type) {
+                    ctx.diagnostic(err.span(expr.span));
+                }
+
+                left_type
+            },
             ExprKind::Binary(binary_expr) => {
                 let left_type = self.infer_expr(ctx, contextual_type, &mut binary_expr.left);
                 let right_type = self.infer_expr(ctx, contextual_type, &mut binary_expr.right);
@@ -215,7 +224,9 @@ impl TypeInference {
         lit: &LiteralExpr,
         span: Span,
     ) -> TypeCacheEntry {
-        TypeCacheEntry::Concrete(match (lit, contextual_type.as_concrete()) {
+        let contextual_type = contextual_type.as_concrete().filter(|t| !t.is_unit());
+
+        TypeCacheEntry::Concrete(match (lit, contextual_type) {
             // integer literals
             (LiteralExpr::Int(n), Some(TypeKind::UInt8)) if *n <= u8::MAX as u64 => TypeKind::UInt8,
             (LiteralExpr::Int(n), Some(TypeKind::UInt16)) if *n <= u16::MAX as u64 => {
@@ -260,7 +271,6 @@ impl TypeInference {
             (LiteralExpr::Char(_), None) => TypeKind::Char,
 
             // unit literals
-            (LiteralExpr::Unit, Some(TypeKind::Unit)) => TypeKind::Unit,
             (LiteralExpr::Unit, _) => TypeKind::Unit,
 
             _ => {
@@ -269,7 +279,6 @@ impl TypeInference {
                     error!(AnalyzerError::LiteralTypeMismatch {
                         literal: lit.clone(),
                         expected: contextual_type
-                            .as_concrete()
                             .cloned()
                             .unwrap_or(TypeKind::Unit),
                     })

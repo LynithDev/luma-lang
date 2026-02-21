@@ -1,7 +1,6 @@
 use luma_diagnostic::CompilerResult;
 
 use crate::{
-    OperatorKind,
     aast::*,
     bytecode::*,
     stages::codegen::{
@@ -31,11 +30,11 @@ impl ChunkBuilder {
     fn build_function(
         &self,
         module: &mut ModuleContext,
-        func_decl: &mut FuncDeclAnnotStmt,
+        func_decl: &FuncDeclAnnotStmt,
     ) -> CompilerResult<FunctionChunk> {
         let mut env: ChunkBuilderEnv = ChunkBuilderEnv::new();
 
-        self.compile_expr(module, &mut env, &mut func_decl.body)?;
+        self.compile_expr(module, &mut env, &func_decl.body, true)?;
 
         let has_return = env
             .chunk
@@ -60,26 +59,23 @@ impl ChunkBuilder {
         &self,
         module: &mut ModuleContext,
         env: &mut ChunkBuilderEnv,
-        stmt: &mut AnnotStmt,
+        stmt: &AnnotStmt,
     ) -> CompilerResult<()> {
-        match &mut stmt.item {
-            AnnotStmtKind::Expr(expr) => {
-                self.compile_expr(module, env, expr)?;
-
-                env.chunk.emit(Opcode::Pop);
-            }
+        match &stmt.item {
+            AnnotStmtKind::Expr(expr) => self.compile_expr(module, env, expr, false)?,
             AnnotStmtKind::Func(func_decl) => {
                 let func_chunk = self.build_function(module, func_decl)?;
 
-                let func_index = module.function_table.add_function(func_decl.symbol.id, func_chunk);
-
+                let func_index = module
+                    .function_table
+                    .add_function(func_decl.symbol.id, func_chunk);
             }
             AnnotStmtKind::Return(ret_stmt) => todo!(),
             AnnotStmtKind::Struct(struct_decl) => todo!(),
             AnnotStmtKind::Var(var_decl) => {
                 let slot = env.declare_local(var_decl.symbol.id)?;
 
-                self.compile_expr(module, env, &mut var_decl.initializer)?;
+                self.compile_expr(module, env, &var_decl.initializer, true)?;
 
                 env.chunk.emit(Opcode::SetLocal(slot));
             }
@@ -92,38 +88,72 @@ impl ChunkBuilder {
         &self,
         module: &mut ModuleContext,
         env: &mut ChunkBuilderEnv,
-        expr: &mut AnnotExpr,
+        expr: &AnnotExpr,
+        value_used: bool,
     ) -> CompilerResult<()> {
-        match &mut expr.item {
-            AnnotExprKind::Assign(assign_expr) => todo!(),
+        match &expr.item {
+            AnnotExprKind::Assign(assign_expr) => {
+                self.compile_expr(module, env, &assign_expr.value, true)?;
+                if let Some(operator) = &assign_expr.operator {
+                    // env.chunk.emit()
+                    todo!()
+                } else {
+                    // simple assign (no special operator like +=, -=, etc.)
+                    match &assign_expr.target.item {
+                        AnnotExprKind::Ident(ident) => {
+                            let slot = env.resolve_local_slot(&ident.symbol.id)?;
+
+                            env.chunk.emit(Opcode::SetLocal(slot));
+
+                            if value_used {
+                                env.chunk.emit(Opcode::GetLocal(slot));
+                            }
+                        }
+                        _ => todo!(),
+                    };
+                }
+            }
             AnnotExprKind::Binary(binary_expr) => {
-                env.chunk.emit(match binary_expr.operator.kind {
-                    OperatorKind::Add => Opcode::Add,
-                    _ => todo!(),
-                });
+                self.compile_expr(module, env, &binary_expr.left, true)?;
+                self.compile_expr(module, env, &binary_expr.right, true)?;
+
+                let opcode = operator_to_opcode(binary_expr.operator.kind.clone());
+                env.chunk.emit(opcode);
+
+                if !value_used {
+                    env.chunk.emit(Opcode::Pop);
+                }
             }
             AnnotExprKind::Block(block_expr) => {
-                for stmt in &mut block_expr.statements {
+                for stmt in &block_expr.statements {
                     self.compile_stmt(module, env, stmt)?;
                 }
 
-                if let Some(expr) = &mut block_expr.tail_expr {
-                    self.compile_expr(module, env, expr)?;
+                if let Some(expr) = &block_expr.tail_expr {
+                    self.compile_expr(module, env, expr, value_used)?;
+                } else if value_used {
+                    // if there's no tail expression but the block's value is used, we need to push a unit value to the stack
+                    let unit_const = module.constant_table.add_constant(BytecodeValue::Unit)?;
+                    env.chunk.emit(Opcode::LoadConst(unit_const));
                 }
             }
             AnnotExprKind::Call(call_expr) => todo!(),
             AnnotExprKind::Get(get_expr) => todo!(),
-            AnnotExprKind::Group(expr) => {
-                self.compile_expr(module, env, expr)?;
-            }
+            AnnotExprKind::Group(expr) => self.compile_expr(module, env, expr, value_used)?,
             AnnotExprKind::Ident(ident_expr) => {
                 let slot = env.resolve_local_slot(&ident_expr.symbol.id)?;
 
                 env.chunk.emit(Opcode::GetLocal(slot));
+
+                // tbh this should probably just not emit anything if the value isn't used
+                // todo: decide on this
+                if !value_used {
+                    env.chunk.emit(Opcode::Pop);
+                }
             }
             AnnotExprKind::If(if_expr) => {
                 // condition
-                self.compile_expr(module, env, &mut if_expr.condition)?;
+                self.compile_expr(module, env, &if_expr.condition, true)?;
                 let jump_to_else = if if_expr.else_branch.is_some() {
                     Some(env.chunk.emit(Opcode::JumpIfFalse(0))?)
                 } else {
@@ -133,20 +163,21 @@ impl ChunkBuilder {
                 // then branch
                 let pre_max_locals = env.chunk.max_locals;
                 let then_locals = {
-                    self.compile_expr(module, env, &mut if_expr.then_branch)?;
-                    env.chunk.max_locals - pre_max_locals    
+                    self.compile_expr(module, env, &if_expr.then_branch, value_used)?;
+                    env.chunk.max_locals - pre_max_locals
                 };
-                    
+
                 let jump_to_end = env.chunk.emit(Opcode::Jump(0))?;
 
                 // else branch
-                if let Some(else_branch) = &mut if_expr.else_branch {
+                if let Some(else_branch) = &if_expr.else_branch {
                     let else_start = env.chunk.instr_len();
-                    env.chunk.patch(jump_to_else.unwrap(), Opcode::JumpIfFalse(else_start))?;
-                    
+                    env.chunk
+                        .patch(jump_to_else.unwrap(), Opcode::JumpIfFalse(else_start))?;
+
                     let else_locals = {
                         let pre_else_locals = env.chunk.max_locals;
-                        self.compile_expr(module, env, else_branch)?;
+                        self.compile_expr(module, env, else_branch, value_used)?;
                         env.chunk.max_locals - pre_else_locals
                     };
 
@@ -158,29 +189,61 @@ impl ChunkBuilder {
                 // end
                 let end = env.chunk.instr_len();
                 env.chunk.patch(jump_to_end, Opcode::Jump(end))?;
-            },
+            }
             AnnotExprKind::Literal(literal_expr) => {
                 let bytecode_value = lit_to_value(literal_expr.clone());
                 let const_index = module.constant_table.add_constant(bytecode_value)?;
 
                 env.chunk.emit(Opcode::LoadConst(const_index));
+
+                if !value_used {
+                    env.chunk.emit(Opcode::Pop);
+                }
             }
             AnnotExprKind::Struct(struct_expr) => todo!(),
             AnnotExprKind::TupleLiteral(tuple_expr) => todo!(),
             AnnotExprKind::Unary(unary_expr) => {
-                self.compile_expr(module, env, &mut unary_expr.value)?;
+                self.compile_expr(module, env, &unary_expr.value, true)?;
 
                 let opcode = match unary_expr.operator.kind {
-                    OperatorKind::Subtract => Opcode::Negate,
-                    OperatorKind::Not => Opcode::Not,
-                    _ => unreachable!("unexpected unary operator"),
+                    AnnotOperatorKind::Not => Opcode::Not,
+                    AnnotOperatorKind::Subtract => Opcode::Negate,
+                    _ => unreachable!(),
                 };
 
                 env.chunk.emit(opcode);
-            },
+
+                if !value_used {
+                    env.chunk.emit(Opcode::Pop);
+                }
+            }
         }
 
         Ok(())
+    }
+}
+
+fn operator_to_opcode(op: AnnotOperatorKind) -> Opcode {
+    match op {
+        AnnotOperatorKind::Add => Opcode::Add,
+        AnnotOperatorKind::Subtract => Opcode::Sub,
+        AnnotOperatorKind::Multiply => Opcode::Mul,
+        AnnotOperatorKind::Divide => Opcode::Div,
+        AnnotOperatorKind::Modulo => Opcode::Mod,
+        AnnotOperatorKind::BitwiseAnd => Opcode::BitAnd,
+        AnnotOperatorKind::BitwiseOr => Opcode::BitOr,
+        AnnotOperatorKind::BitwiseXor => Opcode::BitXor,
+        AnnotOperatorKind::ShiftLeft => Opcode::ShiftLeft,
+        AnnotOperatorKind::ShiftRight => Opcode::ShiftRight,
+        AnnotOperatorKind::Equal => Opcode::Equal,
+        AnnotOperatorKind::GreaterThan => Opcode::GreaterThan,
+        AnnotOperatorKind::LessThan => Opcode::LesserThan,
+        AnnotOperatorKind::GreaterThanOrEqual => Opcode::GreaterThanEqual,
+        AnnotOperatorKind::LessThanOrEqual => Opcode::LesserThanEqual,
+        AnnotOperatorKind::NotEqual => Opcode::NotEqual,
+        AnnotOperatorKind::And => Opcode::And,
+        AnnotOperatorKind::Or => Opcode::Or,
+        AnnotOperatorKind::Not => Opcode::Not,
     }
 }
 

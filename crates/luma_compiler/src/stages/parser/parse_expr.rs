@@ -1,4 +1,4 @@
-use crate::{Operator, OperatorKind, ast::*, stages::parser::ParserError};
+use crate::{ast::*, stages::parser::ParserError};
 use luma_diagnostic::{CompilerResult, error};
 
 use crate::stages::{

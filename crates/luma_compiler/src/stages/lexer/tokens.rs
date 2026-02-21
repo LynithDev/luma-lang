@@ -1,4 +1,4 @@
-use crate::{OperatorKind, ast::{Symbol, SymbolKind}};
+use crate::ast::{Symbol, SymbolKind, OperatorKind};
 use luma_core::Span;
 use strum::Display;
 

@@ -1,4 +1,4 @@
-use crate::{Operator, OperatorKind, Type, TypeKind, Visibility, VisibilityKind, ast::*, stages::parser::tests::parse_ast};
+use crate::{Type, TypeKind, Visibility, VisibilityKind, ast::*, stages::parser::tests::parse_ast};
 use luma_core::Span;
 use pretty_assertions::assert_eq;
 

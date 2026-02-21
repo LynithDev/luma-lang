@@ -53,6 +53,34 @@ fn annotate_symbol(symbol: Symbol) -> CompilerResult<AnnotSymbol> {
     })
 }
 
+fn annotate_operator(operator: Operator) -> CompilerResult<AnnotOperator> {
+    Ok(AnnotOperator {
+        kind: match operator.kind {
+            OperatorKind::Assign => unreachable!("assign operator should be handled separately in annotate_assign"),
+            OperatorKind::Not => AnnotOperatorKind::Not,
+            OperatorKind::Add | OperatorKind::AddAssign => AnnotOperatorKind::Add,
+            OperatorKind::Subtract | OperatorKind::SubtractAssign => AnnotOperatorKind::Subtract,
+            OperatorKind::Multiply | OperatorKind::MultiplyAssign => AnnotOperatorKind::Multiply,
+            OperatorKind::Divide | OperatorKind::DivideAssign => AnnotOperatorKind::Divide,
+            OperatorKind::Modulo | OperatorKind::ModuloAssign => AnnotOperatorKind::Modulo,
+            OperatorKind::And | OperatorKind::AndAssign => AnnotOperatorKind::And,
+            OperatorKind::Or | OperatorKind::OrAssign => AnnotOperatorKind::Or,
+            OperatorKind::Equal => AnnotOperatorKind::Equal,
+            OperatorKind::NotEqual => AnnotOperatorKind::NotEqual,
+            OperatorKind::LessThan => AnnotOperatorKind::LessThan,
+            OperatorKind::GreaterThan => AnnotOperatorKind::GreaterThan,
+            OperatorKind::LessThanOrEqual => AnnotOperatorKind::LessThanOrEqual,
+            OperatorKind::GreaterThanOrEqual => AnnotOperatorKind::GreaterThanOrEqual,
+            OperatorKind::BitwiseAnd | OperatorKind::BitwiseAndAssign => AnnotOperatorKind::BitwiseAnd,
+            OperatorKind::BitwiseOr | OperatorKind::BitwiseOrAssign => AnnotOperatorKind::BitwiseOr,
+            OperatorKind::BitwiseXor | OperatorKind::BitwiseXorAssign => AnnotOperatorKind::BitwiseXor,
+            OperatorKind::ShiftLeft | OperatorKind::ShiftLeftAssign => AnnotOperatorKind::ShiftLeft,
+            OperatorKind::ShiftRight | OperatorKind::ShiftRightAssign => AnnotOperatorKind::ShiftRight,
+        },
+        span: operator.span,
+    })
+}
+
 fn annotate_stmt(stmt: Stmt) -> CompilerResult<AnnotStmt> {
     Ok(AnnotStmt {
         item: match stmt.item {
@@ -176,7 +204,11 @@ fn annotate_expr(expr: Expr) -> CompilerResult<AnnotExpr> {
 fn annotate_assign(assign_expr: AssignExpr) -> CompilerResult<AssignAnnotExpr> {
     Ok(AssignAnnotExpr {
         target: Box::new(annotate_expr(*assign_expr.target)?),
-        operator: assign_expr.operator,
+        operator: if assign_expr.operator.kind == OperatorKind::Assign {
+            None
+        } else {
+            Some(annotate_operator(assign_expr.operator)?)
+        },
         value: Box::new(annotate_expr(*assign_expr.value)?),
     })
 }
@@ -184,7 +216,7 @@ fn annotate_assign(assign_expr: AssignExpr) -> CompilerResult<AssignAnnotExpr> {
 fn annotate_binary(binary_expr: BinaryExpr) -> CompilerResult<BinaryAnnotExpr> {
     Ok(BinaryAnnotExpr {
         left: Box::new(annotate_expr(*binary_expr.left)?),
-        operator: binary_expr.operator,
+        operator: annotate_operator(binary_expr.operator)?,
         right: Box::new(annotate_expr(*binary_expr.right)?),
     })
 }
@@ -465,7 +497,7 @@ fn annotate_tuple(tuple_expr: TupleExpr) -> CompilerResult<TupleAnnotExpr> {
 
 fn annotate_unary(unary_expr: UnaryExpr) -> CompilerResult<UnaryAnnotExpr> {
     Ok(UnaryAnnotExpr {
-        operator: unary_expr.operator,
+        operator: annotate_operator(unary_expr.operator)?,
         value: Box::new(annotate_expr(*unary_expr.value)?),
     })
 }

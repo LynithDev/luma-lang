@@ -76,7 +76,16 @@ impl TypeSolving {
         expr: &mut Expr,
     ) -> TypeCacheEntry {
         match &mut expr.item {
-            ExprKind::Assign(assign_expr) => todo!(),
+            ExprKind::Assign(assign_expr) => {
+                let left_type = self.infer_expr(ctx, contextual_type, &mut assign_expr.target);
+                let right_type = self.infer_expr(ctx, contextual_type, &mut assign_expr.value);
+
+                if let Err(err) = ctx.type_cache.borrow_mut().unify(&left_type, &right_type) {
+                    ctx.diagnostic(err.span(expr.span));
+                }
+
+                left_type
+            },
             ExprKind::Binary(binary_expr) => {
                 let left_type = self.infer_expr(ctx, contextual_type, &mut binary_expr.left);
                 let right_type = self.infer_expr(ctx, contextual_type, &mut binary_expr.right);

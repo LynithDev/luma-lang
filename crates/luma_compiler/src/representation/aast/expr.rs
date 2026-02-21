@@ -1,7 +1,7 @@
 use luma_core::Span;
 use strum::Display;
 
-use crate::{Operator, TypeKind, aast::*, ScopeId};
+use crate::{TypeKind, aast::*, ScopeId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AnnotExpr {
@@ -42,14 +42,14 @@ pub enum AnnotExprKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssignAnnotExpr {
     pub target: Box<AnnotExpr>,
-    pub operator: Operator,
+    pub operator: Option<AnnotOperator>,
     pub value: Box<AnnotExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryAnnotExpr {
     pub left: Box<AnnotExpr>,
-    pub operator: Operator,
+    pub operator: AnnotOperator,
     pub right: Box<AnnotExpr>,
 }
 
@@ -144,6 +144,6 @@ pub struct TupleAnnotExpr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnaryAnnotExpr {
-    pub operator: Operator,
+    pub operator: AnnotOperator,
     pub value: Box<AnnotExpr>,
 }

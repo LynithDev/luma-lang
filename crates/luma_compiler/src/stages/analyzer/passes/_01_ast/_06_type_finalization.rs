@@ -38,6 +38,8 @@ impl TypeFinalization {
         match &mut stmt.item {
             StmtKind::Expr(expr) => {
                 self.finalize_expr(ctx, contextual_type, expr);
+
+                dbg!(&expr);
             }
             StmtKind::Func(func_decl) => {
                 let symbol_id = func_decl.symbol.unwrap_id();
@@ -93,11 +95,16 @@ impl TypeFinalization {
         expr: &mut Expr,
     ) -> Option<TypeKind> {
         match &mut expr.item {
-            ExprKind::Assign(assign_expr) => todo!(),
+            ExprKind::Assign(assign_expr) => {
+                self.finalize_expr(ctx, contextual_type, &mut assign_expr.target);
+                self.finalize_expr(ctx, contextual_type, &mut assign_expr.value);
+
+                assign_expr.target.ty.clone()
+            },
             ExprKind::Binary(binary_expr) => {
                 self.finalize_expr(ctx, contextual_type, &mut binary_expr.left);
                 self.finalize_expr(ctx, contextual_type, &mut binary_expr.right);
-
+                
                 binary_expr.left.ty.clone()
             }
             ExprKind::Block(block_expr) => {

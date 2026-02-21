@@ -1,9 +1,11 @@
 mod expr;
+mod operator;
 mod stmt;
 mod symbol;
 mod walker;
 
 pub use expr::*;
+pub use operator::*;
 pub use stmt::*;
 pub use symbol::*;
 pub use walker::*;

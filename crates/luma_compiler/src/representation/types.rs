@@ -157,6 +157,11 @@ impl TypeKind {
         matches!(self, TypeKind::Bool)
     }
 
+    #[must_use]
+    pub const fn is_unit(&self) -> bool {
+        matches!(self, TypeKind::Unit)
+    }
+
     pub fn bits(&self) -> Option<usize> {
         Some(match self {
             TypeKind::UInt8 | TypeKind::Int8 => 8,
